@@ -25,6 +25,11 @@ func buildClaimsFixture(t *testing.T, now time.Time) *fixture {
 
 	f.git("checkout", "-b", "feature/orphan", "main")
 	f.commit("feat: mystery work", now.AddDate(0, 0, -1))
+
+	// References #99 which exists in no tracker — incidental #N strings
+	// (milestones, "item #2") must not make a branch count as ticketed.
+	f.git("checkout", "-b", "feature/phantom-ref", "main")
+	f.commit("feat: level #99 polish", now.AddDate(0, 0, -1))
 	f.git("checkout", "main")
 	return f
 }
@@ -66,8 +71,9 @@ func TestClaimsVsProof(t *testing.T) {
 	if got := claimsByKind(res, "ticket-stale"); len(got) != 1 || got[0].Subject != "#3" {
 		t.Errorf("ticket-stale = %+v, want exactly #3 (not #2: has activity; not #4: closed; not #5: unassigned backlog)", got)
 	}
-	if got := claimsByKind(res, "unticketed-work"); len(got) != 1 || got[0].Subject != "feature/orphan" {
-		t.Errorf("unticketed-work = %+v, want exactly feature/orphan", got)
+	if got := claimsByKind(res, "unticketed-work"); len(got) != 2 ||
+		got[0].Subject != "feature/orphan" || got[1].Subject != "feature/phantom-ref" {
+		t.Errorf("unticketed-work = %+v, want feature/orphan and feature/phantom-ref (phantom #99 must not count)", got)
 	}
 	if res.Forge != "test/fixture" {
 		t.Errorf("forge = %q, want test/fixture", res.Forge)
@@ -97,9 +103,10 @@ func TestPRStateUpgradesUnits(t *testing.T) {
 	if got := claimsByKind(res, "pr-abandoned"); len(got) != 1 || got[0].Subject != "feature/orphan" {
 		t.Errorf("pr-abandoned = %+v, want feature/orphan", got)
 	}
-	// A branch with a PR is promised work even without issue refs.
-	if got := claimsByKind(res, "unticketed-work"); len(got) != 0 {
-		t.Errorf("unticketed-work = %+v, want none (both branches have PRs)", got)
+	// A branch with a PR is promised work even without issue refs; only the
+	// PR-less phantom-ref branch stays unticketed.
+	if got := claimsByKind(res, "unticketed-work"); len(got) != 1 || got[0].Subject != "feature/phantom-ref" {
+		t.Errorf("unticketed-work = %+v, want exactly feature/phantom-ref", got)
 	}
 }
 

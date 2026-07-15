@@ -66,7 +66,11 @@ func EnrichWithForge(res *Result, data *forge.Data, opts Options) {
 		}
 	}
 
-	evidence := collectIssueEvidence(res.Repo, res.Integration, res.Units, unitHasTicket, opts)
+	known := map[int]bool{}
+	for _, issue := range data.Issues {
+		known[issue.Number] = true
+	}
+	evidence := collectIssueEvidence(res.Repo, res.Integration, res.Units, unitHasTicket, known, opts)
 
 	for _, issue := range data.Issues {
 		if issue.State != "OPEN" {
@@ -115,8 +119,10 @@ type issueEvidence struct {
 
 // collectIssueEvidence scans commit subjects+bodies for #N references: the
 // integration branch within the digest window (merged proof) and each work
-// branch's unmerged commits (intent proof).
-func collectIssueEvidence(repo, base string, units []Unit, skip map[string]bool, opts Options) issueEvidence {
+// branch's unmerged commits (intent proof). Only references to issues that
+// actually exist in the tracker count — commit messages are full of
+// incidental #N strings (milestones, PR numbers, "item #2").
+func collectIssueEvidence(repo, base string, units []Unit, skip map[string]bool, known map[int]bool, opts Options) issueEvidence {
 	ev := issueEvidence{byIssue: map[int]refEvidence{}, unitRefs: map[string]bool{}}
 
 	if out, ok := gitrepo.Try(repo, "log", base,
@@ -144,6 +150,9 @@ func collectIssueEvidence(repo, base string, units []Unit, skip map[string]bool,
 			continue
 		}
 		for _, n := range extract(issueRefPattern, out) {
+			if !known[n] {
+				continue
+			}
 			ev.unitRefs[u.Name] = true
 			e := ev.byIssue[n]
 			e.referenced = true
