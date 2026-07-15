@@ -38,6 +38,12 @@ type Data struct {
 	Repo   string  `json:"repo"`
 	Issues []Issue `json:"issues"`
 	PRs    []PR    `json:"prs"`
+
+	// Checks reports CI state ("success", "failure", "pending", "unknown")
+	// for a commit, or ok=false when the forge can't answer. Lazy per-SHA
+	// call — only consulted for landed specs. Nil when unavailable, and the
+	// audit must then say nothing about CI rather than guess.
+	Checks func(sha string) (string, bool) `json:"-"`
 }
 
 // Fetch tries each supported forge in turn: GitHub via gh, then GitLab via
@@ -72,7 +78,38 @@ func FetchGitHub(path string) (*Data, bool) {
 		"--json", "number,title,state,isDraft,headRefName,updatedAt"); ok {
 		data.PRs = prs
 	}
+	data.Checks = func(sha string) (string, bool) {
+		return githubChecks(path, repoName.NameWithOwner, sha)
+	}
 	return data, true
+}
+
+// githubChecks aggregates check-run conclusions for a commit; any failed or
+// timed-out run makes the whole commit red.
+func githubChecks(path, nwo, sha string) (string, bool) {
+	type checkRuns struct {
+		TotalCount int `json:"total_count"`
+		CheckRuns  []struct {
+			Conclusion string `json:"conclusion"`
+		} `json:"check_runs"`
+	}
+	cr, ok := ghJSON[checkRuns](path, "api", "repos/"+nwo+"/commits/"+sha+"/check-runs")
+	if !ok {
+		return "", false
+	}
+	if cr.TotalCount == 0 {
+		return "unknown", true
+	}
+	state := "success"
+	for _, r := range cr.CheckRuns {
+		switch r.Conclusion {
+		case "failure", "timed_out":
+			return "failure", true
+		case "": // still running
+			state = "pending"
+		}
+	}
+	return state, true
 }
 
 func ghJSON[T any](dir string, args ...string) (T, bool) {
