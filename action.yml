@@ -50,12 +50,19 @@ runs:
           --digest-days "$DIGEST_DAYS" \
           --format md . > "$report"
 
-        num=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" \
-          --json number,title --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -1)
-        if [ -n "$num" ]; then
-          gh issue edit "$num" --body-file "$report"
-          echo "updated drift issue #$num"
-        else
-          gh issue create --title "$ISSUE_TITLE" --body-file "$report"
-          echo "created drift issue"
-        fi
+        # GitHub's API occasionally 504s; retry the upsert a few times
+        # before letting the run fail.
+        for attempt in 1 2 3; do
+          if num=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -1); then
+            if [ -n "$num" ]; then
+              gh issue edit "$num" --body-file "$report" && { echo "updated drift issue #$num"; exit 0; }
+            else
+              gh issue create --title "$ISSUE_TITLE" --body-file "$report" && { echo "created drift issue"; exit 0; }
+            fi
+          fi
+          echo "upsert attempt $attempt failed; retrying in $((attempt * 10))s"
+          sleep $((attempt * 10))
+        done
+        echo "::error::could not upsert the drift issue after 3 attempts"
+        exit 1
