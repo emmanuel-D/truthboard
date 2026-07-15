@@ -113,9 +113,15 @@ func Audit(repo string, opts Options) (*Result, error) {
 	}
 	base := integrationRef(repo, elected)
 
+	// A branch whose tip IS the integration tip has no work of its own —
+	// it's a freshly cut branch, not a merged one, and must not read as
+	// done (nor as anything else: intent without commits is the spec's
+	// planned state, not the branch board's business).
+	baseSHA, _ := gitrepo.Try(repo, "rev-parse", base)
+
 	names := make([]string, 0, len(branches))
 	for name := range branches {
-		if integrationNames[name] || name == elected {
+		if integrationNames[name] || name == elected || branches[name].sha == baseSHA {
 			continue
 		}
 		names = append(names, name)
