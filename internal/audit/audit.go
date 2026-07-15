@@ -1,0 +1,313 @@
+// Package audit derives work-unit statuses, a drift report, and a digest
+// from git history alone. Ported from prototype/scan.py after that logic
+// was validated at 100% done-vs-not-done accuracy on four real repos
+// (see CONCEPT-V1.md §11).
+package audit
+
+import (
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+)
+
+type Status string
+
+const (
+	InProgress Status = "in-progress"
+	Stalled    Status = "stalled"
+	Done       Status = "done"
+)
+
+// integrationNames are branch names that hold integrated work rather than
+// representing a unit of work themselves.
+var integrationNames = map[string]bool{
+	"main": true, "master": true, "develop": true, "release": true, "trunk": true,
+}
+
+// mrMergePattern matches subjects of commits produced by a forge's merge
+// button; such commits on the integration branch are not shadow work.
+var mrMergePattern = regexp.MustCompile(`(?i)see merge request|merge branch|merge pull request`)
+
+type Unit struct {
+	Name       string    `json:"name"`
+	Tip        string    `json:"tip"`
+	LastCommit time.Time `json:"last_commit"`
+	Status     Status    `json:"status"`
+	Evidence   string    `json:"evidence"`
+	Ahead      int       `json:"ahead"`
+	Behind     int       `json:"behind"`
+	Flags      []string  `json:"flags,omitempty"`
+}
+
+type Commit struct {
+	Hash    string `json:"hash"`
+	Date    string `json:"date"`
+	Author  string `json:"author,omitempty"`
+	Subject string `json:"subject"`
+}
+
+type Drift struct {
+	StalePromises    []Unit   `json:"stale_promises"`
+	LandedNotDeleted []Unit   `json:"landed_not_deleted"`
+	ShadowWork       []Commit `json:"shadow_work"`
+}
+
+type Result struct {
+	Repo         string    `json:"repo"`
+	Integration  string    `json:"integration_branch"`
+	ElectedVia   string    `json:"elected_via"`
+	ElectionNote string    `json:"election_note,omitempty"`
+	Units        []Unit    `json:"units"`
+	Drift        Drift     `json:"drift"`
+	Digest       []Commit  `json:"digest"`
+	StaleDays    int       `json:"stale_days"`
+	DigestDays   int       `json:"digest_days"`
+	GeneratedAt  time.Time `json:"generated_at"`
+}
+
+type Options struct {
+	StaleDays  int
+	DigestDays int
+	Now        time.Time // zero value means time.Now()
+}
+
+type branchTip struct {
+	sha  string
+	when time.Time
+}
+
+// Audit runs the full read-only analysis of repo.
+func Audit(repo string, opts Options) (*Result, error) {
+	if opts.Now.IsZero() {
+		opts.Now = time.Now()
+	}
+	if opts.StaleDays <= 0 {
+		opts.StaleDays = 7
+	}
+	if opts.DigestDays <= 0 {
+		opts.DigestDays = 14
+	}
+
+	branches, err := collectBranches(repo)
+	if err != nil {
+		return nil, err
+	}
+	elected, via, note, err := electIntegration(repo, branches)
+	if err != nil {
+		return nil, err
+	}
+	base := integrationRef(repo, elected)
+
+	names := make([]string, 0, len(branches))
+	for name := range branches {
+		if integrationNames[name] || name == elected {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	units := make([]Unit, 0, len(names))
+	for _, name := range names {
+		units = append(units, classify(repo, base, name, branches[name], opts))
+	}
+
+	shadow, err := shadowWork(repo, base, opts.DigestDays)
+	if err != nil {
+		return nil, err
+	}
+	dig, err := digest(repo, base, opts.DigestDays)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &Result{
+		Repo:         repo,
+		Integration:  base,
+		ElectedVia:   via,
+		ElectionNote: note,
+		Units:        units,
+		Digest:       dig,
+		StaleDays:    opts.StaleDays,
+		DigestDays:   opts.DigestDays,
+		GeneratedAt:  opts.Now,
+	}
+	for _, u := range units {
+		switch u.Status {
+		case Stalled:
+			res.Drift.StalePromises = append(res.Drift.StalePromises, u)
+		case Done:
+			res.Drift.LandedNotDeleted = append(res.Drift.LandedNotDeleted, u)
+		}
+	}
+	res.Drift.ShadowWork = shadow
+	return res, nil
+}
+
+// collectBranches gathers local and origin branches, deduplicated by short
+// name, keeping whichever tip is newest.
+func collectBranches(repo string) (map[string]branchTip, error) {
+	out, err := gitrepo.Run(repo, "for-each-ref", "refs/heads", "refs/remotes/origin",
+		"--format=%(refname)|%(objectname)|%(committerdate:iso8601-strict)")
+	if err != nil {
+		return nil, err
+	}
+	branches := map[string]branchTip{}
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 3)
+		if len(parts) != 3 || strings.HasSuffix(parts[0], "/HEAD") {
+			continue
+		}
+		name := strings.TrimPrefix(strings.TrimPrefix(parts[0], "refs/heads/"), "refs/remotes/origin/")
+		when, err := time.Parse(time.RFC3339, parts[2])
+		if err != nil {
+			return nil, fmt.Errorf("parsing commit date for %s: %w", parts[0], err)
+		}
+		if cur, ok := branches[name]; !ok || when.After(cur.when) {
+			branches[name] = branchTip{sha: parts[1], when: when}
+		}
+	}
+	if len(branches) == 0 {
+		return nil, fmt.Errorf("no branches found in %s", repo)
+	}
+	return branches, nil
+}
+
+// electIntegration picks the integration branch. origin/HEAD is the first
+// hint, but a stale remote default must not poison every inference, so among
+// integration-named candidates the most recently active tip wins.
+func electIntegration(repo string, branches map[string]branchTip) (name, via, note string, err error) {
+	hint := ""
+	if ref, ok := gitrepo.Try(repo, "symbolic-ref", "refs/remotes/origin/HEAD"); ok {
+		hint = ref[strings.LastIndex(ref, "/")+1:]
+	}
+	elected, newest := "", time.Time{}
+	for n, tip := range branches {
+		if !integrationNames[n] && n != hint {
+			continue
+		}
+		if tip.when.After(newest) || (tip.when.Equal(newest) && n < elected) {
+			elected, newest = n, tip.when
+		}
+	}
+	if elected == "" {
+		return "", "", "", fmt.Errorf("cannot determine integration branch in %s", repo)
+	}
+	if hint != "" && elected != hint {
+		hintDate := "unknown"
+		if tip, ok := branches[hint]; ok {
+			hintDate = tip.when.Format("2006-01-02")
+		}
+		note = fmt.Sprintf("origin/HEAD points to %q (last active %s) but %q is newer — remote default branch looks misconfigured",
+			hint, hintDate, elected)
+		return elected, "activity election", note, nil
+	}
+	via = "activity election"
+	if elected == hint {
+		via = "origin/HEAD"
+	}
+	return elected, via, "", nil
+}
+
+// integrationRef prefers the remote-tracking ref so a stale local checkout
+// of the integration branch doesn't skew inference.
+func integrationRef(repo, name string) string {
+	if _, ok := gitrepo.Try(repo, "rev-parse", "--verify", "origin/"+name); ok {
+		return "origin/" + name
+	}
+	return name
+}
+
+func classify(repo, base, name string, tip branchTip, opts Options) Unit {
+	u := Unit{Name: name, Tip: tip.sha, LastCommit: tip.when}
+
+	if _, ok := gitrepo.Try(repo, "merge-base", "--is-ancestor", tip.sha, base); ok {
+		u.Status = Done
+		u.Evidence = fmt.Sprintf("tip is ancestor of %s (merged)", base)
+		return u
+	}
+
+	// Squash/rebase merges leave no ancestry; git cherry marks
+	// patch-equivalent commits with '-'.
+	if out, ok := gitrepo.Try(repo, "cherry", base, tip.sha); ok && out != "" {
+		lines := strings.Split(out, "\n")
+		equivalent := 0
+		for _, l := range lines {
+			if strings.HasPrefix(l, "-") {
+				equivalent++
+			}
+		}
+		if equivalent == len(lines) {
+			u.Status = Done
+			u.Evidence = fmt.Sprintf("all %d commits patch-equivalent in %s (squash/rebase merge)", len(lines), base)
+			return u
+		}
+		if equivalent > 0 {
+			u.Flags = append(u.Flags, fmt.Sprintf("%d/%d commits already in %s (partial merge)", equivalent, len(lines), base))
+		}
+	}
+
+	if out, ok := gitrepo.Try(repo, "rev-list", "--left-right", "--count", base+"..."+tip.sha); ok {
+		fmt.Sscanf(out, "%d %d", &u.Behind, &u.Ahead)
+	}
+
+	age := int(opts.Now.Sub(tip.when).Hours() / 24)
+	if age > opts.StaleDays {
+		u.Status = Stalled
+		u.Evidence = fmt.Sprintf("no commits for %d days (%d unmerged)", age, u.Ahead)
+	} else {
+		u.Status = InProgress
+		u.Evidence = fmt.Sprintf("active %dd ago, %d commits ahead, %d behind", age, u.Ahead, u.Behind)
+	}
+	return u
+}
+
+// shadowWork returns non-merge commits landing directly on the integration
+// branch that don't look like a forge merge — work that bypassed any
+// branch/MR flow.
+func shadowWork(repo, base string, days int) ([]Commit, error) {
+	out, err := gitrepo.Run(repo, "log", base, "--first-parent", "--no-merges",
+		fmt.Sprintf("--since=%d.days", days), "--format=%h|%cs|%an|%s")
+	if err != nil {
+		return nil, err
+	}
+	var commits []Commit
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 4)
+		if len(parts) != 4 || mrMergePattern.MatchString(parts[3]) {
+			continue
+		}
+		commits = append(commits, Commit{Hash: parts[0], Date: parts[1], Author: parts[2], Subject: parts[3]})
+	}
+	return commits, nil
+}
+
+func digest(repo, base string, days int) ([]Commit, error) {
+	out, err := gitrepo.Run(repo, "log", base, "--first-parent",
+		fmt.Sprintf("--since=%d.days", days), "--format=%h|%cs|%s")
+	if err != nil {
+		return nil, err
+	}
+	var commits []Commit
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		commits = append(commits, Commit{Hash: parts[0], Date: parts[1], Subject: parts[2]})
+	}
+	return commits, nil
+}

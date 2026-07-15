@@ -1,0 +1,88 @@
+// Command truthboard audits a git repository: it derives work-unit statuses,
+// a drift report, and a digest from repo reality — read-only, never asking a
+// human for status.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+
+	"github.com/emmanuel-D/truthboard/internal/audit"
+	"github.com/emmanuel-D/truthboard/internal/report"
+)
+
+const version = "0.1.0-dev"
+
+const usage = `truthboard — your repo already knows the status
+
+Usage:
+  truthboard audit [flags] [repo]   audit a repository (default: current directory)
+  truthboard version
+
+Flags for audit:
+  --stale-days N    days without commits before a branch counts as stalled (default 7)
+  --digest-days N   window for the digest and shadow-work scan (default 14)
+  --format F        output format: term, md, json (default term)
+  --no-color        disable ANSI colors in term output
+`
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
+	}
+	switch os.Args[1] {
+	case "audit":
+		os.Exit(runAudit(os.Args[2:]))
+	case "version", "--version", "-v":
+		fmt.Println("truthboard " + version)
+	case "help", "--help", "-h":
+		fmt.Print(usage)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
+		os.Exit(2)
+	}
+}
+
+func runAudit(args []string) int {
+	fs := flag.NewFlagSet("audit", flag.ExitOnError)
+	staleDays := fs.Int("stale-days", 7, "days without commits before a branch counts as stalled")
+	digestDays := fs.Int("digest-days", 14, "window for the digest and shadow-work scan")
+	format := fs.String("format", "term", "output format: term, md, json")
+	noColor := fs.Bool("no-color", false, "disable ANSI colors")
+	fs.Parse(args)
+
+	repo := "."
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
+	}
+
+	res, err := audit.Audit(repo, audit.Options{StaleDays: *staleDays, DigestDays: *digestDays})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+
+	switch *format {
+	case "term":
+		err = report.Terminal(os.Stdout, res, !*noColor && isTTY())
+	case "md":
+		err = report.Markdown(os.Stdout, res)
+	case "json":
+		err = report.JSON(os.Stdout, res)
+	default:
+		fmt.Fprintf(os.Stderr, "truthboard: unknown format %q (want term, md, or json)\n", *format)
+		return 2
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func isTTY() bool {
+	info, err := os.Stdout.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
