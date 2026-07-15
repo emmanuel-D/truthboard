@@ -80,7 +80,7 @@ func runAudit(args []string) int {
 		return 1
 	}
 	if !*noForge {
-		if data, ok := forge.FetchGitHub(repo); ok {
+		if data, ok := forge.Fetch(repo); ok {
 			audit.EnrichWithForge(res, data, opts)
 		}
 	}

@@ -47,9 +47,7 @@ func TestClaimsVsProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assigned := []struct {
-		Login string `json:"login"`
-	}{{Login: "emmanuel"}}
+	assigned := []forge.Assignee{{Login: "emmanuel"}}
 	data := &forge.Data{
 		Repo: "test/fixture",
 		Issues: []forge.Issue{
