@@ -1,0 +1,61 @@
+name: 'Truthboard'
+description: >-
+  Read-only drift audit: derives a board from git reality, checks it against
+  tracker claims, and maintains a recurring drift-report issue. Never blocks,
+  never labels, never closes anything.
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  stale-days:
+    description: 'Days without commits before a branch or assigned ticket counts as stalled'
+    default: '7'
+  digest-days:
+    description: 'Window in days for the digest and shadow-work scan'
+    default: '14'
+  issue-title:
+    description: 'Title of the recurring drift issue (matched exactly to update in place)'
+    default: 'Truthboard drift report'
+  github-token:
+    description: 'Token used to read issues/PRs and upsert the drift issue'
+    default: ${{ github.token }}
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+        cache: false
+
+    - name: Build truthboard
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: go build -o "${RUNNER_TEMP}/truthboard" ./cmd/truthboard
+
+    - name: Audit and upsert the drift issue
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        ISSUE_TITLE: ${{ inputs.issue-title }}
+        STALE_DAYS: ${{ inputs.stale-days }}
+        DIGEST_DAYS: ${{ inputs.digest-days }}
+      run: |
+        set -euo pipefail
+        report="${RUNNER_TEMP}/truthboard-report.md"
+        "${RUNNER_TEMP}/truthboard" audit \
+          --stale-days "$STALE_DAYS" \
+          --digest-days "$DIGEST_DAYS" \
+          --format md . > "$report"
+
+        num=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" \
+          --json number,title --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -1)
+        if [ -n "$num" ]; then
+          gh issue edit "$num" --body-file "$report"
+          echo "updated drift issue #$num"
+        else
+          gh issue create --title "$ISSUE_TITLE" --body-file "$report"
+          echo "created drift issue"
+        fi

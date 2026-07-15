@@ -64,6 +64,8 @@ type Result struct {
 	Units        []Unit    `json:"units"`
 	Drift        Drift     `json:"drift"`
 	Digest       []Commit  `json:"digest"`
+	Claims       []Claim   `json:"claims,omitempty"`
+	Forge        string    `json:"forge,omitempty"` // owner/name when forge data enriched the audit
 	StaleDays    int       `json:"stale_days"`
 	DigestDays   int       `json:"digest_days"`
 	GeneratedAt  time.Time `json:"generated_at"`
@@ -80,17 +82,22 @@ type branchTip struct {
 	when time.Time
 }
 
+func (o Options) normalized() Options {
+	if o.Now.IsZero() {
+		o.Now = time.Now()
+	}
+	if o.StaleDays <= 0 {
+		o.StaleDays = 7
+	}
+	if o.DigestDays <= 0 {
+		o.DigestDays = 14
+	}
+	return o
+}
+
 // Audit runs the full read-only analysis of repo.
 func Audit(repo string, opts Options) (*Result, error) {
-	if opts.Now.IsZero() {
-		opts.Now = time.Now()
-	}
-	if opts.StaleDays <= 0 {
-		opts.StaleDays = 7
-	}
-	if opts.DigestDays <= 0 {
-		opts.DigestDays = 14
-	}
+	opts = opts.normalized()
 
 	branches, err := collectBranches(repo)
 	if err != nil {

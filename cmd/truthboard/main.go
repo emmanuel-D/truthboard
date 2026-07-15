@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
+	"github.com/emmanuel-D/truthboard/internal/forge"
 	"github.com/emmanuel-D/truthboard/internal/report"
 )
 
@@ -25,6 +26,7 @@ Flags for audit:
   --digest-days N   window for the digest and shadow-work scan (default 14)
   --format F        output format: term, md, json (default term)
   --no-color        disable ANSI colors in term output
+  --no-forge        skip tracker enrichment (GitHub issues/PRs via gh)
 `
 
 func main() {
@@ -51,6 +53,7 @@ func runAudit(args []string) int {
 	digestDays := fs.Int("digest-days", 14, "window for the digest and shadow-work scan")
 	format := fs.String("format", "term", "output format: term, md, json")
 	noColor := fs.Bool("no-color", false, "disable ANSI colors")
+	noForge := fs.Bool("no-forge", false, "skip tracker enrichment")
 	fs.Parse(args)
 
 	repo := "."
@@ -58,10 +61,16 @@ func runAudit(args []string) int {
 		repo = fs.Arg(0)
 	}
 
-	res, err := audit.Audit(repo, audit.Options{StaleDays: *staleDays, DigestDays: *digestDays})
+	opts := audit.Options{StaleDays: *staleDays, DigestDays: *digestDays}
+	res, err := audit.Audit(repo, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
+	}
+	if !*noForge {
+		if data, ok := forge.FetchGitHub(repo); ok {
+			audit.EnrichWithForge(res, data, opts)
+		}
 	}
 
 	switch *format {

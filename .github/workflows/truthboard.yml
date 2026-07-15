@@ -1,0 +1,23 @@
+# Truthboard on its own repo — also serves as the reference workflow for
+# anyone installing the action elsewhere: replace `uses: ./` with
+# `uses: emmanuel-D/truthboard@main`.
+name: Truthboard
+
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Monday morning
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — the audit reads branch/merge topology
+      - uses: ./

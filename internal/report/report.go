@@ -11,12 +11,36 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/audit"
 )
 
-var statusOrder = []audit.Status{audit.InProgress, audit.Stalled, audit.Done}
+var statusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Stalled, audit.Done}
 
 var ansi = map[audit.Status]string{
+	audit.InReview:   "\033[35m",
 	audit.InProgress: "\033[36m",
 	audit.Stalled:    "\033[33m",
 	audit.Done:       "\033[32m",
+}
+
+var claimHeadlines = map[string]string{
+	"ticket-done-but-open": "Tickets already done but still open",
+	"ticket-stale":         "Open tickets with no repo activity",
+	"unticketed-work":      "Work nobody promised (no ticket, no PR)",
+	"pr-abandoned":         "PRs closed without merging, branch still alive",
+}
+
+var claimOrder = []string{"ticket-done-but-open", "ticket-stale", "unticketed-work", "pr-abandoned"}
+
+// claimCap limits findings shown per kind; noise gets auditors uninstalled
+// (CONCEPT-V2 §8.2), and the JSON format always carries the full list.
+const claimCap = 10
+
+func countClaims(claims []audit.Claim, kind string) int {
+	n := 0
+	for _, c := range claims {
+		if c.Kind == kind {
+			n++
+		}
+	}
+	return n
 }
 
 const (
@@ -105,6 +129,30 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
+	if res.Forge != "" {
+		fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("CLAIMS vs PROOF — tracker: %s", res.Forge)))
+		if len(res.Claims) == 0 {
+			fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — every tracker claim is backed by the repo"))
+		}
+		for _, kind := range claimOrder {
+			shown := 0
+			for _, cl := range res.Claims {
+				if cl.Kind != kind {
+					continue
+				}
+				if shown == 0 {
+					fmt.Fprintf(w, "%s\n", c(ansiYellow, "  "+claimHeadlines[kind]+":"))
+				}
+				if shown == claimCap {
+					fmt.Fprintf(w, "      … and %d more\n", countClaims(res.Claims, kind)-claimCap)
+					break
+				}
+				fmt.Fprintf(w, "    - %s: %s\n", cl.Subject, cl.Detail)
+				shown++
+			}
+		}
+	}
+
 	fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("DIGEST — what landed on %s in the last %d days", res.Integration, res.DigestDays)))
 	for i, cm := range res.Digest {
 		if i == 20 {
@@ -175,6 +223,33 @@ func Markdown(w io.Writer, res *audit.Result) error {
 			names[i] = "`" + u.Name + "`"
 		}
 		fmt.Fprintf(w, "%s\n\n", strings.Join(names, ", "))
+	}
+
+	if res.Forge != "" {
+		fmt.Fprintf(w, "### Claims vs proof — tracker: `%s`\n\n", res.Forge)
+		if len(res.Claims) == 0 {
+			fmt.Fprintf(w, "✅ Clean — every tracker claim is backed by the repo.\n\n")
+		}
+		for _, kind := range claimOrder {
+			shown := 0
+			for _, cl := range res.Claims {
+				if cl.Kind != kind {
+					continue
+				}
+				if shown == 0 {
+					fmt.Fprintf(w, "**%s:**\n\n", claimHeadlines[kind])
+				}
+				if shown == claimCap {
+					fmt.Fprintf(w, "- … and %d more\n", countClaims(res.Claims, kind)-claimCap)
+					break
+				}
+				fmt.Fprintf(w, "- `%s` — %s\n", cl.Subject, cl.Detail)
+				shown++
+			}
+			if shown > 0 {
+				fmt.Fprintln(w)
+			}
+		}
 	}
 
 	fmt.Fprintf(w, "### Landed in the last %d days\n\n", res.DigestDays)
