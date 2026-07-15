@@ -9,14 +9,16 @@ import (
 	"time"
 )
 
+type Assignee struct {
+	Login string `json:"login"`
+}
+
 type Issue struct {
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	State     string    `json:"state"` // OPEN, CLOSED
-	UpdatedAt time.Time `json:"updatedAt"`
-	Assignees []struct {
-		Login string `json:"login"`
-	} `json:"assignees"`
+	Number    int        `json:"number"`
+	Title     string     `json:"title"`
+	State     string     `json:"state"` // OPEN, CLOSED
+	UpdatedAt time.Time  `json:"updatedAt"`
+	Assignees []Assignee `json:"assignees"`
 }
 
 // Assigned reports whether anyone has claimed the issue. An unassigned open
@@ -36,6 +38,16 @@ type Data struct {
 	Repo   string  `json:"repo"`
 	Issues []Issue `json:"issues"`
 	PRs    []PR    `json:"prs"`
+}
+
+// Fetch tries each supported forge in turn: GitHub via gh, then GitLab via
+// glab. Returns ok=false when no forge is reachable — the audit degrades to
+// pure git inference.
+func Fetch(path string) (*Data, bool) {
+	if data, ok := FetchGitHub(path); ok {
+		return data, true
+	}
+	return FetchGitLab(path)
 }
 
 // FetchGitHub returns tracker data for the repository at path, or ok=false
