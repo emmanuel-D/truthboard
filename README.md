@@ -42,6 +42,18 @@ Tools: `list_specs`, `get_brief` (the context packet to start work),
 status — an agent's work shows up on the board the same way a human's does,
 through commits with the spec trailer.
 
+## Web board — for the people who used to ask "what's the status?"
+
+```sh
+truthboard ui              # opens http://127.0.0.1:1337, auto-refreshing
+truthboard ui --forge      # include tracker claims (slower refresh)
+```
+
+A read-only page rendering the spec board, branches, drift, and digest.
+There are no buttons that mutate anything because there is nothing to
+mutate; every non-GET request is rejected before routing. Single embedded
+HTML file via go:embed — still one binary.
+
 ## Audit mode — works on any repo, no specs needed
 
 ```sh
