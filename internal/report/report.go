@@ -13,9 +13,11 @@ import (
 
 var statusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Stalled, audit.Done}
 
-var specStatusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Planned, audit.Stalled, audit.Done}
+// Regressed leads: a done that came undone is the loudest thing a board can say.
+var specStatusOrder = []audit.Status{audit.Regressed, audit.InReview, audit.InProgress, audit.Planned, audit.Stalled, audit.Done}
 
 var ansi = map[audit.Status]string{
+	audit.Regressed:  "\033[31m",
 	audit.InReview:   "\033[35m",
 	audit.InProgress: "\033[36m",
 	audit.Planned:    "\033[34m",
@@ -219,7 +221,11 @@ func Markdown(w io.Writer, res *audit.Result) error {
 				if len(s.Branches) > 0 {
 					title += " (`" + strings.Join(s.Branches, "`, `") + "`)"
 				}
-				fmt.Fprintf(w, "| %s | `%s` | %s | %s |\n", s.Status, s.ID, title, s.Evidence)
+				statusCell := string(s.Status)
+				if s.Status == audit.Regressed {
+					statusCell = "🔴 **regressed**"
+				}
+				fmt.Fprintf(w, "| %s | `%s` | %s | %s |\n", statusCell, s.ID, title, s.Evidence)
 			}
 		}
 		fmt.Fprintln(w)

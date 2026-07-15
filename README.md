@@ -22,8 +22,11 @@ truthboard link tb-4f2a "hotfix/*"          # fix a linking miss — fixes the i
 A spec is one markdown file (YAML frontmatter + Goal/Acceptance body),
 versioned with your code. Linking signals, strongest first: a `Spec: tb-4f2a`
 commit trailer, the id in a branch name, the spec's branch glob. Derived
-statuses: `planned → in-progress → in-review → done` (plus `stalled`).
-There is no command to set a status — that's the product.
+statuses: `planned → in-progress → in-review → done` (plus `stalled`), and a
+done spec loudly becomes `regressed` when its landed work is reverted or CI
+goes red on the landing commit — without CI data the tool says nothing
+rather than guessing. There is no command to set a status — that's the
+product.
 
 ## Audit mode — works on any repo, no specs needed
 
@@ -93,5 +96,5 @@ Single static binary, no runtime dependencies beyond `git` itself.
 `0.1.0-dev` — the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker built on
 the [CONCEPT-V2.md](CONCEPT-V2.md) audit engine. The inference logic was
 validated at 100% done-vs-not-done accuracy against GitHub PR state on real
-repos before being ported to Go (CONCEPT-V1 §11). Not yet built: `regressed`
-status (needs CI signal), scope-creep detection from spec `paths`, web UI.
+repos before being ported to Go (CONCEPT-V1 §11). The roadmap lives in
+`.truthboard/specs/` — run `truthboard audit` on this repo to see it.

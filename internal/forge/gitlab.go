@@ -54,7 +54,37 @@ func FetchGitLab(path string) (*Data, bool) {
 			data.Issues = convertGitLabIssues(issues)
 		}
 	}
+	data.Checks = func(sha string) (string, bool) { return gitlabChecks(path, sha) }
 	return data, true
+}
+
+// gitlabChecks maps the commit's last pipeline status to the shared CI
+// vocabulary; commits with no pipeline are honestly "unknown".
+func gitlabChecks(path, sha string) (string, bool) {
+	raw, ok := runIn(path, "glab", "api", "projects/:id/repository/commits/"+sha)
+	if !ok {
+		return "", false
+	}
+	var resp struct {
+		LastPipeline *struct {
+			Status string `json:"status"`
+		} `json:"last_pipeline"`
+	}
+	if json.Unmarshal(raw, &resp) != nil {
+		return "", false
+	}
+	if resp.LastPipeline == nil {
+		return "unknown", true
+	}
+	switch resp.LastPipeline.Status {
+	case "failed":
+		return "failure", true
+	case "success":
+		return "success", true
+	case "running", "pending", "created":
+		return "pending", true
+	}
+	return "unknown", true
 }
 
 // convertGitLabMRs normalizes MRs to the shared PR shape so the claims

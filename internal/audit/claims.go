@@ -98,6 +98,21 @@ func EnrichWithForge(res *Result, data *forge.Data, opts Options) {
 		}
 	}
 
+	// CI verdict on landed specs: only a red signal changes anything; no
+	// data or pending means saying nothing (honesty rule).
+	if data.Checks != nil {
+		for i := range res.Specs {
+			ss := &res.Specs[i]
+			if ss.Status != Done || ss.Landed == "" {
+				continue
+			}
+			if state, ok := data.Checks(ss.Landed); ok && state == "failure" {
+				ss.Status = Regressed
+				ss.Evidence = fmt.Sprintf("CI is red on landing commit %.7s", ss.Landed)
+			}
+		}
+	}
+
 	for _, u := range res.Units {
 		if u.Status == Done || u.SpecID != "" || unitHasTicket[u.Name] || evidence.unitRefs[u.Name] {
 			continue
