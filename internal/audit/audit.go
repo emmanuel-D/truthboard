@@ -53,9 +53,10 @@ type Commit struct {
 }
 
 type Drift struct {
-	StalePromises    []Unit   `json:"stale_promises"`
-	LandedNotDeleted []Unit   `json:"landed_not_deleted"`
-	ShadowWork       []Commit `json:"shadow_work"`
+	StalePromises    []Unit       `json:"stale_promises"`
+	LandedNotDeleted []Unit       `json:"landed_not_deleted"`
+	ShadowWork       []Commit     `json:"shadow_work"`
+	ScopeCreep       []ScopeCreep `json:"scope_creep,omitempty"`
 }
 
 type Result struct {
