@@ -95,7 +95,7 @@ func EnrichWithForge(res *Result, data *forge.Data, opts Options) {
 	}
 
 	for _, u := range res.Units {
-		if u.Status == Done || unitHasTicket[u.Name] || evidence.unitRefs[u.Name] {
+		if u.Status == Done || u.SpecID != "" || unitHasTicket[u.Name] || evidence.unitRefs[u.Name] {
 			continue
 		}
 		res.Claims = append(res.Claims, Claim{

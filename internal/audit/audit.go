@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/spec"
 )
 
 type Status string
@@ -41,6 +42,7 @@ type Unit struct {
 	Ahead      int       `json:"ahead"`
 	Behind     int       `json:"behind"`
 	Flags      []string  `json:"flags,omitempty"`
+	SpecID     string    `json:"spec,omitempty"` // set when linked to a .truthboard spec
 }
 
 type Commit struct {
@@ -64,8 +66,9 @@ type Result struct {
 	Units        []Unit    `json:"units"`
 	Drift        Drift     `json:"drift"`
 	Digest       []Commit  `json:"digest"`
-	Claims       []Claim   `json:"claims,omitempty"`
-	Forge        string    `json:"forge,omitempty"` // owner/name when forge data enriched the audit
+	Specs        []SpecStatus `json:"specs,omitempty"`
+	Claims       []Claim      `json:"claims,omitempty"`
+	Forge        string       `json:"forge,omitempty"` // owner/name when forge data enriched the audit
 	StaleDays    int       `json:"stale_days"`
 	DigestDays   int       `json:"digest_days"`
 	GeneratedAt  time.Time `json:"generated_at"`
@@ -123,6 +126,11 @@ func Audit(repo string, opts Options) (*Result, error) {
 		units = append(units, classify(repo, base, name, branches[name], opts))
 	}
 
+	specs, err := spec.Load(repo)
+	if err != nil {
+		return nil, err
+	}
+
 	shadow, err := shadowWork(repo, base, opts.DigestDays)
 	if err != nil {
 		return nil, err
@@ -143,7 +151,8 @@ func Audit(repo string, opts Options) (*Result, error) {
 		DigestDays:   opts.DigestDays,
 		GeneratedAt:  opts.Now,
 	}
-	for _, u := range units {
+	linkSpecs(repo, base, res, specs, opts)
+	for _, u := range res.Units {
 		switch u.Status {
 		case Stalled:
 			res.Drift.StalePromises = append(res.Drift.StalePromises, u)

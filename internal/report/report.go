@@ -13,9 +13,12 @@ import (
 
 var statusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Stalled, audit.Done}
 
+var specStatusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Planned, audit.Stalled, audit.Done}
+
 var ansi = map[audit.Status]string{
 	audit.InReview:   "\033[35m",
 	audit.InProgress: "\033[36m",
+	audit.Planned:    "\033[34m",
 	audit.Stalled:    "\033[33m",
 	audit.Done:       "\033[32m",
 }
@@ -71,6 +74,30 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	fmt.Fprintf(w, "integration branch: %s (via %s)\n", c(ansiCyan, res.Integration), res.ElectedVia)
 	if res.ElectionNote != "" {
 		fmt.Fprintf(w, "%s\n", c(ansiYellow, "⚠ "+res.ElectionNote))
+	}
+
+	if len(res.Specs) > 0 {
+		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "SPEC BOARD (intent from .truthboard/specs — status derived, never typed)"))
+		idWidth := 6
+		for _, s := range res.Specs {
+			if len(s.ID) > idWidth {
+				idWidth = len(s.ID)
+			}
+		}
+		for _, st := range specStatusOrder {
+			for _, s := range res.Specs {
+				if s.Status != st {
+					continue
+				}
+				branches := ""
+				if len(s.Branches) > 0 {
+					branches = " [" + strings.Join(s.Branches, ", ") + "]"
+				}
+				fmt.Fprintf(w, "  %s %-*s %s%s\n    %s\n",
+					c(ansi[st], fmt.Sprintf("%-12s", strings.ToUpper(string(st)))),
+					idWidth, s.ID, s.Title, branches, c(ansiDim, s.Evidence))
+			}
+		}
 	}
 
 	fmt.Fprintf(w, "\n%s\n", c(ansiBold, "DERIVED BOARD (no human ever set these statuses)"))
@@ -178,6 +205,24 @@ func Markdown(w io.Writer, res *audit.Result) error {
 		repoLabel, res.Integration, res.ElectedVia, res.GeneratedAt.Format("2006-01-02"))
 	if res.ElectionNote != "" {
 		fmt.Fprintf(w, "> ⚠️ %s\n\n", res.ElectionNote)
+	}
+
+	if len(res.Specs) > 0 {
+		fmt.Fprintf(w, "### Spec board (intent from `.truthboard/specs`)\n\n")
+		fmt.Fprintf(w, "| Status | Spec | Title | Evidence |\n|---|---|---|---|\n")
+		for _, st := range specStatusOrder {
+			for _, s := range res.Specs {
+				if s.Status != st {
+					continue
+				}
+				title := s.Title
+				if len(s.Branches) > 0 {
+					title += " (`" + strings.Join(s.Branches, "`, `") + "`)"
+				}
+				fmt.Fprintf(w, "| %s | `%s` | %s | %s |\n", s.Status, s.ID, title, s.Evidence)
+			}
+		}
+		fmt.Fprintln(w)
 	}
 
 	fmt.Fprintf(w, "### Board (derived, never typed)\n\n")

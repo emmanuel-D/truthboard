@@ -18,7 +18,11 @@ const version = "0.1.0-dev"
 const usage = `truthboard — your repo already knows the status
 
 Usage:
-  truthboard audit [flags] [repo]   audit a repository (default: current directory)
+  truthboard audit [flags] [repo]           audit a repository (default: current directory)
+  truthboard init [repo]                    opt in to spec mode (.truthboard/specs/)
+  truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
+  truthboard brief <spec-id>                print the context packet for an agent or human
+  truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
   truthboard version
 
 Flags for audit:
@@ -37,6 +41,14 @@ func main() {
 	switch os.Args[1] {
 	case "audit":
 		os.Exit(runAudit(os.Args[2:]))
+	case "init":
+		os.Exit(runInit(os.Args[2:]))
+	case "spec":
+		os.Exit(runSpec(os.Args[2:]))
+	case "brief":
+		os.Exit(runBrief(os.Args[2:]))
+	case "link":
+		os.Exit(runLink(os.Args[2:]))
 	case "version", "--version", "-v":
 		fmt.Println("truthboard " + version)
 	case "help", "--help", "-h":

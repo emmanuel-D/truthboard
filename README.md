@@ -2,16 +2,33 @@
 
 **Your repo already knows the status. Stop typing it twice.**
 
-Truthboard is a read-only auditor for git repositories: it derives a project
-board, a drift report, and a stakeholder digest from repo reality — branches,
-merges, patch-equivalence — and never asks a human to update a status.
-It doesn't replace your tracker; it tells you where your tracker is lying.
+Truthboard is a git-native tracker with one rule: **status is derived from
+repo reality, never typed by hand.** Humans and AI agents write down *intent*
+once — a small markdown spec — and the board, drift report, and stakeholder
+digest are computed from branches, merges, and commit trailers. On repos with
+no specs it runs as a pure read-only auditor, and either way it can check
+your existing tracker's claims against what the repo proves.
 
-## Usage
+## Spec mode — the tracker
 
 ```sh
-truthboard audit                  # audit the current directory
-truthboard audit ~/dev/some-repo  # audit another repo
+truthboard init                             # opt in: creates .truthboard/specs/
+truthboard spec new "Add email verification" --owner emmanuel
+truthboard brief tb-4f2a                    # context packet for an AI agent (or a human)
+truthboard audit                            # spec board + drift + digest, all derived
+truthboard link tb-4f2a "hotfix/*"          # fix a linking miss — fixes the input, never the status
+```
+
+A spec is one markdown file (YAML frontmatter + Goal/Acceptance body),
+versioned with your code. Linking signals, strongest first: a `Spec: tb-4f2a`
+commit trailer, the id in a branch name, the spec's branch glob. Derived
+statuses: `planned → in-progress → in-review → done` (plus `stalled`).
+There is no command to set a status — that's the product.
+
+## Audit mode — works on any repo, no specs needed
+
+```sh
+truthboard audit ~/dev/some-repo  # board + drift + digest from git alone
 truthboard audit --format md      # markdown (for a weekly drift issue)
 truthboard audit --format json    # machine-readable (for CI/automation)
 ```
@@ -73,8 +90,8 @@ Single static binary, no runtime dependencies beyond `git` itself.
 
 ## Status
 
-`0.1.0-dev` — Phase 1 (audit engine + CLI) of [CONCEPT-V2.md](CONCEPT-V2.md).
-The inference logic was validated at 100% done-vs-not-done accuracy against
-GitHub PR state on real repos before being ported to Go
-([CONCEPT-V1.md](CONCEPT-V1.md) §11). Next: GitHub Issues adapter and the
-GitHub Action wrapper.
+`0.1.0-dev` — the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker built on
+the [CONCEPT-V2.md](CONCEPT-V2.md) audit engine. The inference logic was
+validated at 100% done-vs-not-done accuracy against GitHub PR state on real
+repos before being ported to Go (CONCEPT-V1 §11). Not yet built: `regressed`
+status (needs CI signal), scope-creep detection from spec `paths`, web UI.
