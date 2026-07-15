@@ -154,7 +154,14 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "    - %s %s %s: %s\n", cm.Date, cm.Hash, cm.Author, truncate(cm.Subject, 70))
 		}
 	}
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 {
+	if len(d.ScopeCreep) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Scope creep (%d): linked work drifting outside declared spec paths", len(d.ScopeCreep))))
+		for _, sc := range d.ScopeCreep {
+			fmt.Fprintf(w, "    - %s / %s: %d%% of the diff (%d/%d files) outside spec paths — mostly %s\n",
+				sc.SpecID, sc.Branch, 100*sc.Outside/sc.Total, sc.Outside, sc.Total, sc.TopDirs)
+		}
+	}
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
@@ -253,8 +260,16 @@ func Markdown(w io.Writer, res *audit.Result) error {
 
 	d := res.Drift
 	fmt.Fprintf(w, "### Drift\n\n")
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 {
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 {
 		fmt.Fprintf(w, "✅ Clean — the board matches reality.\n\n")
+	}
+	if len(d.ScopeCreep) > 0 {
+		fmt.Fprintf(w, "**Scope creep (%d)** — linked work drifting outside declared spec paths:\n\n", len(d.ScopeCreep))
+		for _, sc := range d.ScopeCreep {
+			fmt.Fprintf(w, "- `%s` / `%s` — %d%% of the diff (%d/%d files) outside spec paths, mostly %s\n",
+				sc.SpecID, sc.Branch, 100*sc.Outside/sc.Total, sc.Outside, sc.Total, sc.TopDirs)
+		}
+		fmt.Fprintln(w)
 	}
 	if len(d.StalePromises) > 0 {
 		fmt.Fprintf(w, "**Stale promises (%d)** — work that stopped without landing:\n\n", len(d.StalePromises))

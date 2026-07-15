@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
@@ -46,6 +47,9 @@ func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) 
 				u.SpecID = s.ID
 				linked = append(linked, u)
 				ss.Branches = append(ss.Branches, u.Name)
+				if creep, hit := detectScopeCreep(repo, base, s, u); hit {
+					res.Drift.ScopeCreep = append(res.Drift.ScopeCreep, creep)
+				}
 			}
 		}
 		ss.Landed = landingCommit(repo, base, s)
@@ -87,6 +91,111 @@ func landingCommit(repo, base string, s *spec.Spec) string {
 		return ""
 	}
 	return out
+}
+
+// ScopeCreep reports a spec-linked branch whose diff mostly lives outside
+// the spec's declared paths — "while I was in there" work, caught before
+// review.
+type ScopeCreep struct {
+	SpecID  string `json:"spec"`
+	Branch  string `json:"branch"`
+	Outside int    `json:"outside_files"`
+	Total   int    `json:"total_files"`
+	TopDirs string `json:"top_dirs"`
+}
+
+// detectScopeCreep flags a linked branch when more than half of its changed
+// files fall outside the spec's paths. Specs without paths are never
+// flagged — scope declaration is opt-in.
+func detectScopeCreep(repo, base string, s *spec.Spec, u *Unit) (ScopeCreep, bool) {
+	if len(s.Paths) == 0 || u.Status == Done {
+		return ScopeCreep{}, false
+	}
+	out, ok := gitrepo.Try(repo, "diff", "--name-only", base+"..."+u.Tip)
+	if !ok || out == "" {
+		return ScopeCreep{}, false
+	}
+	files := strings.Split(out, "\n")
+	var outside []string
+	for _, f := range files {
+		if f != "" && !inScope(s.Paths, f) {
+			outside = append(outside, f)
+		}
+	}
+	if len(outside)*2 <= len(files) { // creep means >50% outside
+		return ScopeCreep{}, false
+	}
+	return ScopeCreep{
+		SpecID:  s.ID,
+		Branch:  u.Name,
+		Outside: len(outside),
+		Total:   len(files),
+		TopDirs: topDirs(outside, 3),
+	}, true
+}
+
+func inScope(patterns []string, file string) bool {
+	for _, p := range patterns {
+		if matchScope(p, file) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchScope supports the glob dialect specs actually use: `**` crosses
+// directories, `*`/`?` stay within one, and a plain path with no
+// metacharacters means "this file or anything under this directory".
+func matchScope(pattern, file string) bool {
+	if !strings.ContainsAny(pattern, "*?") {
+		return file == pattern || strings.HasPrefix(file, pattern+"/")
+	}
+	var re strings.Builder
+	re.WriteString(`\A`)
+	for i := 0; i < len(pattern); i++ {
+		switch {
+		case strings.HasPrefix(pattern[i:], "**"):
+			re.WriteString(`.*`)
+			i++
+		case pattern[i] == '*':
+			re.WriteString(`[^/]*`)
+		case pattern[i] == '?':
+			re.WriteString(`[^/]`)
+		default:
+			re.WriteString(regexp.QuoteMeta(string(pattern[i])))
+		}
+	}
+	re.WriteString(`\z`)
+	matched, err := regexp.MatchString(re.String(), file)
+	return err == nil && matched
+}
+
+// topDirs summarizes offending files by directory, biggest offenders first —
+// the finding names directories, never every file.
+func topDirs(files []string, n int) string {
+	counts := map[string]int{}
+	for _, f := range files {
+		dir := path.Dir(f)
+		counts[dir]++
+	}
+	dirs := make([]string, 0, len(counts))
+	for d := range counts {
+		dirs = append(dirs, d)
+	}
+	sort.Slice(dirs, func(i, j int) bool {
+		if counts[dirs[i]] != counts[dirs[j]] {
+			return counts[dirs[i]] > counts[dirs[j]]
+		}
+		return dirs[i] < dirs[j]
+	})
+	if len(dirs) > n {
+		dirs = dirs[:n]
+	}
+	parts := make([]string, len(dirs))
+	for i, d := range dirs {
+		parts[i] = fmt.Sprintf("%s (%d)", d, counts[d])
+	}
+	return strings.Join(parts, ", ")
 }
 
 type revertInfo struct {
