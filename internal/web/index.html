@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Truthboard</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1a2233; --muted: #66707f;
+    --line: #e3e7ee;
+    --regressed: #c62828; --in-review: #7b1fa2; --in-progress: #0277bd;
+    --planned: #546e7a; --stalled: #b26a00; --done: #2e7d32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1a1f28; --text: #e6eaf1; --muted: #97a1b0;
+      --line: #2a3140;
+      --regressed: #ef5350; --in-review: #ce93d8; --in-progress: #4fc3f7;
+      --planned: #90a4ae; --stalled: #ffb74d; --done: #81c784;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 1.5rem; max-width: 62rem; margin: 0 auto; }
+  header h1 { font-size: 1.3rem; }
+  .banner { color: var(--muted); font-size: .85rem; margin: .2rem 0 1.2rem; }
+  .banner b { color: var(--text); }
+  .meta { font-size: .8rem; color: var(--muted); margin-bottom: 1rem; }
+  .warn { background: color-mix(in srgb, var(--stalled) 12%, var(--card)); border: 1px solid var(--stalled); border-radius: 8px; padding: .5rem .8rem; margin-bottom: 1rem; font-size: .85rem; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  section h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .7rem; }
+  .row { display: flex; gap: .7rem; padding: .45rem 0; border-top: 1px solid var(--line); align-items: baseline; flex-wrap: wrap; }
+  .row:first-of-type { border-top: none; }
+  .chip { flex: 0 0 6.5rem; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .name { font-weight: 600; }
+  .name code { font-weight: 400; color: var(--muted); font-size: .85em; }
+  .evidence { color: var(--muted); font-size: .85rem; flex-basis: 100%; padding-left: 7.2rem; }
+  ul { list-style: none; }
+  li { padding: .25rem 0; font-size: .9rem; }
+  li .muted, .muted { color: var(--muted); }
+  .empty { color: var(--muted); font-style: italic; font-size: .9rem; }
+  .clean { color: var(--done); font-size: .9rem; }
+  .drift-label { font-weight: 600; font-size: .85rem; margin-top: .5rem; }
+  .creep { color: var(--stalled); }
+  footer { text-align: center; color: var(--muted); font-size: .75rem; padding: 1rem 0 2rem; }
+  @media (max-width: 40rem) { .evidence { padding-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Truthboard</h1>
+  <p class="banner"><b>Derived from git, never typed.</b> This board is read-only because there is nothing to edit — every status below is computed from repository facts.</p>
+</header>
+<div class="meta" id="meta">loading…</div>
+<div id="app"><p class="empty">Waiting for the first audit…</p></div>
+<footer>truthboard · refreshes automatically</footer>
+<script>
+"use strict";
+const SPEC_ORDER = ["regressed","in-review","in-progress","planned","stalled","done"];
+const UNIT_ORDER = ["in-review","in-progress","stalled","done"];
+const CLAIM_HEADS = {
+  "ticket-done-but-open": "Tickets already done but still open",
+  "ticket-stale": "Open tickets with no repo activity",
+  "unticketed-work": "Work nobody promised (no ticket, no PR)",
+  "pr-abandoned": "PRs closed without merging, branch still alive"
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const chip = st => `<span class="chip" style="color:var(--${esc(st)})">${esc(st)}</span>`;
+
+function rows(items, order, render) {
+  const out = [];
+  for (const st of order)
+    for (const it of items || [])
+      if (it.status === st) out.push(render(it));
+  return out.join("");
+}
+
+function render(b) {
+  document.getElementById("meta").textContent =
+    `repo ${b.forge || b.repo} · integration branch ${b.integration_branch} (via ${b.elected_via}) · updated ${new Date().toLocaleTimeString()}`;
+
+  let html = "";
+  if (b.election_note) html += `<div class="warn">⚠ ${esc(b.election_note)}</div>`;
+
+  html += `<section><h2>Spec board</h2>` + (b.specs?.length
+    ? rows(b.specs, SPEC_ORDER, s => `<div class="row">${chip(s.status)}
+        <span class="name">${esc(s.title)} <code>${esc(s.id)}</code>${(s.branches||[]).map(x=>` <code>${esc(x)}</code>`).join("")}</span>
+        <span class="evidence">${esc(s.evidence)}</span></div>`)
+    : `<p class="empty">No specs yet — <code>truthboard spec new "Title"</code></p>`) + `</section>`;
+
+  html += `<section><h2>Branches</h2>` + (b.units?.length
+    ? rows(b.units, UNIT_ORDER, u => `<div class="row">${chip(u.status)}
+        <span class="name"><code>${esc(u.name)}</code></span>
+        <span class="evidence">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`)
+    : `<p class="empty">No work-unit branches.</p>`) + `</section>`;
+
+  const d = b.drift || {};
+  const drifts = [];
+  if (d.scope_creep?.length) drifts.push(`<p class="drift-label creep">Scope creep</p><ul>` +
+    d.scope_creep.map(sc=>`<li><code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code> — ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff (${sc.outside_files}/${sc.total_files} files) outside spec paths <span class="muted">· mostly ${esc(sc.top_dirs)}</span></li>`).join("") + `</ul>`);
+  if (d.stale_promises?.length) drifts.push(`<p class="drift-label">Stale promises</p><ul>` +
+    d.stale_promises.map(u=>`<li><code>${esc(u.name)}</code> <span class="muted">— ${esc(u.evidence)}</span></li>`).join("") + `</ul>`);
+  if (d.shadow_work?.length) drifts.push(`<p class="drift-label">Shadow work <span class="muted">(commits outside any branch/MR flow)</span></p><ul>` +
+    d.shadow_work.slice(0,10).map(c=>`<li><span class="muted">${esc(c.date)}</span> ${esc(c.subject)}</li>`).join("") +
+    (d.shadow_work.length>10?`<li class="muted">… and ${d.shadow_work.length-10} more</li>`:"") + `</ul>`);
+  html += `<section><h2>Drift</h2>${drifts.length ? drifts.join("") : `<p class="clean">✓ clean — the board matches reality</p>`}</section>`;
+
+  if (b.forge) {
+    const groups = [];
+    for (const [kind, head] of Object.entries(CLAIM_HEADS)) {
+      const list = (b.claims||[]).filter(c=>c.kind===kind);
+      if (list.length) groups.push(`<p class="drift-label">${esc(head)}</p><ul>` +
+        list.slice(0,10).map(c=>`<li><code>${esc(c.subject)}</code> <span class="muted">— ${esc(c.detail)}</span></li>`).join("") + `</ul>`);
+    }
+    html += `<section><h2>Claims vs proof — ${esc(b.forge)}</h2>${groups.length ? groups.join("") : `<p class="clean">✓ clean — every tracker claim is backed by the repo</p>`}</section>`;
+  }
+
+  html += `<section><h2>Landed in the last ${b.digest_days} days</h2>` + (b.digest?.length
+    ? `<ul>` + b.digest.slice(0,20).map(c=>`<li><span class="muted">${esc(c.date)}</span> ${esc(c.subject)}</li>`).join("") + `</ul>`
+    : `<p class="empty">Nothing landed.</p>`) + `</section>`;
+
+  document.getElementById("app").innerHTML = html;
+}
+
+let last = "";
+async function tick() {
+  try {
+    const r = await fetch("/api/board");
+    if (!r.ok) throw new Error(r.statusText);
+    const text = await r.text();
+    if (text !== last) { last = text; render(JSON.parse(text)); }
+  } catch (e) {
+    document.getElementById("meta").textContent = "audit unavailable: " + e.message;
+  }
+  setTimeout(tick, 3000);
+}
+tick();
+</script>
+</body>
+</html>
