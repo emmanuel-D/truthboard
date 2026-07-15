@@ -10,6 +10,7 @@ import (
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/forge"
+	"github.com/emmanuel-D/truthboard/internal/mcp"
 	"github.com/emmanuel-D/truthboard/internal/report"
 )
 
@@ -23,6 +24,7 @@ Usage:
   truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
+  truthboard mcp                            serve specs/board over MCP (stdio) for AI agents
   truthboard version
 
 Flags for audit:
@@ -49,6 +51,11 @@ func main() {
 		os.Exit(runBrief(os.Args[2:]))
 	case "link":
 		os.Exit(runLink(os.Args[2:]))
+	case "mcp":
+		if err := mcp.Serve(os.Stdin, os.Stdout, ".", version); err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard mcp: %v\n", err)
+			os.Exit(1)
+		}
 	case "version", "--version", "-v":
 		fmt.Println("truthboard " + version)
 	case "help", "--help", "-h":

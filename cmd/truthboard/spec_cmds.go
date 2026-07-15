@@ -71,33 +71,12 @@ func runBrief(args []string) int {
 	}
 	id := fs.Arg(0)
 
-	s, err := spec.Find(*repo, id)
+	text, err := audit.Brief(*repo, id)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-
-	// The context packet an agent (or human) needs to start working.
-	fmt.Printf("Analyze and resolve spec %s in this repository.\n\n---\n", s.ID)
-	fmt.Printf("Title: %s\n", s.Title)
-	if s.Owner != "" {
-		fmt.Printf("Owner: %s\n", s.Owner)
-	}
-	if len(s.Paths) > 0 {
-		fmt.Printf("Scope: %s\n", strings.Join(s.Paths, ", "))
-	}
-	fmt.Printf("\n%s\n---\n\n", s.Body)
-	fmt.Printf("Work on a branch matching %q (or any branch containing %q).\n", s.Branch, s.ID)
-	fmt.Printf("End every commit message with the trailer:\n\n    %s\n\n", s.Trailer())
-	fmt.Println("Satisfy the acceptance criteria while maintaining code health.")
-
-	if res, err := audit.Audit(*repo, audit.Options{}); err == nil {
-		for _, ss := range res.Specs {
-			if ss.ID == s.ID && ss.Status != audit.Planned {
-				fmt.Printf("Current derived status: %s (%s)\n", ss.Status, ss.Evidence)
-			}
-		}
-	}
+	fmt.Print(text)
 	return 0
 }
 

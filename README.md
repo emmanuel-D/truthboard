@@ -28,6 +28,20 @@ goes red on the landing commit — without CI data the tool says nothing
 rather than guessing. There is no command to set a status — that's the
 product.
 
+## MCP — agents as first-class citizens
+
+`truthboard mcp` serves the spec layer over the Model Context Protocol
+(stdio), so Claude Code and other agents stop shelling out:
+
+```sh
+claude mcp add truthboard -- truthboard mcp
+```
+
+Tools: `list_specs`, `get_brief` (the context packet to start work),
+`create_spec`, `get_board`. Deliberately absent: any tool that sets a
+status — an agent's work shows up on the board the same way a human's does,
+through commits with the spec trailer.
+
 ## Audit mode — works on any repo, no specs needed
 
 ```sh

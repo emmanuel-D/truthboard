@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "truthboard": {
+      "type": "stdio",
+      "command": "truthboard",
+      "args": [
+        "mcp"
+      ],
+      "env": {}
+    }
+  }
+}

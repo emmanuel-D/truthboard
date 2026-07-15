@@ -90,6 +90,27 @@ func TestSpecStatusDerivation(t *testing.T) {
 	}
 }
 
+func TestEmptyBranchIsNotAUnit(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -30))
+	// Freshly cut branch, zero commits of its own: must not appear on the
+	// board, and its spec must stay planned rather than reading as done.
+	f.git("branch", "feature/tb-ffff-fresh")
+	writeSpec(t, f.dir, "tb-ffff", "Fresh work", "")
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Units) != 0 {
+		t.Errorf("units = %+v, want none (empty branch is not a unit)", res.Units)
+	}
+	if got := specByID(t, res, "tb-ffff"); got.Status != Planned {
+		t.Errorf("spec on empty branch: status = %q, want planned (evidence: %s)", got.Status, got.Evidence)
+	}
+}
+
 func TestSpecBranchGlobLinking(t *testing.T) {
 	now := time.Now()
 	f := newFixture(t)
