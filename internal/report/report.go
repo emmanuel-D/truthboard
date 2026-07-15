@@ -169,9 +169,13 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 }
 
 func Markdown(w io.Writer, res *audit.Result) error {
+	repoLabel := res.Repo
+	if res.Forge != "" {
+		repoLabel = res.Forge
+	}
 	fmt.Fprintf(w, "## Truthboard drift report\n\n")
 	fmt.Fprintf(w, "_Repo: `%s` · integration branch: `%s` (via %s) · generated %s_\n\n",
-		res.Repo, res.Integration, res.ElectedVia, res.GeneratedAt.Format("2006-01-02"))
+		repoLabel, res.Integration, res.ElectedVia, res.GeneratedAt.Format("2006-01-02"))
 	if res.ElectionNote != "" {
 		fmt.Fprintf(w, "> ⚠️ %s\n\n", res.ElectionNote)
 	}
