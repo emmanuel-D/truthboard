@@ -218,6 +218,10 @@
   .md li { margin: .18rem 0; }
   .md li.task { list-style: none; margin-left: -1.1rem; }
   .md li.task input { accent-color: var(--done); margin-right: .35rem; vertical-align: -1px; }
+  .md li.task input[data-ti] { cursor: pointer; }
+  .md li.task label { cursor: default; }
+  .md li.task label:has(input[data-ti]) { cursor: pointer; }
+  .md li.task label:has(input[data-ti]):hover { color: var(--ink); }
   .md code { background: var(--inset); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 .3em; }
   .md pre { background: var(--inset); border: 1px solid var(--hairline); border-radius: 8px; padding: .6rem .8rem; overflow-x: auto; margin: .5rem 0; }
   .md pre code { background: none; border: none; padding: 0; }
@@ -276,6 +280,7 @@
   </div>
   <div class="chips" id="dt-chips" style="padding: 0 1.25rem .4rem"></div>
   <div class="dbody">
+    <p class="note" id="dt-hint" style="padding:0" hidden>☑ Acceptance boxes are sign-off — click one to record that you verified it.</p>
     <div class="md" id="dt-md"></div>
     <div class="truth" id="dt-truth"></div>
   </div>
@@ -407,9 +412,11 @@ function inlineMd(s) {
           .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
           .replace(/(^|\s)\*([^*]+)\*(?=[\s.,;:!?)]|$)/g, "$1<i>$2</i>");
 }
-function md(src) {
+// interactive: task checkboxes become live sign-off controls carrying
+// their ordinal (data-ti) so a click can flip the right [ ] in the body.
+function md(src, interactive = false) {
   const lines = esc(src ?? "").split("\n");
-  const out = []; let code = false, list = false, para = [];
+  const out = []; let code = false, list = false, para = [], task = 0;
   const flushP = () => { if (para.length) { out.push("<p>" + inlineMd(para.join(" ")) + "</p>"); para = []; } };
   const closeL = () => { if (list) { out.push("</ul>"); list = false; } };
   for (const line of lines) {
@@ -419,7 +426,8 @@ function md(src) {
     if ((m = line.match(/^#{1,4}\s+(.*)/))) { flushP(); closeL(); out.push("<h3>" + inlineMd(m[1]) + "</h3>"); continue; }
     if ((m = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)/))) {
       flushP(); if (!list) { out.push("<ul>"); list = true; }
-      out.push(`<li class="task"><input type="checkbox" disabled${m[1] !== " " ? " checked" : ""}>${inlineMd(m[2])}</li>`); continue;
+      const attrs = interactive ? ` data-ti="${task++}"` : " disabled";
+      out.push(`<li class="task"><label><input type="checkbox"${attrs}${m[1] !== " " ? " checked" : ""}>${inlineMd(m[2])}</label></li>`); continue;
     }
     if ((m = line.match(/^\s*[-*]\s+(.*)/))) {
       flushP(); if (!list) { out.push("<ul>"); list = true; }
@@ -621,7 +629,8 @@ function openDetail(full) {
     (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
     epicTag(full.epic) +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
-  document.getElementById("dt-md").innerHTML = md(full.body);
+  document.getElementById("dt-md").innerHTML = md(full.body, true);
+  document.getElementById("dt-hint").hidden = !/^\s*[-*]\s+\[[ xX]\]/m.test(full.body);
   const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];
   if (onBoard.branches?.length) rows.push(["Branches", onBoard.branches.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
   if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>`]);
@@ -644,6 +653,36 @@ document.getElementById("app").addEventListener("click", async e => {
 });
 document.getElementById("dt-close").addEventListener("click", () => detailDlg.close());
 document.getElementById("dt-edit").addEventListener("click", () => { detailDlg.close(); openEditor(detailSpec); });
+
+// Sign-off: clicking the nth checkbox flips the nth [ ]/[x] in the body
+// and saves — an intent edit like any other, visible as a git diff.
+document.getElementById("dt-md").addEventListener("change", async e => {
+  const box = e.target.closest("input[type=checkbox][data-ti]");
+  if (!box || !detailSpec) return;
+  const idx = +box.dataset.ti;
+  let i = -1;
+  const newBody = detailSpec.body.replace(/^(\s*[-*]\s+)\[([ xX])\]/gm, (m, pre, mark) => {
+    i++;
+    return i === idx ? pre + (mark === " " ? "[x]" : "[ ]") : m;
+  });
+  box.disabled = true;
+  try {
+    const r = await fetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: newBody }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    detailSpec.body = newBody;
+    last = ""; // progress bars pick it up on the next poll
+  } catch (err) {
+    box.checked = !box.checked;
+    document.getElementById("dt-hint").hidden = false;
+    document.getElementById("dt-hint").textContent = "Could not save sign-off: " + err.message;
+  } finally {
+    box.disabled = false;
+  }
+});
 
 /* ---------- editor ---------- */
 const dlg = document.getElementById("editor");

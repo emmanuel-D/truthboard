@@ -14,6 +14,6 @@ the MCP server must not expose any way to set a status.
 
 ## Acceptance
 
-- [ ] MCP tools: list_specs, get_brief, create_spec, get_board (read-only)
-- [ ] Registers cleanly with Claude Code via `claude mcp add`
-- [ ] An agent can pick up a spec, work it, and the board reflects it with zero human input
+- [x] MCP tools: list_specs, get_brief, create_spec, get_board (read-only)
+- [x] Registers cleanly with Claude Code via `claude mcp add`
+- [x] An agent can pick up a spec, work it, and the board reflects it with zero human input

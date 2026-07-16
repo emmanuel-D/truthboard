@@ -19,9 +19,9 @@ still derives *delivery* from git.
 
 ## Acceptance
 
-- [ ] In the detail view, clicking an acceptance checkbox toggles it and
+- [x] In the detail view, clicking an acceptance checkbox toggles it and
       persists to the spec file (visible in git diff and the dirty nudge)
-- [ ] The card's n/m progress bar updates on the next refresh
+- [x] The card's n/m progress bar updates on the next refresh
 - [ ] A failed save reverts the checkbox and surfaces the error
-- [ ] Checkboxes in the editor's Preview tab stay inert (it's a preview)
-- [ ] A short hint tells the PO the boxes are clickable sign-off
+- [x] Checkboxes in the editor's Preview tab stay inert (it's a preview)
+- [x] A short hint tells the PO the boxes are clickable sign-off
