@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/spec"
@@ -141,12 +142,31 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "create_spec",
-			Description: "Create a new spec (a markdown intent file). Returns the id, the suggested branch glob, and the commit trailer to use. Statuses are always derived from git — there is no way to set one.",
+			Description: "Create a fully-formed story (a markdown intent file): title plus goal/acceptance body, owner, scope paths, epic, priority. Returns the id, the suggested branch glob, and the commit trailer to use. Statuses are always derived from git — there is no way to set one.",
 			InputSchema: objSchema(map[string]any{
-				"title": map[string]any{"type": "string", "description": "One-line title of the unit of work"},
-				"owner": map[string]any{"type": "string", "description": "Who owns this spec"},
-				"repo":  repoProp,
+				"title":    map[string]any{"type": "string", "description": "One-line title of the unit of work"},
+				"body":     map[string]any{"type": "string", "description": "Markdown body — a '## Goal' section and a '## Acceptance' checklist. Omit for a placeholder template."},
+				"owner":    map[string]any{"type": "string", "description": "Who owns this spec"},
+				"paths":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Declared scope globs (e.g. src/auth/**); work mostly outside them is reported as scope creep"},
+				"epic":     map[string]any{"type": "string", "description": "Backlog grouping slug (e.g. user-auth)"},
+				"priority": map[string]any{"type": "number", "description": "1=now, 2=next, 3=later"},
+				"repo":     repoProp,
 			}, "title"),
+		},
+		{
+			Name:        "update_spec",
+			Description: "Adjust an existing story's intent: title, body, owner, branch glob, paths, epic, priority — any subset. Writes the markdown file (a plain git diff). Status is not an intent field and cannot be set, here or anywhere.",
+			InputSchema: objSchema(map[string]any{
+				"id":       map[string]any{"type": "string", "description": "Spec id, e.g. tb-4f2a"},
+				"title":    map[string]any{"type": "string"},
+				"body":     map[string]any{"type": "string", "description": "Full replacement markdown body"},
+				"owner":    map[string]any{"type": "string"},
+				"branch":   map[string]any{"type": "string", "description": "Branch glob to link"},
+				"paths":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"epic":     map[string]any{"type": "string"},
+				"priority": map[string]any{"type": "number"},
+				"repo":     repoProp,
+			}, "id"),
 		},
 		{
 			Name:        "get_board",
@@ -156,40 +176,87 @@ func tools() []toolDef {
 	}
 }
 
-func callTool(name string, args json.RawMessage, defaultRepo string) (string, error) {
-	var a struct {
-		Repo  string `json:"repo"`
-		ID    string `json:"id"`
-		Title string `json:"title"`
-		Owner string `json:"owner"`
+// strictArgs unmarshals tool arguments rejecting unknown fields — so an
+// attempt to pass e.g. "status" fails loudly instead of being silently
+// dropped. Statuses are derived; the API surface must say so.
+func strictArgs(args json.RawMessage, into any) error {
+	if len(args) == 0 {
+		return nil
 	}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &a); err != nil {
-			return "", fmt.Errorf("invalid arguments: %w", err)
+	dec := json.NewDecoder(bytes.NewReader(args))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(into); err != nil {
+		if strings.Contains(err.Error(), "unknown field") {
+			return fmt.Errorf("%v — note: intent fields only; statuses are derived from git and cannot be set", err)
 		}
+		return fmt.Errorf("invalid arguments: %w", err)
 	}
-	if a.Repo == "" {
-		a.Repo = defaultRepo
-	}
+	return nil
+}
 
+func orDefault(repo, def string) string {
+	if repo == "" {
+		return def
+	}
+	return repo
+}
+
+func callTool(name string, args json.RawMessage, defaultRepo string) (string, error) {
 	switch name {
-	case "list_specs":
-		res, err := audit.Audit(a.Repo, audit.Options{})
+	case "list_specs", "get_board":
+		var a struct {
+			Repo string `json:"repo"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
+		res, err := audit.Audit(orDefault(a.Repo, defaultRepo), audit.Options{})
 		if err != nil {
 			return "", err
 		}
-		return marshal(res.Specs)
+		if name == "list_specs" {
+			return marshal(res.Specs)
+		}
+		return marshal(res)
+
 	case "get_brief":
+		var a struct {
+			Repo string `json:"repo"`
+			ID   string `json:"id"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
 		if a.ID == "" {
 			return "", fmt.Errorf("get_brief requires an id")
 		}
-		return audit.Brief(a.Repo, a.ID)
+		return audit.Brief(orDefault(a.Repo, defaultRepo), a.ID)
+
 	case "create_spec":
+		var a struct {
+			Repo     string   `json:"repo"`
+			Title    string   `json:"title"`
+			Body     string   `json:"body"`
+			Owner    string   `json:"owner"`
+			Paths    []string `json:"paths"`
+			Epic     string   `json:"epic"`
+			Priority int      `json:"priority"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
 		if a.Title == "" {
 			return "", fmt.Errorf("create_spec requires a title")
 		}
-		s, err := spec.New(a.Repo, a.Title, a.Owner)
+		s, err := spec.New(orDefault(a.Repo, defaultRepo), a.Title, a.Owner)
 		if err != nil {
+			return "", err
+		}
+		if a.Body != "" {
+			s.Body = a.Body
+		}
+		s.Paths, s.Epic, s.Priority = a.Paths, a.Epic, a.Priority
+		if err := s.Save(); err != nil {
 			return "", err
 		}
 		return marshal(map[string]string{
@@ -197,17 +264,67 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			"file":    s.File,
 			"branch":  s.Branch,
 			"trailer": s.Trailer(),
-			"next":    "edit the Goal and Acceptance sections, then work on a matching branch with the trailer in every commit",
+			"next":    "work on a matching branch with the trailer in every commit; the board derives the rest",
 		})
-	case "get_board":
-		res, err := audit.Audit(a.Repo, audit.Options{})
-		if err != nil {
+
+	case "update_spec":
+		var a struct {
+			Repo     string    `json:"repo"`
+			ID       string    `json:"id"`
+			Title    *string   `json:"title"`
+			Body     *string   `json:"body"`
+			Owner    *string   `json:"owner"`
+			Branch   *string   `json:"branch"`
+			Paths    *[]string `json:"paths"`
+			Epic     *string   `json:"epic"`
+			Priority *int      `json:"priority"`
+		}
+		if err := strictArgs(args, &a); err != nil {
 			return "", err
 		}
-		return marshal(res)
+		repo := orDefault(a.Repo, defaultRepo)
+		s, err := spec.Find(repo, a.ID)
+		if err != nil {
+			return "", describeUnknownSpec(repo, a.ID)
+		}
+		apply := func(dst *string, v *string) {
+			if v != nil {
+				*dst = *v
+			}
+		}
+		apply(&s.Title, a.Title)
+		apply(&s.Body, a.Body)
+		apply(&s.Owner, a.Owner)
+		apply(&s.Branch, a.Branch)
+		apply(&s.Epic, a.Epic)
+		if a.Paths != nil {
+			s.Paths = *a.Paths
+		}
+		if a.Priority != nil {
+			s.Priority = *a.Priority
+		}
+		if err := s.Save(); err != nil {
+			return "", err
+		}
+		return marshal(map[string]string{"id": s.ID, "file": s.File, "result": "intent updated — status stays derived"})
+
 	default:
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
+}
+
+// describeUnknownSpec turns a failed lookup into an actionable error by
+// listing the ids that do exist.
+func describeUnknownSpec(repo, id string) error {
+	specs, err := spec.Load(repo)
+	if err != nil || len(specs) == 0 {
+		return fmt.Errorf("no spec with id %q (no specs found in this repo — create one with create_spec)", id)
+	}
+	ids := make([]string, len(specs))
+	for i, s := range specs {
+		ids[i] = s.ID
+	}
+	return fmt.Errorf("no spec with id %q — known ids: %s", id, strings.Join(ids, ", "))
 }
 
 func marshal(v any) (string, error) {
