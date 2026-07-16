@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -57,8 +58,13 @@ func (c *boardCache) get() ([]byte, error) {
 	return body, nil
 }
 
-// Handler returns the read-only HTTP handler; exposed for tests.
+// Handler returns the read-only HTTP handler; exposed for tests. The repo
+// path is resolved to absolute so the page never labels the board "." —
+// the audit result carries the path the viewer should recognize.
 func Handler(repo string, useForge bool, version string) http.Handler {
+	if abs, err := filepath.Abs(repo); err == nil {
+		repo = abs
+	}
 	interval := 2 * time.Second
 	if useForge {
 		interval = 15 * time.Second // forge APIs are slow and rate-limited
