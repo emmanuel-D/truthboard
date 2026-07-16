@@ -206,12 +206,33 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	}
 
 	fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("DIGEST — what landed on %s in the last %d days", res.Integration, res.DigestDays)))
-	for i, cm := range res.Digest {
-		if i == 20 {
-			fmt.Fprintf(w, "  … and %d more\n", len(res.Digest)-20)
+	for _, sh := range res.Shipped {
+		tag := ""
+		if sh.Epic != "" {
+			tag = " · " + sh.Epic
+		}
+		fmt.Fprintf(w, "  %s %s (%s%s)\n", c(ansiGreen, "✓ "+sh.Title), c(ansiDim, "landed "+sh.Date), sh.ID, tag)
+	}
+	other := 0
+	for _, cm := range res.Digest {
+		if cm.Spec == "" {
+			other++
+		}
+	}
+	if other > 0 && len(res.Shipped) > 0 {
+		fmt.Fprintf(w, "  %s\n", c(ansiDim, "also landed:"))
+	}
+	shown = 0
+	for _, cm := range res.Digest {
+		if cm.Spec != "" {
+			continue
+		}
+		if shown == 20 {
+			fmt.Fprintf(w, "  … and %d more\n", other-20)
 			break
 		}
 		fmt.Fprintf(w, "  %s %s\n", cm.Date, truncate(cm.Subject, 80))
+		shown++
 	}
 	if len(res.Digest) == 0 {
 		fmt.Fprintln(w, "  nothing landed")
@@ -343,7 +364,22 @@ func Markdown(w io.Writer, res *audit.Result) error {
 	if len(res.Digest) == 0 {
 		fmt.Fprintf(w, "_Nothing landed._\n")
 	}
+	for _, sh := range res.Shipped {
+		tag := ""
+		if sh.Epic != "" {
+			tag = " · " + sh.Epic
+		}
+		fmt.Fprintf(w, "- ✓ **%s** (`%s`%s) — landed %s\n", sh.Title, sh.ID, tag, sh.Date)
+	}
+	first := true
 	for _, cm := range res.Digest {
+		if cm.Spec != "" {
+			continue
+		}
+		if first && len(res.Shipped) > 0 {
+			fmt.Fprintf(w, "\n**Also landed:**\n\n")
+		}
+		first = false
 		fmt.Fprintf(w, "- %s %s\n", cm.Date, cm.Subject)
 	}
 	return nil

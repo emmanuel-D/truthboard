@@ -21,6 +21,34 @@ func buildLandedSpecFixture(t *testing.T, now time.Time) *fixture {
 	return f
 }
 
+func TestDigestLeadsWithShippedSpecs(t *testing.T) {
+	now := time.Now()
+	f := buildLandedSpecFixture(t, now) // tb-r1 landed 5 days ago via trailer
+	f.commit("chore: unrelated shadow commit", now.AddDate(0, 0, -1))
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Shipped) != 1 || res.Shipped[0].ID != "tb-r1" || res.Shipped[0].Title != "Reverted work" {
+		t.Fatalf("shipped = %+v, want tb-r1 by title", res.Shipped)
+	}
+	var attributed, unattributed int
+	for _, c := range res.Digest {
+		if c.Spec == "tb-r1" {
+			attributed++
+		} else if c.Spec == "" {
+			unattributed++
+		}
+	}
+	if attributed == 0 {
+		t.Error("landing commits should be attributed to tb-r1")
+	}
+	if unattributed == 0 {
+		t.Error("the unrelated commit must stay unattributed (also-landed list)")
+	}
+}
+
 func TestRevertFlipsDoneToRegressed(t *testing.T) {
 	now := time.Now()
 	f := buildLandedSpecFixture(t, now)
