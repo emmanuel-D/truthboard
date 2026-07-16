@@ -88,14 +88,14 @@ func TestHandshakeAndToolList(t *testing.T) {
 		t.Errorf("initialize result = %v", init)
 	}
 	tools := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 4 {
-		t.Errorf("got %d tools, want 4", len(tools))
+	if len(tools) != 5 {
+		t.Errorf("got %d tools, want 5", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tl := range tools {
 		names[tl.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"list_specs", "get_brief", "create_spec", "get_board"} {
+	for _, want := range []string{"list_specs", "get_brief", "create_spec", "update_spec", "get_board"} {
 		if !names[want] {
 			t.Errorf("missing tool %q", want)
 		}
@@ -141,4 +141,62 @@ func TestToolCalls(t *testing.T) {
 	if text, isErr := toolText(t, responses[4]); !isErr || !strings.Contains(text, "unknown tool") {
 		t.Errorf("set_status must fail as unknown, got %.120s (err=%v)", text, isErr)
 	}
+}
+
+func TestAgentDraftsAndAdjustsStory(t *testing.T) {
+	repo := fixtureRepo(t)
+	body := "## Goal\\n\\nVerified emails before dashboard access.\\n\\n## Acceptance\\n\\n- [ ] token expires in 24h"
+	responses := drive(t, repo,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_spec","arguments":{"title":"Email verification","body":"`+body+`","owner":"claude","paths":["src/auth/**"],"epic":"user-auth","priority":1}}}`,
+	)
+	text, isErr := toolText(t, responses[0])
+	if isErr {
+		t.Fatalf("create_spec failed: %s", text)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(text), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	responses = drive(t, repo,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_spec","arguments":{"id":"`+created.ID+`","priority":2,"epic":"onboarding","title":"Email verification at signup"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_specs","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"update_spec","arguments":{"id":"`+created.ID+`","status":"done"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"update_spec","arguments":{"id":"tb-nope"}}}`,
+	)
+	if text, isErr := toolText(t, responses[0]); isErr {
+		t.Fatalf("update_spec failed: %s", text)
+	}
+
+	// The adjusted intent round-trips through the file.
+	raw, err := os.ReadFile(specFileByID(t, repo, created.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(raw)
+	for _, want := range []string{"Email verification at signup", "epic: onboarding", "priority: 2", "token expires in 24h"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("spec file missing %q after update:\n%s", want, content)
+		}
+	}
+
+	// Setting a status must fail loudly, not be silently dropped.
+	if text, isErr := toolText(t, responses[2]); !isErr || !strings.Contains(text, "derived") {
+		t.Errorf("update_spec with status must fail citing derived statuses, got %.150s (err=%v)", text, isErr)
+	}
+	// Unknown id lists the ids that do exist.
+	if text, isErr := toolText(t, responses[3]); !isErr || !strings.Contains(text, created.ID) {
+		t.Errorf("unknown-id error should list known ids, got %.150s (err=%v)", text, isErr)
+	}
+}
+
+func specFileByID(t *testing.T, repo, id string) string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(repo, ".truthboard", "specs", id+"-*.md"))
+	if err != nil || len(matches) != 1 {
+		t.Fatalf("spec file for %s: %v %v", id, matches, err)
+	}
+	return matches[0]
 }

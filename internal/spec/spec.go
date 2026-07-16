@@ -18,11 +18,13 @@ import (
 )
 
 type Spec struct {
-	ID     string   `yaml:"id" json:"id"`
-	Title  string   `yaml:"title" json:"title"`
-	Owner  string   `yaml:"owner,omitempty" json:"owner,omitempty"`
-	Branch string   `yaml:"branch,omitempty" json:"branch,omitempty"` // glob, e.g. feature/tb-4f2a-*
-	Paths  []string `yaml:"paths,omitempty" json:"paths,omitempty"`   // scope hint for future creep detection
+	ID       string   `yaml:"id" json:"id"`
+	Title    string   `yaml:"title" json:"title"`
+	Owner    string   `yaml:"owner,omitempty" json:"owner,omitempty"`
+	Branch   string   `yaml:"branch,omitempty" json:"branch,omitempty"`     // glob, e.g. feature/tb-4f2a-*
+	Paths    []string `yaml:"paths,omitempty" json:"paths,omitempty"`       // declared scope; powers creep detection
+	Epic     string   `yaml:"epic,omitempty" json:"epic,omitempty"`         // backlog grouping (intent, like everything here)
+	Priority int      `yaml:"priority,omitempty" json:"priority,omitempty"` // 1=now, 2=next, 3=later; 0 = unset
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter
 	File string `yaml:"-" json:"-"`
