@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -91,6 +92,17 @@ func Agents(repo string, hooks bool) ([]string, error) {
 	} else {
 		step(".mcp.json: truthboard already registered")
 	}
+	if runtime.GOOS != "windows" {
+		exe, exeErr := os.Executable()
+		if exeErr != nil {
+			exe = "" // no warning: we cannot name a fix without a location
+		} else {
+			exe = filepath.Clean(exe)
+		}
+		for _, line := range spawnWarning(exe, systemPathDirs) {
+			step("%s", line)
+		}
+	}
 
 	agentsPath := filepath.Join(repo, "AGENTS.md")
 	if changed, err = upsertBlock(agentsPath, agreement, true); err != nil {
@@ -119,6 +131,34 @@ func writtenWord(changed bool) string {
 		return "written"
 	}
 	return "already up to date"
+}
+
+// systemPathDirs are the locations executables stay resolvable from even
+// for GUI-launched agents (Claude Code desktop, IDEs) — a login shell's
+// PATH additions like ~/go/bin never reach those processes.
+var systemPathDirs = []string{"/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"}
+
+// spawnWarning tells the adopter when the bare "truthboard" command that
+// registerMCP writes cannot be resolved outside their shell profile — the
+// failure mode is an agent whose MCP connection dies silently and who then
+// works the repo with no board at all. Returns nil when some system dir
+// already carries the binary. .mcp.json is committed and shared, so the
+// remedy is a symlink on this machine, never an absolute path in the file.
+func spawnWarning(exe string, dirs []string) []string {
+	for _, dir := range dirs {
+		if info, err := os.Stat(filepath.Join(dir, "truthboard")); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+			return nil
+		}
+	}
+	if exe == "" {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("⚠ agents may not be able to spawn truthboard: none of %s has it,", strings.Join(dirs, ", ")),
+		fmt.Sprintf("  and the binary at %s is only on PATH inside your shell profile.", exe),
+		"  GUI-launched agents will fail the MCP connection silently. Fix:",
+		fmt.Sprintf("    ln -s %s %s/truthboard   (sudo if needed)", exe, dirs[0]),
+	}
 }
 
 // registerMCP adds the truthboard server to .mcp.json, preserving any
