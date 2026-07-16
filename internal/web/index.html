@@ -236,10 +236,15 @@ function branches(b) {
 }
 
 function digest(b) {
-  const items = (b.digest || []).slice(0, 14).map(c =>
-    `<div class="r"><time>${esc(c.date)}</time><span>${esc(c.subject)}</span></div>`).join("");
+  const shipped = (b.shipped || []).map(s =>
+    `<div class="r"><time>${esc(s.date)}</time>
+      <span style="color:var(--done)">✓</span>
+      <span><b>${esc(s.title)}</b> <span class="muted"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
+  const rest = (b.digest || []).filter(c => !c.spec).slice(0, 12).map(c =>
+    `<div class="r"><time>${esc(c.date)}</time><span class="muted">${esc(c.subject)}</span></div>`).join("");
+  const divider = shipped && rest ? `<div class="r"><span class="muted" style="font-size:.72rem">also landed</span></div>` : "";
   return `<section class="panel digest"><h2>Landed in the last ${b.digest_days} days</h2>
-    <div class="rows">${items || `<span class="ev">nothing landed</span>`}</div></section>`;
+    <div class="rows">${(shipped + divider + rest) || `<span class="ev">nothing landed</span>`}</div></section>`;
 }
 
 function render(b) {

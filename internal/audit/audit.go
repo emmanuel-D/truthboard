@@ -50,6 +50,17 @@ type Commit struct {
 	Date    string `json:"date"`
 	Author  string `json:"author,omitempty"`
 	Subject string `json:"subject"`
+	Spec    string `json:"spec,omitempty"` // spec id this commit is attributed to
+	body    string // full message, used for attribution only
+}
+
+// ShippedSpec is a promise kept inside the digest window — the digest leads
+// with these, told by spec title rather than commit subject.
+type ShippedSpec struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Epic  string `json:"epic,omitempty"`
+	Date  string `json:"date"`
 }
 
 type Drift struct {
@@ -60,19 +71,20 @@ type Drift struct {
 }
 
 type Result struct {
-	Repo         string       `json:"repo"`
-	Integration  string       `json:"integration_branch"`
-	ElectedVia   string       `json:"elected_via"`
-	ElectionNote string       `json:"election_note,omitempty"`
-	Units        []Unit       `json:"units"`
-	Drift        Drift        `json:"drift"`
-	Digest       []Commit     `json:"digest"`
-	Specs        []SpecStatus `json:"specs,omitempty"`
-	Claims       []Claim      `json:"claims,omitempty"`
-	Forge        string       `json:"forge,omitempty"` // owner/name when forge data enriched the audit
-	StaleDays    int          `json:"stale_days"`
-	DigestDays   int          `json:"digest_days"`
-	GeneratedAt  time.Time    `json:"generated_at"`
+	Repo         string        `json:"repo"`
+	Integration  string        `json:"integration_branch"`
+	ElectedVia   string        `json:"elected_via"`
+	ElectionNote string        `json:"election_note,omitempty"`
+	Units        []Unit        `json:"units"`
+	Drift        Drift         `json:"drift"`
+	Digest       []Commit      `json:"digest"`
+	Shipped      []ShippedSpec `json:"shipped,omitempty"` // specs landed within the digest window
+	Specs        []SpecStatus  `json:"specs,omitempty"`
+	Claims       []Claim       `json:"claims,omitempty"`
+	Forge        string        `json:"forge,omitempty"` // owner/name when forge data enriched the audit
+	StaleDays    int           `json:"stale_days"`
+	DigestDays   int           `json:"digest_days"`
+	GeneratedAt  time.Time     `json:"generated_at"`
 }
 
 type Options struct {
@@ -159,6 +171,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 		GeneratedAt:  opts.Now,
 	}
 	linkSpecs(repo, base, res, specs, opts)
+	attributeDigest(res)
 	for _, u := range res.Units {
 		switch u.Status {
 		case Stalled:
@@ -317,20 +330,46 @@ func shadowWork(repo, base string, days int) ([]Commit, error) {
 
 func digest(repo, base string, days int) ([]Commit, error) {
 	out, err := gitrepo.Run(repo, "log", base, "--first-parent",
-		fmt.Sprintf("--since=%d.days", days), "--format=%h|%cs|%s")
+		fmt.Sprintf("--since=%d.days", days), "--format=%h%x00%cs%x00%s%x00%B%x1e")
 	if err != nil {
 		return nil, err
 	}
 	var commits []Commit
-	for _, line := range strings.Split(out, "\n") {
-		if line == "" {
+	for _, entry := range strings.Split(out, "\x1e") {
+		parts := strings.SplitN(strings.TrimSpace(entry), "\x00", 4)
+		if len(parts) != 4 {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 3)
-		if len(parts) != 3 {
-			continue
-		}
-		commits = append(commits, Commit{Hash: parts[0], Date: parts[1], Subject: parts[2]})
+		commits = append(commits, Commit{Hash: parts[0], Date: parts[1], Subject: parts[2], body: parts[3]})
 	}
 	return commits, nil
+}
+
+// attributeDigest links digest commits to the specs they mention (trailer
+// or id anywhere in the message) and lifts done specs that landed inside
+// the window into the Shipped list — the digest's headline. Commits no
+// spec claims stay unattributed and render as "also landed".
+func attributeDigest(res *Result) {
+	if len(res.Specs) == 0 {
+		return
+	}
+	shipped := map[string]bool{}
+	for i := range res.Digest {
+		c := &res.Digest[i]
+		for j := range res.Specs {
+			s := &res.Specs[j]
+			if !strings.Contains(c.body, s.ID) {
+				continue
+			}
+			c.Spec = s.ID
+			if s.Status == Done && !shipped[s.ID] {
+				shipped[s.ID] = true
+				res.Shipped = append(res.Shipped, ShippedSpec{
+					ID: s.ID, Title: s.Title, Epic: s.Epic, Date: c.Date,
+				})
+			}
+			break
+		}
+		c.body = ""
+	}
 }
