@@ -89,7 +89,9 @@
   }
   .card:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(0,0,0,.08); }
   .card .title { font-weight: 600; font-size: .88rem; line-height: 1.35; }
-  .card .sub { margin-top: .3rem; font-size: .75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem .6rem; }
+  .card .sub { margin-top: .3rem; font-size: .75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: baseline; }
+  .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .5rem; font-size: .68rem; color: var(--ink-2); }
+  .tag.pri { font-weight: 700; }
   .card .sub code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; }
   .card .why { margin-top: .35rem; font-size: .78rem; color: var(--ink-2); }
   .card .owner { margin-top: .4rem; font-size: .72rem; color: var(--muted); }
@@ -181,7 +183,10 @@ function kanban(b) {
     const cards = b.specs.filter(s => s.status === st).map(s =>
       `<div class="card" style="border-left-color:${sv(st)}">
          <div class="title">${esc(s.title)}</div>
-         <div class="sub"><code>${esc(s.id)}</code>${(s.branches||[]).map(x=>`<code>${esc(x)}</code>`).join("")}</div>
+         <div class="sub"><code>${esc(s.id)}</code>${
+           s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
+           s.epic ? `<span class="tag">${esc(s.epic)}</span>` : ""}${
+           (s.branches||[]).map(x=>`<code>${esc(x)}</code>`).join("")}</div>
          <div class="why">${esc(s.evidence)}</div>
          ${s.owner ? `<div class="owner">${esc(s.owner)}</div>` : ""}
        </div>`).join("");
