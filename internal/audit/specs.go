@@ -30,6 +30,23 @@ type SpecStatus struct {
 	Branches []string `json:"branches,omitempty"`
 	Landed   string   `json:"landed,omitempty"` // newest trailer commit reachable from the integration branch
 	File     string   `json:"file"`
+
+	// Acceptance progress, counted from "- [ ]"/"- [x]" checkboxes in the
+	// spec body — intent-side detail for boards, no file read needed there.
+	AcceptanceDone  int `json:"acceptance_done,omitempty"`
+	AcceptanceTotal int `json:"acceptance_total,omitempty"`
+}
+
+var checkboxPattern = regexp.MustCompile(`(?m)^\s*[-*] \[([ xX])\]`)
+
+func acceptanceProgress(body string) (done, total int) {
+	for _, m := range checkboxPattern.FindAllStringSubmatch(body, -1) {
+		total++
+		if m[1] != " " {
+			done++
+		}
+	}
+	return done, total
 }
 
 // linkSpecs matches every spec against repo reality and appends derived
@@ -44,6 +61,7 @@ func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) 
 		s := &specs[i]
 		ss := SpecStatus{ID: s.ID, Title: s.Title, Owner: s.Owner,
 			Epic: s.Epic, Priority: s.Priority, File: s.File}
+		ss.AcceptanceDone, ss.AcceptanceTotal = acceptanceProgress(s.Body)
 
 		var linked []*Unit
 		for j := range res.Units {
