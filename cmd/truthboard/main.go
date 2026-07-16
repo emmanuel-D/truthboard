@@ -21,7 +21,9 @@ const usage = `truthboard — your repo already knows the status
 
 Usage:
   truthboard audit [flags] [repo]           audit a repository (default: current directory)
-  truthboard init [repo]                    opt in to spec mode (.truthboard/specs/)
+  truthboard init [--agents [--hooks]] [repo]
+                                            opt in to spec mode; --agents wires MCP +
+                                            AGENTS.md so AI tools track work here by default
   truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
