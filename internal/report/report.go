@@ -38,6 +38,22 @@ var claimOrder = []string{"ticket-done-but-open", "ticket-stale", "unticketed-wo
 // (CONCEPT-V2 §8.2), and the JSON format always carries the full list.
 const claimCap = 10
 
+// backlogTag renders " · p1 · epic-name" for whatever backlog intent the
+// spec declares; empty when it declares none.
+func backlogTag(s audit.SpecStatus) string {
+	var parts []string
+	if s.Priority > 0 {
+		parts = append(parts, fmt.Sprintf("p%d", s.Priority))
+	}
+	if s.Epic != "" {
+		parts = append(parts, s.Epic)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " · " + strings.Join(parts, " · ")
+}
+
 func countClaims(claims []audit.Claim, kind string) int {
 	n := 0
 	for _, c := range claims {
@@ -95,9 +111,9 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 				if len(s.Branches) > 0 {
 					branches = " [" + strings.Join(s.Branches, ", ") + "]"
 				}
-				fmt.Fprintf(w, "  %s %-*s %s%s\n    %s\n",
+				fmt.Fprintf(w, "  %s %-*s %s%s%s\n    %s\n",
 					c(ansi[st], fmt.Sprintf("%-12s", strings.ToUpper(string(st)))),
-					idWidth, s.ID, s.Title, branches, c(ansiDim, s.Evidence))
+					idWidth, s.ID, s.Title, c(ansiDim, backlogTag(s)), branches, c(ansiDim, s.Evidence))
 			}
 		}
 	}
@@ -218,7 +234,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 
 	if len(res.Specs) > 0 {
 		fmt.Fprintf(w, "### Spec board (intent from `.truthboard/specs`)\n\n")
-		fmt.Fprintf(w, "| Status | Spec | Title | Evidence |\n|---|---|---|---|\n")
+		fmt.Fprintf(w, "| Status | Spec | Backlog | Title | Evidence |\n|---|---|---|---|---|\n")
 		for _, st := range specStatusOrder {
 			for _, s := range res.Specs {
 				if s.Status != st {
@@ -232,7 +248,8 @@ func Markdown(w io.Writer, res *audit.Result) error {
 				if s.Status == audit.Regressed {
 					statusCell = "🔴 **regressed**"
 				}
-				fmt.Fprintf(w, "| %s | `%s` | %s | %s |\n", statusCell, s.ID, title, s.Evidence)
+				fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |\n",
+					statusCell, s.ID, strings.TrimPrefix(backlogTag(s), " · "), title, s.Evidence)
 			}
 		}
 		fmt.Fprintln(w)

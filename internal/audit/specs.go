@@ -16,11 +16,15 @@ const (
 	Regressed Status = "regressed"
 )
 
-// SpecStatus is a spec plus its derived (never typed) status.
+// SpecStatus is a spec plus its derived (never typed) status. Epic and
+// priority are carried through so agents and boards can order the backlog
+// without re-reading spec files.
 type SpecStatus struct {
 	ID       string   `json:"id"`
 	Title    string   `json:"title"`
 	Owner    string   `json:"owner,omitempty"`
+	Epic     string   `json:"epic,omitempty"`
+	Priority int      `json:"priority,omitempty"`
 	Status   Status   `json:"status"`
 	Evidence string   `json:"evidence"`
 	Branches []string `json:"branches,omitempty"`
@@ -38,7 +42,8 @@ func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) 
 
 	for i := range specs {
 		s := &specs[i]
-		ss := SpecStatus{ID: s.ID, Title: s.Title, Owner: s.Owner, File: s.File}
+		ss := SpecStatus{ID: s.ID, Title: s.Title, Owner: s.Owner,
+			Epic: s.Epic, Priority: s.Priority, File: s.File}
 
 		var linked []*Unit
 		for j := range res.Units {
@@ -66,6 +71,24 @@ func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) 
 		}
 		res.Specs = append(res.Specs, ss)
 	}
+
+	// Backlog order: priority first (unset last), then id — renderers group
+	// by status, so this yields priority order inside every column.
+	sort.SliceStable(res.Specs, func(i, j int) bool {
+		pi, pj := rank(res.Specs[i].Priority), rank(res.Specs[j].Priority)
+		if pi != pj {
+			return pi < pj
+		}
+		return res.Specs[i].ID < res.Specs[j].ID
+	})
+}
+
+// rank treats priority 0 (unset) as lowest, not highest.
+func rank(p int) int {
+	if p == 0 {
+		return int(^uint(0) >> 1)
+	}
+	return p
 }
 
 func unitMatchesSpec(repo, base string, s *spec.Spec, u *Unit) bool {

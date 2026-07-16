@@ -131,6 +131,51 @@ func TestSpecBranchGlobLinking(t *testing.T) {
 	}
 }
 
+func TestBacklogOrderingAndFields(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -30))
+
+	dir := spec.Dir(f.dir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(id, prio, epic string) {
+		content := "---\nid: " + id + "\ntitle: Story " + id + "\n"
+		if prio != "" {
+			content += "priority: " + prio + "\n"
+		}
+		if epic != "" {
+			content += "epic: " + epic + "\n"
+		}
+		content += "---\n\n## Goal\nTest.\n"
+		if err := os.WriteFile(filepath.Join(dir, id+"-test.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("tb-aa01", "2", "epic-b")
+	write("tb-bb02", "1", "epic-a")
+	write("tb-cc03", "", "") // unset priority sorts last
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []string
+	for _, s := range res.Specs {
+		order = append(order, s.ID)
+	}
+	want := []string{"tb-bb02", "tb-aa01", "tb-cc03"}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("backlog order = %v, want %v (priority first, unset last)", order, want)
+		}
+	}
+	if s := specByID(t, res, "tb-bb02"); s.Epic != "epic-a" || s.Priority != 1 {
+		t.Errorf("spec status must carry epic/priority, got %+v", s)
+	}
+}
+
 func TestSpecRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s, err := spec.New(dir, "Add email verification to signup", "emmanuel")
