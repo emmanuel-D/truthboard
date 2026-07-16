@@ -6,118 +6,246 @@
 <title>Truthboard</title>
 <style>
   :root {
-    --bg: #f6f7f9; --card: #ffffff; --text: #1a2233; --muted: #66707f;
-    --line: #e3e7ee;
-    --regressed: #c62828; --in-review: #7b1fa2; --in-progress: #0277bd;
-    --planned: #546e7a; --stalled: #b26a00; --done: #2e7d32;
+    color-scheme: light;
+    --page:      #f9f9f7;
+    --card:      #fcfcfb;
+    --ink:       #0b0b0b;
+    --ink-2:     #52514e;
+    --muted:     #898781;
+    --hairline:  #e1e0d9;
+    --ring:      rgba(11,11,11,0.10);
+    /* status system: fixed status palette + two categorical slots */
+    --regressed: #d03b3b;  /* critical */
+    --stalled:   #b26a00;  /* warning, deepened for light-surface text */
+    --done:      #0ca30c;  /* good */
+    --in-review: #4a3aa7;  /* categorical violet */
+    --in-progress:#2a78d6; /* categorical blue */
+    --planned:   #898781;  /* muted ink — not yet real */
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #12151b; --card: #1a1f28; --text: #e6eaf1; --muted: #97a1b0;
-      --line: #2a3140;
-      --regressed: #ef5350; --in-review: #ce93d8; --in-progress: #4fc3f7;
-      --planned: #90a4ae; --stalled: #ffb74d; --done: #81c784;
+      color-scheme: dark;
+      --page:      #0d0d0d;
+      --card:      #1a1a19;
+      --ink:       #ffffff;
+      --ink-2:     #c3c2b7;
+      --muted:     #898781;
+      --hairline:  #2c2c2a;
+      --ring:      rgba(255,255,255,0.10);
+      --regressed: #d03b3b;
+      --stalled:   #fab219;
+      --done:      #0ca30c;
+      --in-review: #9085e9;
+      --in-progress:#3987e5;
+      --planned:   #898781;
     }
   }
   * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 1.5rem; max-width: 62rem; margin: 0 auto; }
-  header h1 { font-size: 1.3rem; }
-  .banner { color: var(--muted); font-size: .85rem; margin: .2rem 0 1.2rem; }
-  .banner b { color: var(--text); }
-  .meta { font-size: .8rem; color: var(--muted); margin-bottom: 1rem; }
-  .warn { background: color-mix(in srgb, var(--stalled) 12%, var(--card)); border: 1px solid var(--stalled); border-radius: 8px; padding: .5rem .8rem; margin-bottom: 1rem; font-size: .85rem; }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
-  section h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .7rem; }
-  .row { display: flex; gap: .7rem; padding: .45rem 0; border-top: 1px solid var(--line); align-items: baseline; flex-wrap: wrap; }
-  .row:first-of-type { border-top: none; }
-  .chip { flex: 0 0 6.5rem; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-  .name { font-weight: 600; }
-  .name code { font-weight: 400; color: var(--muted); font-size: .85em; }
-  .evidence { color: var(--muted); font-size: .85rem; flex-basis: 100%; padding-left: 7.2rem; }
-  ul { list-style: none; }
-  li { padding: .25rem 0; font-size: .9rem; }
-  li .muted, .muted { color: var(--muted); }
-  .empty { color: var(--muted); font-style: italic; font-size: .9rem; }
-  .clean { color: var(--done); font-size: .9rem; }
-  .drift-label { font-weight: 600; font-size: .85rem; margin-top: .5rem; }
-  .creep { color: var(--stalled); }
-  footer { text-align: center; color: var(--muted); font-size: .75rem; padding: 1rem 0 2rem; }
-  @media (max-width: 40rem) { .evidence { padding-left: 0; } }
+  body {
+    background: var(--page); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 1.4rem clamp(1rem, 4vw, 2.5rem) 0;
+    max-width: 78rem; margin: 0 auto;
+  }
+  a { color: inherit; }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
+  header h1 { font-size: 1.25rem; letter-spacing: -.01em; }
+  .live { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; color: var(--ink-2); }
+  .live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .meta { width: 100%; color: var(--muted); font-size: .8rem; margin-top: .1rem; }
+  .banner { color: var(--muted); font-size: .8rem; margin: .35rem 0 1.1rem; }
+  .banner b { color: var(--ink-2); font-weight: 600; }
+  .warn {
+    border: 1px solid var(--stalled); border-radius: 8px; background: var(--card);
+    padding: .5rem .8rem; margin-bottom: 1rem; font-size: .84rem; color: var(--ink-2);
+  }
+
+  /* ---------- stat tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .7rem; margin-bottom: 1.1rem; }
+  .tile {
+    background: var(--card); border: 1px solid var(--ring); border-radius: 10px;
+    padding: .7rem .9rem .6rem;
+  }
+  .tile .num { font-size: 1.7rem; font-weight: 650; line-height: 1.1; }
+  .tile .lbl { font-size: .74rem; color: var(--muted); display: flex; align-items: center; gap: .35rem; margin-top: .1rem; }
+  .tile .lbl .mark { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+
+  /* ---------- kanban ---------- */
+  .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(13.5rem, 1fr);
+           gap: .8rem; overflow-x: auto; padding-bottom: .4rem; margin-bottom: 1.2rem; }
+  .col { min-width: 0; }
+  .col h3 {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
+    display: flex; align-items: center; gap: .4rem; margin: 0 .1rem .5rem;
+  }
+  .col h3 .count { color: var(--muted); font-weight: 500; }
+  .card {
+    background: var(--card); border: 1px solid var(--ring); border-left-width: 3px;
+    border-radius: 10px; padding: .65rem .8rem; margin-bottom: .6rem;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(0,0,0,.08); }
+  .card .title { font-weight: 600; font-size: .88rem; line-height: 1.35; }
+  .card .sub { margin-top: .3rem; font-size: .75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem .6rem; }
+  .card .sub code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; }
+  .card .why { margin-top: .35rem; font-size: .78rem; color: var(--ink-2); }
+  .card .owner { margin-top: .4rem; font-size: .72rem; color: var(--muted); }
+  .empty-col { border: 1px dashed var(--hairline); border-radius: 10px; padding: .8rem; color: var(--muted); font-size: .78rem; }
+
+  /* ---------- sections ---------- */
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .8rem; margin-bottom: 1.2rem; }
+  section.panel { background: var(--card); border: 1px solid var(--ring); border-radius: 10px; padding: .9rem 1.1rem; }
+  section.panel h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .6rem; }
+  .finding { display: flex; gap: .5rem; padding: .3rem 0; font-size: .84rem; align-items: baseline; }
+  .finding .ico { flex: 0 0 1.1rem; text-align: center; }
+  .finding .what { color: var(--ink-2); }
+  .finding .what b { color: var(--ink); font-weight: 600; }
+  .finding code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
+  .clean { color: var(--done); font-size: .84rem; }
+  .clean::before { content: "✓ "; }
+  .more { color: var(--muted); font-size: .78rem; padding: .2rem 0 0 1.6rem; }
+
+  /* branches + digest */
+  .rows { font-size: .84rem; }
+  .rows .r { display: flex; gap: .6rem; padding: .3rem 0; border-top: 1px solid var(--hairline); align-items: baseline; }
+  .rows .r:first-child { border-top: none; }
+  .status { font-size: .72rem; font-weight: 650; white-space: nowrap; flex: 0 0 7.2rem; }
+  .rows code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
+  .rows .ev { color: var(--muted); font-size: .78rem; }
+  .digest .r { gap: .8rem; }
+  .digest time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 5.6rem; font-size: .78rem; }
+
+  footer { text-align: center; color: var(--muted); font-size: .74rem; padding: .6rem 0 1.6rem; }
 </style>
 </head>
 <body>
 <header>
   <h1>Truthboard</h1>
-  <p class="banner"><b>Derived from git, never typed.</b> This board is read-only because there is nothing to edit — every status below is computed from repository facts.</p>
+  <span class="live"><span class="dot"></span><span id="updated">connecting…</span></span>
+  <div class="meta" id="meta"></div>
 </header>
-<div class="meta" id="meta">loading…</div>
-<div id="app"><p class="empty">Waiting for the first audit…</p></div>
-<footer>truthboard · refreshes automatically</footer>
+<p class="banner"><b>Derived from git, never typed.</b> Every status on this page is computed from repository facts — there is nothing here to edit.</p>
+<div id="app"></div>
+<footer>truthboard · refreshes automatically · read-only by construction</footer>
+
 <script>
 "use strict";
+const STATUS = {
+  "regressed":   { ico: "✕", label: "Regressed" },
+  "in-review":   { ico: "◉", label: "In review" },
+  "in-progress": { ico: "◐", label: "In progress" },
+  "planned":     { ico: "○", label: "Planned" },
+  "stalled":     { ico: "⏸", label: "Stalled" },
+  "done":        { ico: "✓", label: "Done" },
+};
 const SPEC_ORDER = ["regressed","in-review","in-progress","planned","stalled","done"];
 const UNIT_ORDER = ["in-review","in-progress","stalled","done"];
 const CLAIM_HEADS = {
-  "ticket-done-but-open": "Tickets already done but still open",
-  "ticket-stale": "Open tickets with no repo activity",
-  "unticketed-work": "Work nobody promised (no ticket, no PR)",
-  "pr-abandoned": "PRs closed without merging, branch still alive"
+  "ticket-done-but-open": ["✓", "done but still open"],
+  "ticket-stale": ["⏸", "assigned, gone quiet"],
+  "unticketed-work": ["?", "work nobody promised"],
+  "pr-abandoned": ["✕", "closed without merging"],
 };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const chip = st => `<span class="chip" style="color:var(--${esc(st)})">${esc(st)}</span>`;
+const sv = st => `var(--${esc(st)})`;
+const chip = st => { const d = STATUS[st] || { ico: "·", label: st };
+  return `<span class="status" style="color:${sv(st)}">${d.ico} ${esc(d.label)}</span>`; };
 
-function rows(items, order, render) {
+function tiles(b) {
+  const n = st => (b.specs || []).filter(s => s.status === st).length;
+  const active = n("in-progress") + n("in-review");
+  const d = b.drift || {};
+  const drift = (d.stale_promises?.length||0) + (d.shadow_work?.length||0) +
+                (d.scope_creep?.length||0) + (b.claims?.length||0) + (n("regressed"));
+  const tile = (num, label, color) =>
+    `<div class="tile"><div class="num">${num}</div>
+      <div class="lbl"><span class="mark" style="background:${color}"></span>${label}</div></div>`;
+  return `<div class="tiles">` +
+    tile(n("done"), "specs done", "var(--done)") +
+    tile(active, "in flight", "var(--in-progress)") +
+    tile(n("planned"), "planned", "var(--planned)") +
+    tile(drift, "drift findings", drift ? "var(--stalled)" : "var(--done)") +
+    `</div>`;
+}
+
+function kanban(b) {
+  if (!b.specs?.length)
+    return `<section class="panel"><h2>Spec board</h2>
+      <div class="empty-col">No specs yet — <code>truthboard spec new "Title"</code></div></section>`;
+  const cols = SPEC_ORDER.filter(st => b.specs.some(s => s.status === st));
+  return `<div class="board">` + cols.map(st => {
+    const d = STATUS[st];
+    const cards = b.specs.filter(s => s.status === st).map(s =>
+      `<div class="card" style="border-left-color:${sv(st)}">
+         <div class="title">${esc(s.title)}</div>
+         <div class="sub"><code>${esc(s.id)}</code>${(s.branches||[]).map(x=>`<code>${esc(x)}</code>`).join("")}</div>
+         <div class="why">${esc(s.evidence)}</div>
+         ${s.owner ? `<div class="owner">${esc(s.owner)}</div>` : ""}
+       </div>`).join("");
+    return `<div class="col"><h3 style="color:${sv(st)}">${d.ico} ${esc(d.label)}
+      <span class="count">${b.specs.filter(s=>s.status===st).length}</span></h3>${cards}</div>`;
+  }).join("") + `</div>`;
+}
+
+function drift(b) {
+  const d = b.drift || {};
   const out = [];
-  for (const st of order)
-    for (const it of items || [])
-      if (it.status === st) out.push(render(it));
-  return out.join("");
+  for (const sc of d.scope_creep || [])
+    out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⇢</span>
+      <span class="what"><b>Scope creep</b> — <code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code>:
+      ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff outside spec paths (mostly ${esc(sc.top_dirs)})</span></div>`);
+  for (const u of d.stale_promises || [])
+    out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⏸</span>
+      <span class="what"><b>Stale promise</b> — <code>${esc(u.name)}</code>: ${esc(u.evidence)}</span></div>`);
+  const sw = d.shadow_work || [];
+  sw.slice(0, 6).forEach(c => out.push(
+    `<div class="finding"><span class="ico" style="color:var(--muted)">∅</span>
+      <span class="what"><b>Shadow work</b> — ${esc(c.subject)} <code>${esc(c.hash)}</code></span></div>`));
+  if (sw.length > 6) out.push(`<div class="more">… and ${sw.length - 6} more shadow commits</div>`);
+  return `<section class="panel"><h2>Drift — where the board could lie</h2>
+    ${out.length ? out.join("") : `<span class="clean">clean — the board matches reality</span>`}</section>`;
+}
+
+function claims(b) {
+  if (!b.forge) return "";
+  const out = [];
+  for (const [kind, [ico, head]] of Object.entries(CLAIM_HEADS)) {
+    for (const c of (b.claims || []).filter(x => x.kind === kind).slice(0, 8))
+      out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">${ico}</span>
+        <span class="what"><b>${esc(c.subject)}</b> ${esc(head)} — ${esc(c.detail)}</span></div>`);
+  }
+  return `<section class="panel"><h2>Claims vs proof — ${esc(b.forge)}</h2>
+    ${out.length ? out.join("") : `<span class="clean">every tracker claim is backed by the repo</span>`}</section>`;
+}
+
+function branches(b) {
+  if (!b.units?.length) return "";
+  const rows = UNIT_ORDER.map(st => b.units.filter(u => u.status === st).map(u =>
+    `<div class="r">${chip(u.status)}<code>${esc(u.name)}</code>
+     <span class="ev">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`
+  ).join("")).join("");
+  return `<section class="panel"><h2>Branches</h2><div class="rows">${rows}</div></section>`;
+}
+
+function digest(b) {
+  const items = (b.digest || []).slice(0, 14).map(c =>
+    `<div class="r"><time>${esc(c.date)}</time><span>${esc(c.subject)}</span></div>`).join("");
+  return `<section class="panel digest"><h2>Landed in the last ${b.digest_days} days</h2>
+    <div class="rows">${items || `<span class="ev">nothing landed</span>`}</div></section>`;
 }
 
 function render(b) {
+  const repoLabel = b.forge || (b.repo || "").split("/").filter(Boolean).pop() || b.repo;
   document.getElementById("meta").textContent =
-    `repo ${b.forge || b.repo} · integration branch ${b.integration_branch} (via ${b.elected_via}) · updated ${new Date().toLocaleTimeString()}`;
-
+    `${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`;
   let html = "";
   if (b.election_note) html += `<div class="warn">⚠ ${esc(b.election_note)}</div>`;
-
-  html += `<section><h2>Spec board</h2>` + (b.specs?.length
-    ? rows(b.specs, SPEC_ORDER, s => `<div class="row">${chip(s.status)}
-        <span class="name">${esc(s.title)} <code>${esc(s.id)}</code>${(s.branches||[]).map(x=>` <code>${esc(x)}</code>`).join("")}</span>
-        <span class="evidence">${esc(s.evidence)}</span></div>`)
-    : `<p class="empty">No specs yet — <code>truthboard spec new "Title"</code></p>`) + `</section>`;
-
-  html += `<section><h2>Branches</h2>` + (b.units?.length
-    ? rows(b.units, UNIT_ORDER, u => `<div class="row">${chip(u.status)}
-        <span class="name"><code>${esc(u.name)}</code></span>
-        <span class="evidence">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`)
-    : `<p class="empty">No work-unit branches.</p>`) + `</section>`;
-
-  const d = b.drift || {};
-  const drifts = [];
-  if (d.scope_creep?.length) drifts.push(`<p class="drift-label creep">Scope creep</p><ul>` +
-    d.scope_creep.map(sc=>`<li><code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code> — ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff (${sc.outside_files}/${sc.total_files} files) outside spec paths <span class="muted">· mostly ${esc(sc.top_dirs)}</span></li>`).join("") + `</ul>`);
-  if (d.stale_promises?.length) drifts.push(`<p class="drift-label">Stale promises</p><ul>` +
-    d.stale_promises.map(u=>`<li><code>${esc(u.name)}</code> <span class="muted">— ${esc(u.evidence)}</span></li>`).join("") + `</ul>`);
-  if (d.shadow_work?.length) drifts.push(`<p class="drift-label">Shadow work <span class="muted">(commits outside any branch/MR flow)</span></p><ul>` +
-    d.shadow_work.slice(0,10).map(c=>`<li><span class="muted">${esc(c.date)}</span> ${esc(c.subject)}</li>`).join("") +
-    (d.shadow_work.length>10?`<li class="muted">… and ${d.shadow_work.length-10} more</li>`:"") + `</ul>`);
-  html += `<section><h2>Drift</h2>${drifts.length ? drifts.join("") : `<p class="clean">✓ clean — the board matches reality</p>`}</section>`;
-
-  if (b.forge) {
-    const groups = [];
-    for (const [kind, head] of Object.entries(CLAIM_HEADS)) {
-      const list = (b.claims||[]).filter(c=>c.kind===kind);
-      if (list.length) groups.push(`<p class="drift-label">${esc(head)}</p><ul>` +
-        list.slice(0,10).map(c=>`<li><code>${esc(c.subject)}</code> <span class="muted">— ${esc(c.detail)}</span></li>`).join("") + `</ul>`);
-    }
-    html += `<section><h2>Claims vs proof — ${esc(b.forge)}</h2>${groups.length ? groups.join("") : `<p class="clean">✓ clean — every tracker claim is backed by the repo</p>`}</section>`;
-  }
-
-  html += `<section><h2>Landed in the last ${b.digest_days} days</h2>` + (b.digest?.length
-    ? `<ul>` + b.digest.slice(0,20).map(c=>`<li><span class="muted">${esc(c.date)}</span> ${esc(c.subject)}</li>`).join("") + `</ul>`
-    : `<p class="empty">Nothing landed.</p>`) + `</section>`;
-
+  html += tiles(b) + kanban(b);
+  html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
+  html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
   document.getElementById("app").innerHTML = html;
 }
 
@@ -128,8 +256,9 @@ async function tick() {
     if (!r.ok) throw new Error(r.statusText);
     const text = await r.text();
     if (text !== last) { last = text; render(JSON.parse(text)); }
+    document.getElementById("updated").textContent = "live · " + new Date().toLocaleTimeString();
   } catch (e) {
-    document.getElementById("meta").textContent = "audit unavailable: " + e.message;
+    document.getElementById("updated").textContent = "audit unavailable — retrying";
   }
   setTimeout(tick, 3000);
 }
