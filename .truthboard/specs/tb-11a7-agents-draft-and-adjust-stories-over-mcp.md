@@ -3,7 +3,9 @@ id: tb-11a7
 title: Agents draft and adjust stories over MCP
 owner: emmanuel
 branch: '*/tb-11a7-*'
-paths: [internal/mcp/**, internal/spec/**]
+paths:
+    - internal/mcp/**
+    - internal/spec/**
 epic: agent-loop
 priority: 1
 ---
