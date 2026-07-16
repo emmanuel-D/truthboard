@@ -111,6 +111,14 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 		Remove(repo) // stale state from a crash or reboot
 	}
 
+	// Pre-flight: if anything already answers on the port, refuse now —
+	// otherwise the readiness probe could mistake the squatter's 200 for
+	// our child coming up.
+	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+	if portOccupied(url) {
+		return nil, fmt.Errorf("port %d is already serving something (another board? old process?) — stop it or use --port", port)
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -154,8 +162,10 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 		tail := logTail(repo, 5)
 		return nil, fmt.Errorf("board did not come up: %v%s", err, tail)
 	}
-	// A 200 alone can come from whatever already held the port; the child
-	// must still be alive for the answer to be ours.
+	// Backstop against races the pre-flight can't see: give a failing
+	// child time to finish dying, then require it alive — a 200 alone
+	// could still be someone who grabbed the port in between.
+	time.Sleep(400 * time.Millisecond)
 	if !Alive(s.PID) {
 		tail := logTail(repo, 5)
 		return nil, fmt.Errorf("port %d answers but our board exited — something else is listening there (try --port)%s", port, tail)
@@ -164,6 +174,16 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func portOccupied(url string) bool {
+	client := &http.Client{Timeout: 400 * time.Millisecond}
+	resp, err := client.Get(url + "/")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return true
 }
 
 func waitReady(url string, budget time.Duration) error {
