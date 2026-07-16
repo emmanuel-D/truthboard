@@ -13,11 +13,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/forge"
+	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/spec"
 )
 
 //go:embed index.html
@@ -33,6 +36,14 @@ type boardCache struct {
 	mu   sync.Mutex
 	body []byte
 	at   time.Time
+}
+
+// invalidate forces the next get to recompute — called after intent writes
+// so the board reflects an edit on the very next poll.
+func (c *boardCache) invalidate() {
+	c.mu.Lock()
+	c.at = time.Time{}
+	c.mu.Unlock()
 }
 
 func (c *boardCache) get() ([]byte, error) {
@@ -58,9 +69,9 @@ func (c *boardCache) get() ([]byte, error) {
 	return body, nil
 }
 
-// Handler returns the read-only HTTP handler; exposed for tests. The repo
-// path is resolved to absolute so the page never labels the board "." —
-// the audit result carries the path the viewer should recognize.
+// Handler returns the board handler; exposed for tests. The repo path is
+// resolved to absolute so the page never labels the board "." — the audit
+// result carries the path the viewer should recognize.
 func Handler(repo string, useForge bool, version string) http.Handler {
 	if abs, err := filepath.Abs(repo); err == nil {
 		repo = abs
@@ -87,19 +98,159 @@ func Handler(repo string, useForge bool, version string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Truthboard-Dirty", fmt.Sprint(dirtySpecs(repo)))
 		w.Write(body)
 	})
+	mux.HandleFunc("/api/specs", specCreate(repo, cache.invalidate))
+	mux.HandleFunc("/api/specs/", specItem(repo, cache.invalidate))
 
-	// The read-only guard sits in front of routing: anything but GET/HEAD
-	// is rejected, so a write endpoint cannot exist even by accident.
+	// The write guard sits in front of routing: the promise (spec intent,
+	// under /api/specs) is editable; the proof (everything else) is not.
+	// A status has no route by which it could be written.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			http.Error(w, "truthboard is read-only: statuses are derived from git, never typed", http.StatusMethodNotAllowed)
+		allowed := r.Method == http.MethodGet || r.Method == http.MethodHead ||
+			(r.Method == http.MethodPost && r.URL.Path == "/api/specs") ||
+			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/specs/"))
+		if !allowed {
+			http.Error(w, "statuses are derived from git, never typed; only spec intent under /api/specs is writable", http.StatusMethodNotAllowed)
 			return
 		}
 		w.Header().Set("X-Truthboard-Version", version)
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// dirtySpecs counts uncommitted changes under .truthboard/specs so the page
+// can nudge someone to commit intent edits.
+func dirtySpecs(repo string) int {
+	out, ok := gitrepo.Try(repo, "status", "--porcelain", "--", ".truthboard")
+	if !ok || out == "" {
+		return 0
+	}
+	return len(strings.Split(out, "\n"))
+}
+
+type specPayload struct {
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Owner    string   `json:"owner"`
+	Branch   string   `json:"branch"`
+	Epic     string   `json:"epic"`
+	Priority int      `json:"priority"`
+	Paths    []string `json:"paths"`
+	Body     string   `json:"body"`
+}
+
+func payload(s *spec.Spec) specPayload {
+	return specPayload{ID: s.ID, Title: s.Title, Owner: s.Owner, Branch: s.Branch,
+		Epic: s.Epic, Priority: s.Priority, Paths: s.Paths, Body: s.Body}
+}
+
+// decodeIntent rejects unknown fields so a "status" in the payload fails
+// loudly — same contract as the MCP server.
+func decodeIntent(w http.ResponseWriter, r *http.Request, into any) bool {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(into); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "unknown field") {
+			msg += " — intent fields only; statuses are derived from git and cannot be set"
+		}
+		http.Error(w, msg, http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func specCreate(repo string, invalidate func()) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Title    string   `json:"title"`
+			Owner    string   `json:"owner"`
+			Epic     string   `json:"epic"`
+			Priority int      `json:"priority"`
+			Paths    []string `json:"paths"`
+			Body     string   `json:"body"`
+		}
+		if !decodeIntent(w, r, &in) {
+			return
+		}
+		if strings.TrimSpace(in.Title) == "" {
+			http.Error(w, "a story needs a title", http.StatusBadRequest)
+			return
+		}
+		s, err := spec.New(repo, in.Title, in.Owner)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if in.Body != "" {
+			s.Body = in.Body
+		}
+		s.Epic, s.Priority, s.Paths = in.Epic, in.Priority, in.Paths
+		if err := s.Save(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		invalidate()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(payload(s))
+	}
+}
+
+func specItem(repo string, invalidate func()) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/api/specs/")
+		s, err := spec.Find(repo, id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(payload(s))
+			return
+		}
+		var in struct {
+			Title    *string   `json:"title"`
+			Owner    *string   `json:"owner"`
+			Branch   *string   `json:"branch"`
+			Epic     *string   `json:"epic"`
+			Priority *int      `json:"priority"`
+			Paths    *[]string `json:"paths"`
+			Body     *string   `json:"body"`
+		}
+		if !decodeIntent(w, r, &in) {
+			return
+		}
+		set := func(dst *string, v *string) {
+			if v != nil {
+				*dst = *v
+			}
+		}
+		set(&s.Title, in.Title)
+		set(&s.Owner, in.Owner)
+		set(&s.Branch, in.Branch)
+		set(&s.Epic, in.Epic)
+		set(&s.Body, in.Body)
+		if in.Priority != nil {
+			s.Priority = *in.Priority
+		}
+		if in.Paths != nil {
+			s.Paths = *in.Paths
+		}
+		if strings.TrimSpace(s.Title) == "" {
+			http.Error(w, "a story needs a title", http.StatusBadRequest)
+			return
+		}
+		if err := s.Save(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		invalidate()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(payload(s))
+	}
 }
 
 // Serve listens on localhost only and optionally opens the browser.

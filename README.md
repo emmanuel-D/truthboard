@@ -49,10 +49,13 @@ truthboard ui              # opens http://127.0.0.1:1337, auto-refreshing
 truthboard ui --forge      # include tracker claims (slower refresh)
 ```
 
-A read-only page rendering the spec board, branches, drift, and digest.
-There are no buttons that mutate anything because there is nothing to
-mutate; every non-GET request is rejected before routing. Single embedded
-HTML file via go:embed — still one binary.
+A live page rendering the spec board, branches, drift, and digest — and
+where POs create and refine stories: click a card to edit its title, goal,
+acceptance, epic, and priority. **The promise is editable; the proof is
+not:** intent edits write the markdown spec files (a plain git diff, with
+an uncommitted-changes nudge on the page), while statuses stay computed
+with no route by which anything could set one. Single embedded HTML file
+via go:embed — still one binary.
 
 ## Audit mode — works on any repo, no specs needed
 
