@@ -308,7 +308,8 @@
     </div>
     <div class="err" id="ed-err"></div>
     <div class="dfoot">
-      <button class="btn" value="cancel">Cancel</button>
+      <!-- formnovalidate: Cancel must close even when required fields are empty -->
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
       <button class="btn primary" id="ed-save" value="default">Save story</button>
     </div>
   </form>
@@ -586,8 +587,13 @@ async function tick() {
     dirtyEl.hidden = !dirty;
     if (dirty) dirtyEl.textContent = `● ${dirty} uncommitted intent change${dirty > 1 ? "s" : ""} — review and commit .truthboard/specs like code`;
     const text = await r.text();
-    if (text !== last) {
-      last = text;
+    // generated_at changes on every audit; comparing without it keeps
+    // unchanged boards from re-rendering (and cross-fading) every poll.
+    const key = text.replace(/"generated_at":"[^"]+"/, "");
+    // Never re-render under an open dialog — the next poll after it
+    // closes picks the change up.
+    if (key !== last && !dlg.open && !detailDlg.open) {
+      last = key;
       const b = JSON.parse(text);
       if (lastBoard && document.startViewTransition) document.startViewTransition(() => render(b));
       else render(b);
