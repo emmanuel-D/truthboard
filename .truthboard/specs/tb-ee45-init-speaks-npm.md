@@ -19,10 +19,10 @@ we never hand-mangle someone's package.json.
 
 ## Acceptance
 
-- [ ] `truthboard init` in a repo with package.json adds the four board
+- [x] `truthboard init` in a repo with package.json adds the four board
       scripts; `npm run board` starts the detached board
-- [ ] Existing scripts with the same name are never overwritten — skipped
+- [x] Existing scripts with the same name are never overwritten — skipped
       and reported
-- [ ] Running init twice reports "already there", changes nothing
-- [ ] No package.json, or no npm on PATH: skipped with a one-line note,
+- [x] Running init twice reports "already there", changes nothing
+- [x] No package.json, or no npm on PATH: skipped with a one-line note,
       never an error
