@@ -15,7 +15,9 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/web"
 )
 
-const version = "0.1.0"
+// version is stamped by the release workflow via
+// -ldflags "-X main.version=v0.x.y"; dev builds show the fallback.
+var version = "dev"
 
 const usage = `truthboard — your repo already knows the status
 

@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Test before anything ships
+        run: go vet ./... && go test ./...
+
+      - name: Build all platforms
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          for t in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64; do
+            goos=${t%/*}; goarch=${t#*/}; ext=""
+            [ "$goos" = "windows" ] && ext=".exe"
+            GOOS=$goos GOARCH=$goarch CGO_ENABLED=0 \
+              go build -trimpath -ldflags="-s -w -X main.version=${tag}" \
+              -o "dist/truthboard${ext}" ./cmd/truthboard
+            tar -czf "dist/truthboard_${tag}_${goos}_${goarch}.tar.gz" -C dist "truthboard${ext}"
+            rm "dist/truthboard${ext}"
+          done
+          (cd dist && sha256sum *.tar.gz > checksums.txt)
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.tar.gz dist/checksums.txt \
+            --title "Truthboard ${GITHUB_REF_NAME}" --generate-notes
