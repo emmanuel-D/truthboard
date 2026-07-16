@@ -25,7 +25,7 @@ func TestAgentsWiresFreshRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(log, "\n")
-	for _, want := range []string{"registered the truthboard MCP server", "working agreement written", "not present, skipped", "installed"} {
+	for _, want := range []string{"registered the truthboard MCP server", "working agreement written", "agreement import written", "installed"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("log missing %q:\n%s", want, joined)
 		}
@@ -58,6 +58,16 @@ func TestAgentsWiresFreshRepo(t *testing.T) {
 		}
 	}
 
+	// Claude Code loads CLAUDE.md but not AGENTS.md, so adoption must
+	// create it and import the agreement.
+	claude, err := os.ReadFile(filepath.Join(repo, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("CLAUDE.md should be created on a fresh repo: %v", err)
+	}
+	if !strings.Contains(string(claude), "@AGENTS.md") {
+		t.Errorf("CLAUDE.md missing the @AGENTS.md import:\n%s", claude)
+	}
+
 	hook := filepath.Join(repo, ".git", "hooks", "commit-msg")
 	info, err := os.Stat(hook)
 	if err != nil {
@@ -65,6 +75,26 @@ func TestAgentsWiresFreshRepo(t *testing.T) {
 	}
 	if info.Mode()&0o111 == 0 {
 		t.Error("commit-msg hook is not executable")
+	}
+}
+
+func TestAgentsUpgradesStalePointerBlock(t *testing.T) {
+	repo := gitRepo(t)
+	stale := "# My project\n\n" + beginMark + "\n## Task tracking\n\nOld pointer without the import.\n" + endMark + "\n"
+	os.WriteFile(filepath.Join(repo, "CLAUDE.md"), []byte(stale), 0o644)
+
+	if _, err := Agents(repo, false); err != nil {
+		t.Fatal(err)
+	}
+	claude, _ := os.ReadFile(filepath.Join(repo, "CLAUDE.md"))
+	if !strings.Contains(string(claude), "# My project") {
+		t.Errorf("CLAUDE.md lost the owner's content:\n%s", claude)
+	}
+	if !strings.Contains(string(claude), "@AGENTS.md") || strings.Contains(string(claude), "Old pointer") {
+		t.Errorf("stale block should be replaced with the import:\n%s", claude)
+	}
+	if n := strings.Count(string(claude), beginMark); n != 1 {
+		t.Errorf("CLAUDE.md has %d truthboard blocks, want exactly 1", n)
 	}
 }
 

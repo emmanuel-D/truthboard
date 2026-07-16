@@ -43,13 +43,19 @@ editable — ` + "`update_spec`" + ` over MCP, the CLI, or editing
 ` + "`.truthboard/specs/*.md`" + ` directly. Commit intent changes like code.
 ` + endMark + "\n"
 
+// claudePointer must import AGENTS.md rather than merely mention it:
+// Claude Code loads CLAUDE.md into context but never AGENTS.md, so a
+// prose reference leaves the agreement unread (proven by a pilot where
+// an agent shipped a feature with no spec, branch, or trailer).
 const claudePointer = beginMark + `
 ## Task tracking
 
-This repo uses Truthboard — see the "Truthboard working agreement" section
-in AGENTS.md. In short: get your task with ` + "`get_brief`" + `, end every commit
+This repo uses Truthboard. The working agreement below is imported from
+AGENTS.md — follow it: get your task with ` + "`get_brief`" + `, end every commit
 with its ` + "`Spec: <id>`" + ` trailer, and never try to set a status (statuses
 are derived from git).
+
+@AGENTS.md
 ` + endMark + "\n"
 
 // hookNudge is exit-code-neutral so it can sit inside someone else's hook
@@ -93,14 +99,10 @@ func Agents(repo string, hooks bool) ([]string, error) {
 	step("AGENTS.md: working agreement %s", writtenWord(changed))
 
 	claudePath := filepath.Join(repo, "CLAUDE.md")
-	if _, statErr := os.Stat(claudePath); statErr == nil {
-		if changed, err = upsertBlock(claudePath, claudePointer, false); err != nil {
-			return nil, err
-		}
-		step("CLAUDE.md: pointer %s", writtenWord(changed))
-	} else {
-		step("CLAUDE.md: not present, skipped (AGENTS.md carries the agreement)")
+	if changed, err = upsertBlock(claudePath, claudePointer, true); err != nil {
+		return nil, err
 	}
+	step("CLAUDE.md: agreement import %s", writtenWord(changed))
 
 	if hooks {
 		msg, err := installHook(repo)
