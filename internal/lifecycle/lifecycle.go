@@ -154,6 +154,12 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 		tail := logTail(repo, 5)
 		return nil, fmt.Errorf("board did not come up: %v%s", err, tail)
 	}
+	// A 200 alone can come from whatever already held the port; the child
+	// must still be alive for the answer to be ours.
+	if !Alive(s.PID) {
+		tail := logTail(repo, 5)
+		return nil, fmt.Errorf("port %d answers but our board exited — something else is listening there (try --port)%s", port, tail)
+	}
 	if err := save(repo, s); err != nil {
 		return nil, err
 	}
