@@ -47,7 +47,13 @@ through commits with the spec trailer.
 ```sh
 truthboard ui              # opens http://127.0.0.1:1337, auto-refreshing
 truthboard ui --forge      # include tracker claims (slower refresh)
+truthboard ui --detach     # keep it running in the background
+truthboard status          # is a board running for this repo?
+truthboard stop            # stop the detached board
 ```
+
+Detached boards are per-repo: state lives inside `.git/` (never
+committed), no system services, no root.
 
 A live page rendering the spec board, branches, drift, and digest — and
 where POs create and refine stories: click a card to edit its title, goal,
