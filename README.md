@@ -120,6 +120,10 @@ go test ./...
 
 Single static binary, no runtime dependencies beyond `git` itself.
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
 ## Status
 
 `0.1.0-dev` — the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker built on
