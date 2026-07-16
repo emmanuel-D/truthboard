@@ -161,6 +161,43 @@ func TestAgentsPreservesOthersFiles(t *testing.T) {
 	}
 }
 
+func TestSpawnWarningWhenBinaryOnlyInShellProfile(t *testing.T) {
+	sysDir := t.TempDir() // empty: plays the role of /usr/local/bin
+	goBin := filepath.Join(t.TempDir(), "go", "bin")
+	os.MkdirAll(goBin, 0o755)
+	exe := filepath.Join(goBin, "truthboard")
+	os.WriteFile(exe, []byte("#!/bin/sh\n"), 0o755)
+
+	lines := spawnWarning(exe, []string{sysDir})
+	if len(lines) == 0 {
+		t.Fatal("expected a warning when no system dir has truthboard")
+	}
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{exe, "ln -s", sysDir, "silently"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("warning missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+func TestSpawnWarningQuietWhenSystemDirHasBinary(t *testing.T) {
+	sysDir := t.TempDir()
+	os.WriteFile(filepath.Join(sysDir, "truthboard"), []byte("#!/bin/sh\n"), 0o755)
+
+	if lines := spawnWarning("/home/u/go/bin/truthboard", []string{sysDir}); lines != nil {
+		t.Errorf("expected no warning, got:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+func TestSpawnWarningIgnoresNonExecutable(t *testing.T) {
+	sysDir := t.TempDir()
+	os.WriteFile(filepath.Join(sysDir, "truthboard"), []byte("not a binary"), 0o644)
+
+	if lines := spawnWarning("/home/u/go/bin/truthboard", []string{sysDir}); len(lines) == 0 {
+		t.Error("a non-executable file must not count as resolvable")
+	}
+}
+
 func TestHookWarnsButNeverBlocks(t *testing.T) {
 	repo := gitRepo(t)
 	if _, err := Agents(repo, true); err != nil {
