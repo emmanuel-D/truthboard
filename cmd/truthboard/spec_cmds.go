@@ -6,21 +6,40 @@ import (
 	"os"
 	"strings"
 
+	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/spec"
 )
 
 func runInit(args []string) int {
+	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	agents := fs.Bool("agents", false, "wire the repo for AI agents: MCP registration + AGENTS.md working agreement")
+	hooks := fs.Bool("hooks", false, "with --agents: install a commit-msg hook that warns (never blocks) on missing Spec trailers")
+	fs.Parse(args)
 	repo := "."
-	if len(args) > 0 {
-		repo = args[0]
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
 	}
+
 	dir := spec.Dir(repo)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-	fmt.Printf("initialized %s\n\nNext:\n", dir)
+	fmt.Printf("initialized %s\n", dir)
+
+	if *agents {
+		log, err := adopt.Agents(repo, *hooks)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 1
+		}
+		for _, line := range log {
+			fmt.Println("  " + line)
+		}
+	}
+
+	fmt.Println("\nNext:")
 	fmt.Println(`  truthboard spec new "Your first unit of work"   write intent once`)
 	fmt.Println("  truthboard audit                                 everything else is derived")
 	return 0
