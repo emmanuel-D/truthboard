@@ -22,9 +22,15 @@
     --in-review: #4a3aa7;
     --in-progress:#2a78d6;
     --planned:   #898781;
+    /* categorical slots for epic identity (validated reference palette) */
+    --cat1:#2a78d6; --cat2:#008300; --cat3:#e87ba4; --cat4:#eda100;
+    --cat5:#1baf7a; --cat6:#eb6834; --cat7:#4a3aa7; --cat8:#e34948;
   }
+  /* Dark is selected, not flipped — and the viewer's toggle must win both
+     ways: the media query covers the OS setting unless a light stamp is
+     set; [data-theme=dark] forces dark regardless of OS. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       color-scheme: dark;
       --page:      #0d0d0d;
       --card:      #1a1a19;
@@ -41,7 +47,29 @@
       --in-review: #9085e9;
       --in-progress:#3987e5;
       --planned:   #898781;
+      --cat1:#3987e5; --cat2:#008300; --cat3:#d55181; --cat4:#c98500;
+      --cat5:#199e70; --cat6:#d95926; --cat7:#9085e9; --cat8:#e66767;
     }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:      #0d0d0d;
+    --card:      #1a1a19;
+    --inset:     #141413;
+    --ink:       #ffffff;
+    --ink-2:     #c3c2b7;
+    --muted:     #898781;
+    --hairline:  #2c2c2a;
+    --ring:      rgba(255,255,255,0.10);
+    --shadow:    0 8px 30px rgba(0,0,0,.5);
+    --regressed: #ef5350;
+    --stalled:   #fab219;
+    --done:      #0ca30c;
+    --in-review: #9085e9;
+    --in-progress:#3987e5;
+    --planned:   #898781;
+    --cat1:#3987e5; --cat2:#008300; --cat3:#d55181; --cat4:#c98500;
+    --cat5:#199e70; --cat6:#d95926; --cat7:#9085e9; --cat8:#e66767;
   }
   * { box-sizing: border-box; margin: 0; }
   dialog { margin: auto; } /* restore native centering after the reset */
@@ -67,7 +95,7 @@
   }
   .btn:hover { border-color: var(--in-progress); }
   .btn.primary { background: var(--ink); color: var(--page); border-color: var(--ink); }
-  #new-story { margin-left: auto; }
+  #theme { margin-left: auto; }
   .meta { width: 100%; color: var(--muted); font-size: .78rem; }
   .banner { color: var(--muted); font-size: .78rem; margin: .25rem 0 1rem; }
   .banner b { color: var(--ink-2); font-weight: 600; }
@@ -84,15 +112,40 @@
   .tile .lbl { font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: .35rem; }
   .tile .lbl .mark { width: 7px; height: 7px; border-radius: 2.5px; }
 
+  /* ---------- filters ---------- */
+  .filters { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-bottom: .8rem; }
+  .filters input[type=search] {
+    background: var(--card); color: var(--ink); border: 1px solid var(--ring);
+    border-radius: 8px; padding: .32rem .7rem; font: inherit; font-size: .8rem; width: 13rem;
+  }
+  .filters input[type=search]:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
+  .fchip {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: var(--card); border: 1px solid var(--ring); border-radius: 999px;
+    padding: .18rem .65rem; font: inherit; font-size: .72rem; color: var(--ink-2); cursor: pointer;
+  }
+  .fchip .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .fchip.on { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+  .fclear { border: none; background: none; color: var(--muted); font: inherit; font-size: .72rem;
+            cursor: pointer; text-decoration: underline; }
+
   /* ---------- kanban ---------- */
   .board { display: grid; grid-auto-flow: column; grid-auto-columns: 17.5rem;
            justify-content: start; gap: .7rem; overflow-x: auto; padding-bottom: .5rem; margin-bottom: 1rem; }
-  .col { background: var(--inset); border: 1px solid var(--hairline); border-radius: 12px; padding: .55rem .55rem .2rem; }
+  .col { background: var(--inset); border: 1px solid var(--hairline); border-radius: 12px;
+         padding: 0 .55rem .2rem; max-height: 68vh; overflow-y: auto; }
   .col h3 {
     font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
-    display: flex; align-items: center; gap: .4rem; margin: .1rem .3rem .55rem;
+    display: flex; align-items: center; gap: .4rem; margin: 0 -.55rem .55rem;
+    padding: .65rem .85rem .45rem; position: sticky; top: 0; background: var(--inset); z-index: 1;
   }
   .col h3 .count { color: var(--muted); font-weight: 500; margin-left: auto; }
+  .older {
+    width: 100%; background: none; border: 1px dashed var(--hairline); border-radius: 8px;
+    color: var(--muted); font: inherit; font-size: .72rem; padding: .35rem; cursor: pointer; margin-bottom: .5rem;
+  }
+  .older:hover { color: var(--ink-2); border-color: var(--muted); }
+  .tag .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: .3rem; vertical-align: 1px; }
   .card {
     background: var(--card); border: 1px solid var(--ring); border-left-width: 3px;
     border-radius: 9px; padding: .55rem .65rem .5rem; margin-bottom: .5rem; cursor: pointer;
@@ -200,11 +253,18 @@
 <header>
   <h1>Truthboard</h1>
   <span class="live"><span class="dot"></span><span id="updated">connecting…</span></span>
-  <button class="btn" id="new-story">+ New story</button>
+  <button class="btn" id="theme" title="Theme">◐ auto</button>
+  <button class="btn" id="new-story" style="margin-left:0">+ New story</button>
   <div class="meta" id="meta"></div>
 </header>
 <p class="banner"><b>Statuses: derived from git, never typed.</b> Stories are yours to shape — click a card to read or edit. The promise is editable; the proof is not.</p>
 <div class="dirty" id="dirty" hidden></div>
+<div class="filters">
+  <input type="search" id="f-text" placeholder="Filter stories… (title or id)">
+  <span id="f-epics"></span>
+  <span id="f-owners"></span>
+  <button class="fclear" id="f-clear" hidden>clear filters</button>
+</div>
 <div id="app"></div>
 <footer>truthboard · refreshes automatically</footer>
 
@@ -274,6 +334,68 @@ const CLAIM_HEADS = {
 };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const sv = st => `var(--${esc(st)})`;
+
+/* Epic identity: color follows the name (stable hash into 8 categorical
+   slots), so filtering or new epics never repaint existing ones. */
+function epicColor(name) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return `var(--cat${(h % 8) + 1})`;
+}
+const epicTag = name => name ? `<span class="tag"><i class="dot" style="background:${epicColor(name)}"></i>${esc(name)}</span>` : "";
+
+/* ---------- theme: system → light → dark ---------- */
+const THEMES = [["", "◐ auto"], ["light", "☀ light"], ["dark", "☾ dark"]];
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+  document.getElementById("theme").textContent = (THEMES.find(x => x[0] === t) || THEMES[0])[1];
+}
+applyTheme(localStorage.getItem("tb-theme") || "");
+document.getElementById("theme").addEventListener("click", () => {
+  const cur = localStorage.getItem("tb-theme") || "";
+  const next = THEMES[(THEMES.findIndex(x => x[0] === cur) + 1) % THEMES.length][0];
+  localStorage.setItem("tb-theme", next);
+  applyTheme(next);
+});
+
+/* ---------- filters ---------- */
+const F = { text: "", epics: new Set(), owners: new Set(), older: false };
+const filterActive = () => F.text !== "" || F.epics.size > 0 || F.owners.size > 0;
+function specMatches(s) {
+  if (F.text && !(s.title + " " + s.id).toLowerCase().includes(F.text)) return false;
+  if (F.epics.size && !F.epics.has(s.epic || "")) return false;
+  if (F.owners.size && !F.owners.has(s.owner || "")) return false;
+  return true;
+}
+function syncFilterChips(b) {
+  const epics = [...new Set((b.specs || []).map(s => s.epic).filter(Boolean))].sort();
+  document.getElementById("f-epics").innerHTML = epics.map(e =>
+    `<button class="fchip${F.epics.has(e) ? " on" : ""}" data-epic="${esc(e)}">
+      <span class="dot" style="background:${epicColor(e)}"></span>${esc(e)}</button>`).join("");
+  const owners = [...new Set((b.specs || []).map(s => s.owner).filter(Boolean))].sort();
+  document.getElementById("f-owners").innerHTML = owners.length > 1 ? owners.map(o =>
+    `<button class="fchip${F.owners.has(o) ? " on" : ""}" data-owner="${esc(o)}">${esc(initials(o))} · ${esc(o)}</button>`).join("") : "";
+  document.getElementById("f-clear").hidden = !filterActive();
+}
+document.getElementById("f-text").addEventListener("input", e => {
+  F.text = e.target.value.trim().toLowerCase(); rerender();
+});
+document.querySelector(".filters").addEventListener("click", e => {
+  const chip = e.target.closest(".fchip");
+  if (chip?.dataset.epic !== undefined) {
+    F.epics.has(chip.dataset.epic) ? F.epics.delete(chip.dataset.epic) : F.epics.add(chip.dataset.epic);
+    rerender();
+  } else if (chip?.dataset.owner !== undefined) {
+    F.owners.has(chip.dataset.owner) ? F.owners.delete(chip.dataset.owner) : F.owners.add(chip.dataset.owner);
+    rerender();
+  }
+});
+document.getElementById("f-clear").addEventListener("click", () => {
+  F.text = ""; F.epics.clear(); F.owners.clear();
+  document.getElementById("f-text").value = "";
+  rerender();
+});
 const chip = st => { const d = STATUS[st] || { ico: "·", label: st };
   return `<span class="status" style="color:${sv(st)}">${d.ico} ${esc(d.label)}</span>`; };
 const initials = name => (name || "").split(/[\s.-]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("") || "·";
@@ -338,11 +460,10 @@ function cardHTML(s, st) {
   const total = s.acceptance_total || 0, done = s.acceptance_done || 0;
   const pct = total ? Math.round(100 * done / total) : 0;
   const prog = total ? `<span class="prog"><span class="bar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span><span class="n">${done}/${total}</span></span>` : `<span class="prog"></span>`;
-  return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}">
+  return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}; view-transition-name: c-${esc(s.id)}">
     <div class="title">${esc(s.title)}</div>
     <div class="chips"><code>${esc(s.id)}</code>${
-      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
-      s.epic ? `<span class="tag">${esc(s.epic)}</span>` : ""}</div>
+      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${epicTag(s.epic)}</div>
     <div class="ev">${esc(s.evidence)}</div>
     <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
   </div>`;
@@ -352,12 +473,29 @@ function kanban(b) {
   if (!b.specs?.length)
     return `<section class="panel"><h2>Spec board</h2>
       <div class="empty-col">No stories yet — click <b>+ New story</b>, or <code>truthboard spec new "Title"</code></div></section>`;
-  const cols = SPEC_ORDER.filter(st => b.specs.some(s => s.status === st));
+  const visible = b.specs.filter(specMatches);
+  if (!visible.length)
+    return `<section class="panel"><h2>Spec board</h2>
+      <div class="empty-col">No stories match the filters.</div></section>`;
+  const recent = new Set((b.shipped || []).map(s => s.id));
+  const cols = SPEC_ORDER.filter(st => visible.some(s => s.status === st));
   return `<div class="board">` + cols.map(st => {
     const d = STATUS[st];
-    const specs = b.specs.filter(s => s.status === st);
+    let specs = visible.filter(s => s.status === st);
+    let older = "";
+    // Focus: the done column shows only recently-landed stories unless
+    // expanded — but never hide what a filter is explicitly looking for.
+    if (st === "done" && !filterActive() && recent.size) {
+      const old = specs.filter(s => !recent.has(s.id));
+      if (old.length && !F.older) {
+        specs = specs.filter(s => recent.has(s.id));
+        older = `<button class="older" id="show-older">show ${old.length} older</button>`;
+      } else if (old.length) {
+        older = `<button class="older" id="show-older">hide older</button>`;
+      }
+    }
     return `<div class="col"><h3 style="color:${sv(st)}">${d.ico} ${esc(d.label)}
-      <span class="count">${specs.length}</span></h3>${specs.map(s => cardHTML(s, st)).join("")}</div>`;
+      <span class="count">${specs.length}</span></h3>${specs.map(s => cardHTML(s, st)).join("")}${older}</div>`;
   }).join("") + `</div>`;
 }
 
@@ -418,6 +556,7 @@ function render(b) {
   const repoLabel = b.forge || (b.repo || "").split("/").filter(Boolean).pop() || b.repo;
   document.getElementById("meta").textContent =
     `${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`;
+  syncFilterChips(b);
   let html = "";
   if (b.election_note) html += `<div class="warn">⚠ ${esc(b.election_note)}</div>`;
   html += tiles(b) + kanban(b);
@@ -425,6 +564,17 @@ function render(b) {
   html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
   document.getElementById("app").innerHTML = html;
 }
+
+// rerender re-draws from the cached board; card moves animate when the
+// browser supports View Transitions (pure enhancement otherwise).
+function rerender() {
+  if (!lastBoard) return;
+  if (document.startViewTransition) document.startViewTransition(() => render(lastBoard));
+  else render(lastBoard);
+}
+document.getElementById("app").addEventListener("click", e => {
+  if (e.target.id === "show-older") { F.older = !F.older; rerender(); }
+});
 
 let last = "";
 async function tick() {
@@ -436,7 +586,12 @@ async function tick() {
     dirtyEl.hidden = !dirty;
     if (dirty) dirtyEl.textContent = `● ${dirty} uncommitted intent change${dirty > 1 ? "s" : ""} — review and commit .truthboard/specs like code`;
     const text = await r.text();
-    if (text !== last) { last = text; render(JSON.parse(text)); }
+    if (text !== last) {
+      last = text;
+      const b = JSON.parse(text);
+      if (lastBoard && document.startViewTransition) document.startViewTransition(() => render(b));
+      else render(b);
+    }
     document.getElementById("updated").textContent = "live · " + new Date().toLocaleTimeString();
   } catch (e) {
     document.getElementById("updated").textContent = "audit unavailable — retrying";
@@ -458,7 +613,7 @@ function openDetail(full) {
   document.getElementById("dt-chips").innerHTML =
     `<code>${esc(full.id)}</code>` +
     (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
-    (full.epic ? `<span class="tag">${esc(full.epic)}</span>` : "") +
+    epicTag(full.epic) +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
   document.getElementById("dt-md").innerHTML = md(full.body);
   const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];

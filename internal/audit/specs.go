@@ -156,14 +156,17 @@ func detectScopeCreep(repo, base string, s *spec.Spec, u *Unit) (ScopeCreep, boo
 	if !ok || out == "" {
 		return ScopeCreep{}, false
 	}
-	files := strings.Split(out, "\n")
-	var outside []string
-	for _, f := range files {
-		if f != "" && !inScope(s.Paths, f) {
+	var files, outside []string
+	for _, f := range strings.Split(out, "\n") {
+		if f == "" || strings.HasPrefix(f, ".truthboard/") {
+			continue // spec edits are intent, never creep
+		}
+		files = append(files, f)
+		if !inScope(s.Paths, f) {
 			outside = append(outside, f)
 		}
 	}
-	if len(outside)*2 <= len(files) { // creep means >50% outside
+	if len(files) == 0 || len(outside)*2 <= len(files) { // creep means >50% outside
 		return ScopeCreep{}, false
 	}
 	return ScopeCreep{
