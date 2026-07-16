@@ -55,6 +55,10 @@ truthboard stop            # stop the detached board
 Detached boards are per-repo: state lives inside `.git/` (never
 committed), no system services, no root.
 
+In npm projects, `truthboard init` also wires these as package scripts —
+`npm run board`, `board:status`, `board:stop`, `board:audit` — via
+`npm pkg set`, never touching your existing scripts.
+
 A live page rendering the spec board, branches, drift, and digest — and
 where POs create and refine stories: click a card to edit its title, goal,
 acceptance, epic, and priority. **The promise is editable; the proof is

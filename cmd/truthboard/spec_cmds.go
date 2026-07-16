@@ -28,6 +28,16 @@ func runInit(args []string) int {
 	}
 	fmt.Printf("initialized %s\n", dir)
 
+	// Ecosystem detection: npm projects get the lifecycle as npm scripts.
+	npmLog, err := adopt.NpmScripts(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	for _, line := range npmLog {
+		fmt.Println("  " + line)
+	}
+
 	if *agents {
 		log, err := adopt.Agents(repo, *hooks)
 		if err != nil {
