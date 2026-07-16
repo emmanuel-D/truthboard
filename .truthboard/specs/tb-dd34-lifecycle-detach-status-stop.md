@@ -18,12 +18,12 @@ services, no root.
 
 ## Acceptance
 
-- [ ] `truthboard ui --detach` starts the board in the background, prints
+- [x] `truthboard ui --detach` starts the board in the background, prints
       the URL, and survives the terminal closing (own session)
-- [ ] `truthboard status` reports url, pid, and uptime of a running board —
+- [x] `truthboard status` reports url, pid, and uptime of a running board —
       and cleans up stale state from a crashed one
-- [ ] `truthboard stop` terminates the detached board and cleans state;
+- [x] `truthboard stop` terminates the detached board and cleans state;
       a second stop says nothing is running
-- [ ] A second `--detach` while one runs refuses, pointing at the live URL
-- [ ] Runtime state lives inside the git dir (never committable); Windows
+- [x] A second `--detach` while one runs refuses, pointing at the live URL
+- [x] Runtime state lives inside the git dir (never committable); Windows
       says "not supported yet" instead of half-working

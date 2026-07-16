@@ -268,6 +268,9 @@ func Serve(repo string, port int, useForge, openBrowser bool, version string) er
 	return http.Serve(ln, Handler(repo, useForge, version))
 }
 
+// Browse opens the URL in the default browser, best effort.
+func Browse(url string) { browse(url) }
+
 func browse(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

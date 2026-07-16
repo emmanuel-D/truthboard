@@ -10,6 +10,7 @@ import (
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/forge"
+	"github.com/emmanuel-D/truthboard/internal/lifecycle"
 	"github.com/emmanuel-D/truthboard/internal/mcp"
 	"github.com/emmanuel-D/truthboard/internal/report"
 	"github.com/emmanuel-D/truthboard/internal/web"
@@ -30,8 +31,10 @@ Usage:
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
   truthboard mcp                            serve specs/board over MCP (stdio) for AI agents
-  truthboard ui [--port 1337] [--forge] [--no-open] [repo]
-                                            read-only web board (for PMs/POs)
+  truthboard ui [--port 1337] [--forge] [--no-open] [--detach] [repo]
+                                            web board; --detach keeps it running in the background
+  truthboard status [repo]                  is a detached board running for this repo?
+  truthboard stop [repo]                    stop the detached board
   truthboard version
 
 Flags for audit:
@@ -65,6 +68,10 @@ func main() {
 		}
 	case "ui":
 		os.Exit(runUI(os.Args[2:]))
+	case "status":
+		os.Exit(runLifecycle(lifecycle.Status, os.Args[2:]))
+	case "stop":
+		os.Exit(runLifecycle(lifecycle.Stop, os.Args[2:]))
 	case "version", "--version", "-v":
 		fmt.Println("truthboard " + version)
 	case "help", "--help", "-h":
@@ -124,16 +131,44 @@ func runUI(args []string) int {
 	port := fs.Int("port", 1337, "port to listen on (localhost only)")
 	useForge := fs.Bool("forge", false, "enrich the board with tracker data (slower refresh)")
 	noOpen := fs.Bool("no-open", false, "do not open the browser")
+	detach := fs.Bool("detach", false, "run the board in the background (truthboard status / stop to manage)")
 	fs.Parse(args)
 
 	repo := "."
 	if fs.NArg() > 0 {
 		repo = fs.Arg(0)
 	}
+	if *detach {
+		state, err := lifecycle.Detach(repo, *port, *useForge, version)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 1
+		}
+		fmt.Printf("board running in the background · %s · pid %d\n", state.URL, state.PID)
+		fmt.Println("  truthboard status   check on it\n  truthboard stop     stop it")
+		if !*noOpen {
+			web.Browse(state.URL)
+		}
+		return 0
+	}
 	if err := web.Serve(repo, *port, *useForge, !*noOpen, version); err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
+	return 0
+}
+
+func runLifecycle(op func(string) (string, error), args []string) int {
+	repo := "."
+	if len(args) > 0 {
+		repo = args[0]
+	}
+	msg, err := op(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	fmt.Println(msg)
 	return 0
 }
 
