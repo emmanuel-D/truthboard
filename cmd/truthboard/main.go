@@ -37,12 +37,16 @@ Usage:
   truthboard stop [repo]                    stop the detached board
   truthboard version
 
-Flags for audit:
-  --stale-days N    days without commits before a branch counts as stalled (default 7)
-  --digest-days N   window for the digest and shadow-work scan (default 14)
-  --format F        output format: term, md, json (default term)
-  --no-color        disable ANSI colors in term output
-  --no-forge        skip tracker enrichment (GitHub issues/PRs via gh)
+Every command takes -h for its flags (e.g. truthboard audit -h).
+
+Getting started in an existing project:
+  cd your-project
+  truthboard init --agents --hooks    specs + MCP + AGENTS.md + trailer nudge
+  truthboard ui --detach              the board, running in the background
+
+  Then write a story (truthboard spec new "Title"), work on a branch
+  containing its id, end commits with "Spec: <id>" — the board does the rest.
+  npm projects also get: npm run board / board:status / board:stop / board:audit
 `
 
 func main() {
@@ -69,9 +73,9 @@ func main() {
 	case "ui":
 		os.Exit(runUI(os.Args[2:]))
 	case "status":
-		os.Exit(runLifecycle(lifecycle.Status, os.Args[2:]))
+		os.Exit(runLifecycle("status", lifecycle.Status, os.Args[2:]))
 	case "stop":
-		os.Exit(runLifecycle(lifecycle.Stop, os.Args[2:]))
+		os.Exit(runLifecycle("stop", lifecycle.Stop, os.Args[2:]))
 	case "version", "--version", "-v":
 		fmt.Println("truthboard " + version)
 	case "help", "--help", "-h":
@@ -158,9 +162,13 @@ func runUI(args []string) int {
 	return 0
 }
 
-func runLifecycle(op func(string) (string, error), args []string) int {
+func runLifecycle(name string, op func(string) (string, error), args []string) int {
 	repo := "."
 	if len(args) > 0 {
+		if args[0] == "-h" || args[0] == "--help" {
+			fmt.Printf("usage: truthboard %s [repo]   (repo defaults to the current directory)\n", name)
+			return 0
+		}
 		repo = args[0]
 	}
 	msg, err := op(repo)

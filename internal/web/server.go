@@ -121,9 +121,11 @@ func Handler(repo string, useForge bool, version string) http.Handler {
 }
 
 // dirtySpecs counts uncommitted changes under .truthboard/specs so the page
-// can nudge someone to commit intent edits.
+// can nudge someone to commit intent edits. --no-optional-locks: a board
+// polling every few seconds must never take the index lock out from under
+// someone's real git commands.
 func dirtySpecs(repo string) int {
-	out, ok := gitrepo.Try(repo, "status", "--porcelain", "--", ".truthboard")
+	out, ok := gitrepo.Try(repo, "--no-optional-locks", "status", "--porcelain", "--", ".truthboard")
 	if !ok || out == "" {
 		return 0
 	}
