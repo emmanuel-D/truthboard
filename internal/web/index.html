@@ -9,30 +9,33 @@
     color-scheme: light;
     --page:      #f9f9f7;
     --card:      #fcfcfb;
+    --inset:     #f3f3f0;
     --ink:       #0b0b0b;
     --ink-2:     #52514e;
     --muted:     #898781;
     --hairline:  #e1e0d9;
     --ring:      rgba(11,11,11,0.10);
-    /* status system: fixed status palette + two categorical slots */
-    --regressed: #d03b3b;  /* critical */
-    --stalled:   #b26a00;  /* warning, deepened for light-surface text */
-    --done:      #0ca30c;  /* good */
-    --in-review: #4a3aa7;  /* categorical violet */
-    --in-progress:#2a78d6; /* categorical blue */
-    --planned:   #898781;  /* muted ink — not yet real */
+    --shadow:    0 8px 30px rgba(11,11,11,.12);
+    --regressed: #d03b3b;
+    --stalled:   #b26a00;
+    --done:      #0ca30c;
+    --in-review: #4a3aa7;
+    --in-progress:#2a78d6;
+    --planned:   #898781;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       color-scheme: dark;
       --page:      #0d0d0d;
       --card:      #1a1a19;
+      --inset:     #141413;
       --ink:       #ffffff;
       --ink-2:     #c3c2b7;
       --muted:     #898781;
       --hairline:  #2c2c2a;
       --ring:      rgba(255,255,255,0.10);
-      --regressed: #d03b3b;
+      --shadow:    0 8px 30px rgba(0,0,0,.5);
+      --regressed: #ef5350;
       --stalled:   #fab219;
       --done:      #0ca30c;
       --in-review: #9085e9;
@@ -41,114 +44,156 @@
     }
   }
   * { box-sizing: border-box; margin: 0; }
+  dialog { margin: auto; } /* restore native centering after the reset */
   body {
     background: var(--page); color: var(--ink);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 1.4rem clamp(1rem, 4vw, 2.5rem) 0;
-    max-width: 78rem; margin: 0 auto;
+    padding: 1.3rem clamp(1rem, 3vw, 2.2rem) 0;
+    max-width: 88rem; margin: 0 auto;
   }
-  a { color: inherit; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
 
   /* ---------- header ---------- */
-  header { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
-  header h1 { font-size: 1.25rem; letter-spacing: -.01em; }
-  .live { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; color: var(--ink-2); }
+  header { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
+  header h1 { font-size: 1.15rem; letter-spacing: -.01em; }
+  .live { display: inline-flex; align-items: center; gap: .4rem; font-size: .76rem; color: var(--muted); }
   .live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--done); animation: pulse 2.4s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
-  .meta { width: 100%; color: var(--muted); font-size: .8rem; margin-top: .1rem; }
-  .banner { color: var(--muted); font-size: .8rem; margin: .35rem 0 1.1rem; }
-  .banner b { color: var(--ink-2); font-weight: 600; }
-  .warn {
-    border: 1px solid var(--stalled); border-radius: 8px; background: var(--card);
-    padding: .5rem .8rem; margin-bottom: 1rem; font-size: .84rem; color: var(--ink-2);
+  .btn {
+    background: var(--card); color: var(--ink);
+    border: 1px solid var(--ring); border-radius: 8px; padding: .34rem .85rem;
+    font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
+    transition: border-color .12s ease, transform .12s ease;
   }
+  .btn:hover { border-color: var(--in-progress); }
+  .btn.primary { background: var(--ink); color: var(--page); border-color: var(--ink); }
+  #new-story { margin-left: auto; }
+  .meta { width: 100%; color: var(--muted); font-size: .78rem; }
+  .banner { color: var(--muted); font-size: .78rem; margin: .25rem 0 1rem; }
+  .banner b { color: var(--ink-2); font-weight: 600; }
+  .warn, .dirty {
+    border: 1px solid var(--stalled); border-radius: 8px; background: var(--card);
+    padding: .45rem .8rem; margin-bottom: .8rem; font-size: .8rem; color: var(--ink-2);
+  }
+  .dirty { border-style: dashed; }
 
   /* ---------- stat tiles ---------- */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .7rem; margin-bottom: 1.1rem; }
-  .tile {
-    background: var(--card); border: 1px solid var(--ring); border-radius: 10px;
-    padding: .7rem .9rem .6rem;
-  }
-  .tile .num { font-size: 1.7rem; font-weight: 650; line-height: 1.1; }
-  .tile .lbl { font-size: .74rem; color: var(--muted); display: flex; align-items: center; gap: .35rem; margin-top: .1rem; }
-  .tile .lbl .mark { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 11rem)); gap: .6rem; margin-bottom: 1.2rem; }
+  .tile { background: var(--card); border: 1px solid var(--ring); border-radius: 10px; padding: .55rem .8rem .5rem; }
+  .tile .num { font-size: 1.45rem; font-weight: 650; line-height: 1.15; }
+  .tile .lbl { font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: .35rem; }
+  .tile .lbl .mark { width: 7px; height: 7px; border-radius: 2.5px; }
 
   /* ---------- kanban ---------- */
-  .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(13.5rem, 1fr);
-           gap: .8rem; overflow-x: auto; padding-bottom: .4rem; margin-bottom: 1.2rem; }
-  .col { min-width: 0; }
+  .board { display: grid; grid-auto-flow: column; grid-auto-columns: 17.5rem;
+           justify-content: start; gap: .7rem; overflow-x: auto; padding-bottom: .5rem; margin-bottom: 1rem; }
+  .col { background: var(--inset); border: 1px solid var(--hairline); border-radius: 12px; padding: .55rem .55rem .2rem; }
   .col h3 {
-    font-size: .72rem; text-transform: uppercase; letter-spacing: .07em;
-    display: flex; align-items: center; gap: .4rem; margin: 0 .1rem .5rem;
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
+    display: flex; align-items: center; gap: .4rem; margin: .1rem .3rem .55rem;
   }
-  .col h3 .count { color: var(--muted); font-weight: 500; }
+  .col h3 .count { color: var(--muted); font-weight: 500; margin-left: auto; }
   .card {
     background: var(--card); border: 1px solid var(--ring); border-left-width: 3px;
-    border-radius: 10px; padding: .65rem .8rem; margin-bottom: .6rem;
-    transition: transform .12s ease, box-shadow .12s ease;
+    border-radius: 9px; padding: .55rem .65rem .5rem; margin-bottom: .5rem; cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
   }
-  .card:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(0,0,0,.08); }
-  .card .title { font-weight: 600; font-size: .88rem; line-height: 1.35; }
-  .card .sub { margin-top: .3rem; font-size: .75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: baseline; }
-  .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .5rem; font-size: .68rem; color: var(--ink-2); }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 3px 14px rgba(0,0,0,.10); }
+  .card .title {
+    font-weight: 600; font-size: .83rem; line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; align-items: center; }
+  .chips code { font-size: .68rem; color: var(--muted); }
+  .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
   .tag.pri { font-weight: 700; }
-  .card .sub code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; }
-  .card .why { margin-top: .35rem; font-size: .78rem; color: var(--ink-2); }
-  .card .owner { margin-top: .4rem; font-size: .72rem; color: var(--muted); }
+  .ev { color: var(--muted); font-size: .73rem; margin-top: .3rem;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cfoot { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; }
+  .avatar {
+    width: 18px; height: 18px; border-radius: 50%; flex: 0 0 18px;
+    background: var(--inset); border: 1px solid var(--hairline); color: var(--ink-2);
+    font-size: .58rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+    text-transform: uppercase;
+  }
+  .prog { flex: 1; display: flex; align-items: center; gap: .4rem; min-width: 0; }
+  .prog .bar { flex: 1; height: 3px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+  .prog .bar i { display: block; height: 100%; border-radius: 2px; background: var(--in-progress); }
+  .prog .bar i.full { background: var(--done); }
+  .prog .n { font-size: .66rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   .empty-col { border: 1px dashed var(--hairline); border-radius: 10px; padding: .8rem; color: var(--muted); font-size: .78rem; }
 
-  /* ---------- sections ---------- */
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .8rem; margin-bottom: 1.2rem; }
-  section.panel { background: var(--card); border: 1px solid var(--ring); border-radius: 10px; padding: .9rem 1.1rem; }
-  section.panel h2 { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .6rem; }
-  .finding { display: flex; gap: .5rem; padding: .3rem 0; font-size: .84rem; align-items: baseline; }
+  /* ---------- panels ---------- */
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr)); gap: .7rem; margin-bottom: 1rem; }
+  section.panel { background: var(--card); border: 1px solid var(--ring); border-radius: 12px; padding: .85rem 1.05rem; }
+  section.panel h2 { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .55rem; }
+  .finding { display: flex; gap: .5rem; padding: .28rem 0; font-size: .82rem; align-items: baseline; }
   .finding .ico { flex: 0 0 1.1rem; text-align: center; }
   .finding .what { color: var(--ink-2); }
   .finding .what b { color: var(--ink); font-weight: 600; }
-  .finding code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
-  .clean { color: var(--done); font-size: .84rem; }
+  .clean { color: var(--done); font-size: .82rem; }
   .clean::before { content: "✓ "; }
-  .more { color: var(--muted); font-size: .78rem; padding: .2rem 0 0 1.6rem; }
-
-  /* branches + digest */
-  .rows { font-size: .84rem; }
+  .more { color: var(--muted); font-size: .76rem; padding: .2rem 0 0 1.6rem; }
+  .rows { font-size: .82rem; }
   .rows .r { display: flex; gap: .6rem; padding: .3rem 0; border-top: 1px solid var(--hairline); align-items: baseline; }
   .rows .r:first-child { border-top: none; }
-  .status { font-size: .72rem; font-weight: 650; white-space: nowrap; flex: 0 0 7.2rem; }
-  .rows code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; }
-  .rows .ev { color: var(--muted); font-size: .78rem; }
-  .digest .r { gap: .8rem; }
-  .digest time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 5.6rem; font-size: .78rem; }
+  .status { font-size: .7rem; font-weight: 650; white-space: nowrap; flex: 0 0 7rem; }
+  .rows .ev2 { color: var(--muted); font-size: .76rem; }
+  .digest time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 5.4rem; font-size: .76rem; }
+  footer { text-align: center; color: var(--muted); font-size: .72rem; padding: .5rem 0 1.5rem; }
 
-  footer { text-align: center; color: var(--muted); font-size: .74rem; padding: .6rem 0 1.6rem; }
-
-  /* ---------- intent editing ---------- */
-  .btn {
-    margin-left: auto; background: var(--card); color: var(--ink);
-    border: 1px solid var(--ring); border-radius: 8px; padding: .3rem .8rem;
-    font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
-  }
-  .btn:hover { border-color: var(--in-progress); }
-  .card { cursor: pointer; }
-  .dirty { color: var(--stalled); font-size: .78rem; margin: 0 0 .8rem; }
-  .dirty code { font-family: ui-monospace, Menlo, monospace; font-size: .74rem; }
+  /* ---------- dialogs ---------- */
   dialog {
     background: var(--card); color: var(--ink); border: 1px solid var(--ring);
-    border-radius: 12px; padding: 1.2rem 1.4rem; width: min(34rem, 92vw);
+    border-radius: 14px; padding: 0; width: min(38rem, 94vw); max-height: 86vh;
+    box-shadow: var(--shadow);
   }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  dialog h2 { font-size: .95rem; margin-bottom: .8rem; }
-  dialog .note { font-size: .75rem; color: var(--muted); margin-bottom: .8rem; }
-  dialog label { display: block; font-size: .74rem; color: var(--ink-2); margin: .55rem 0 .15rem; }
-  dialog input, dialog select, dialog textarea {
+  dialog::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(2px); }
+  .dhead { display: flex; align-items: center; gap: .6rem; padding: .95rem 1.25rem .6rem; }
+  .dhead h2 { font-size: 1rem; line-height: 1.3; flex: 1; }
+  .dhead .status { flex: none; }
+  .dbody { padding: 0 1.25rem 1.1rem; overflow-y: auto; max-height: calc(86vh - 8rem); }
+  .dfoot { display: flex; gap: .6rem; justify-content: flex-end; padding: .8rem 1.25rem 1rem; border-top: 1px solid var(--hairline); }
+  .note { font-size: .74rem; color: var(--muted); padding: 0 1.25rem .6rem; }
+
+  /* rendered markdown */
+  .md { font-size: .86rem; line-height: 1.6; color: var(--ink-2); }
+  .md h3 { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 1rem 0 .35rem; }
+  .md h3:first-child { margin-top: .2rem; }
+  .md p { margin: .35rem 0; }
+  .md ul { margin: .3rem 0 .3rem 1.1rem; padding: 0; }
+  .md li { margin: .18rem 0; }
+  .md li.task { list-style: none; margin-left: -1.1rem; }
+  .md li.task input { accent-color: var(--done); margin-right: .35rem; vertical-align: -1px; }
+  .md code { background: var(--inset); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 .3em; }
+  .md pre { background: var(--inset); border: 1px solid var(--hairline); border-radius: 8px; padding: .6rem .8rem; overflow-x: auto; margin: .5rem 0; }
+  .md pre code { background: none; border: none; padding: 0; }
+  .md b { color: var(--ink); }
+
+  .truth { background: var(--inset); border: 1px solid var(--hairline); border-radius: 10px;
+           padding: .6rem .8rem; margin-top: .9rem; font-size: .78rem; color: var(--ink-2); }
+  .truth h4 { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .3rem; }
+  .truth .kv { display: flex; gap: .5rem; padding: .12rem 0; }
+  .truth .kv b { flex: 0 0 5.5rem; font-weight: 600; color: var(--muted); }
+
+  /* editor form */
+  .ed label { display: block; font-size: .72rem; color: var(--ink-2); margin: .6rem 0 .18rem; }
+  .ed input, .ed select, .ed textarea {
     width: 100%; background: var(--page); color: var(--ink);
-    border: 1px solid var(--hairline); border-radius: 7px; padding: .4rem .55rem;
+    border: 1px solid var(--hairline); border-radius: 8px; padding: .42rem .6rem;
     font: inherit; font-size: .85rem;
   }
-  dialog textarea { font-family: ui-monospace, Menlo, monospace; font-size: .78rem; min-height: 11rem; }
-  dialog .row2 { display: grid; grid-template-columns: 1fr 1fr 6rem; gap: .6rem; }
-  dialog .actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; }
-  dialog .err { color: var(--regressed); font-size: .78rem; margin-top: .5rem; min-height: 1em; }
+  .ed input:focus, .ed select:focus, .ed textarea:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
+  .ed textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.55; min-height: 14rem; resize: vertical; }
+  .ed .row3 { display: grid; grid-template-columns: 1fr 1fr 7rem; gap: .6rem; }
+  .tabs { display: flex; gap: .2rem; margin: .7rem 0 .3rem; border-bottom: 1px solid var(--hairline); }
+  .tabs button {
+    background: none; border: none; color: var(--muted); font: inherit; font-size: .74rem; font-weight: 600;
+    padding: .3rem .7rem; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--in-progress); }
+  #ed-preview { min-height: 14rem; border: 1px dashed var(--hairline); border-radius: 8px; padding: .6rem .9rem; }
+  .err { color: var(--regressed); font-size: .76rem; padding: .3rem 1.25rem 0; min-height: 1.1em; }
 </style>
 </head>
 <body>
@@ -158,32 +203,56 @@
   <button class="btn" id="new-story">+ New story</button>
   <div class="meta" id="meta"></div>
 </header>
-<p class="banner"><b>Statuses: derived from git, never typed.</b> Stories (title, goal, acceptance, priority) are yours to edit — click a card. The promise is editable; the proof is not.</p>
+<p class="banner"><b>Statuses: derived from git, never typed.</b> Stories are yours to shape — click a card to read or edit. The promise is editable; the proof is not.</p>
 <div class="dirty" id="dirty" hidden></div>
 <div id="app"></div>
+<footer>truthboard · refreshes automatically</footer>
 
+<!-- story detail: rendered intent + derived truth -->
+<dialog id="detail">
+  <div class="dhead">
+    <span class="status" id="dt-status"></span>
+    <h2 id="dt-title"></h2>
+  </div>
+  <div class="chips" id="dt-chips" style="padding: 0 1.25rem .4rem"></div>
+  <div class="dbody">
+    <div class="md" id="dt-md"></div>
+    <div class="truth" id="dt-truth"></div>
+  </div>
+  <div class="dfoot">
+    <button class="btn" id="dt-close">Close</button>
+    <button class="btn primary" id="dt-edit">Edit story</button>
+  </div>
+</dialog>
+
+<!-- story editor: intent only -->
 <dialog id="editor">
-  <h2 id="ed-title">New story</h2>
+  <div class="dhead"><h2 id="ed-title">New story</h2></div>
   <p class="note">You are editing <b>intent</b>. The status stays derived from git — finish the work and the card moves itself.</p>
-  <form method="dialog" id="ed-form">
-    <label>Title</label><input id="ed-t" required maxlength="120">
-    <div class="row2">
-      <div><label>Owner</label><input id="ed-o"></div>
-      <div><label>Epic</label><input id="ed-e" placeholder="e.g. user-auth"></div>
-      <div><label>Priority</label><select id="ed-p">
-        <option value="0">—</option><option value="1">p1 · now</option>
-        <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
+  <form method="dialog" id="ed-form" class="ed">
+    <div class="dbody">
+      <label>Title</label><input id="ed-t" required maxlength="120" placeholder="One line, outcome-shaped">
+      <div class="row3">
+        <div><label>Owner</label><input id="ed-o"></div>
+        <div><label>Epic</label><input id="ed-e" placeholder="e.g. user-auth"></div>
+        <div><label>Priority</label><select id="ed-p">
+          <option value="0">—</option><option value="1">p1 · now</option>
+          <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
+      </div>
+      <div class="tabs">
+        <button type="button" class="on" id="tab-write">Write</button>
+        <button type="button" id="tab-preview">Preview</button>
+      </div>
+      <textarea id="ed-b" spellcheck="false"></textarea>
+      <div class="md" id="ed-preview" hidden></div>
     </div>
-    <label>Goal &amp; acceptance (markdown)</label>
-    <textarea id="ed-b" spellcheck="false"></textarea>
     <div class="err" id="ed-err"></div>
-    <div class="actions">
+    <div class="dfoot">
       <button class="btn" value="cancel">Cancel</button>
-      <button class="btn" id="ed-save" value="default">Save story</button>
+      <button class="btn primary" id="ed-save" value="default">Save story</button>
     </div>
   </form>
 </dialog>
-<footer>truthboard · refreshes automatically · read-only by construction</footer>
 
 <script>
 "use strict";
@@ -207,43 +276,88 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const sv = st => `var(--${esc(st)})`;
 const chip = st => { const d = STATUS[st] || { ico: "·", label: st };
   return `<span class="status" style="color:${sv(st)}">${d.ico} ${esc(d.label)}</span>`; };
+const initials = name => (name || "").split(/[\s.-]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("") || "·";
+
+/* ---------- tiny safe markdown: escape first, then transform ---------- */
+function inlineMd(s) {
+  return s.replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+          .replace(/(^|\s)\*([^*]+)\*(?=[\s.,;:!?)]|$)/g, "$1<i>$2</i>");
+}
+function md(src) {
+  const lines = esc(src ?? "").split("\n");
+  const out = []; let code = false, list = false, para = [];
+  const flushP = () => { if (para.length) { out.push("<p>" + inlineMd(para.join(" ")) + "</p>"); para = []; } };
+  const closeL = () => { if (list) { out.push("</ul>"); list = false; } };
+  for (const line of lines) {
+    if (line.startsWith("```")) { flushP(); closeL(); code = !code; out.push(code ? "<pre><code>" : "</code></pre>"); continue; }
+    if (code) { out.push(line + "\n"); continue; }
+    let m;
+    if ((m = line.match(/^#{1,4}\s+(.*)/))) { flushP(); closeL(); out.push("<h3>" + inlineMd(m[1]) + "</h3>"); continue; }
+    if ((m = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)/))) {
+      flushP(); if (!list) { out.push("<ul>"); list = true; }
+      out.push(`<li class="task"><input type="checkbox" disabled${m[1] !== " " ? " checked" : ""}>${inlineMd(m[2])}</li>`); continue;
+    }
+    if ((m = line.match(/^\s*[-*]\s+(.*)/))) {
+      flushP(); if (!list) { out.push("<ul>"); list = true; }
+      out.push("<li>" + inlineMd(m[1]) + "</li>"); continue;
+    }
+    if (!line.trim()) { flushP(); closeL(); continue; }
+    // Lazy continuation: a wrapped line inside a list belongs to its item.
+    if (list && out.length && out[out.length - 1].endsWith("</li>")) {
+      out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, " " + inlineMd(line.trim()) + "</li>");
+      continue;
+    }
+    para.push(line.trim());
+  }
+  flushP(); closeL(); if (code) out.push("</code></pre>");
+  return out.join("");
+}
+
+/* ---------- board rendering ---------- */
+let lastBoard = null;
 
 function tiles(b) {
   const n = st => (b.specs || []).filter(s => s.status === st).length;
   const active = n("in-progress") + n("in-review");
   const d = b.drift || {};
   const drift = (d.stale_promises?.length||0) + (d.shadow_work?.length||0) +
-                (d.scope_creep?.length||0) + (b.claims?.length||0) + (n("regressed"));
+                (d.scope_creep?.length||0) + (b.claims?.length||0) + n("regressed");
   const tile = (num, label, color) =>
     `<div class="tile"><div class="num">${num}</div>
       <div class="lbl"><span class="mark" style="background:${color}"></span>${label}</div></div>`;
   return `<div class="tiles">` +
-    tile(n("done"), "specs done", "var(--done)") +
+    tile(n("done"), "done", "var(--done)") +
     tile(active, "in flight", "var(--in-progress)") +
     tile(n("planned"), "planned", "var(--planned)") +
     tile(drift, "drift findings", drift ? "var(--stalled)" : "var(--done)") +
     `</div>`;
 }
 
+function cardHTML(s, st) {
+  const total = s.acceptance_total || 0, done = s.acceptance_done || 0;
+  const pct = total ? Math.round(100 * done / total) : 0;
+  const prog = total ? `<span class="prog"><span class="bar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span><span class="n">${done}/${total}</span></span>` : `<span class="prog"></span>`;
+  return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}">
+    <div class="title">${esc(s.title)}</div>
+    <div class="chips"><code>${esc(s.id)}</code>${
+      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
+      s.epic ? `<span class="tag">${esc(s.epic)}</span>` : ""}</div>
+    <div class="ev">${esc(s.evidence)}</div>
+    <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
+  </div>`;
+}
+
 function kanban(b) {
   if (!b.specs?.length)
     return `<section class="panel"><h2>Spec board</h2>
-      <div class="empty-col">No specs yet — <code>truthboard spec new "Title"</code></div></section>`;
+      <div class="empty-col">No stories yet — click <b>+ New story</b>, or <code>truthboard spec new "Title"</code></div></section>`;
   const cols = SPEC_ORDER.filter(st => b.specs.some(s => s.status === st));
   return `<div class="board">` + cols.map(st => {
     const d = STATUS[st];
-    const cards = b.specs.filter(s => s.status === st).map(s =>
-      `<div class="card" data-spec="${esc(s.id)}" title="Edit story (intent only)" style="border-left-color:${sv(st)}">
-         <div class="title">${esc(s.title)}</div>
-         <div class="sub"><code>${esc(s.id)}</code>${
-           s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
-           s.epic ? `<span class="tag">${esc(s.epic)}</span>` : ""}${
-           (s.branches||[]).map(x=>`<code>${esc(x)}</code>`).join("")}</div>
-         <div class="why">${esc(s.evidence)}</div>
-         ${s.owner ? `<div class="owner">${esc(s.owner)}</div>` : ""}
-       </div>`).join("");
+    const specs = b.specs.filter(s => s.status === st);
     return `<div class="col"><h3 style="color:${sv(st)}">${d.ico} ${esc(d.label)}
-      <span class="count">${b.specs.filter(s=>s.status===st).length}</span></h3>${cards}</div>`;
+      <span class="count">${specs.length}</span></h3>${specs.map(s => cardHTML(s, st)).join("")}</div>`;
   }).join("") + `</div>`;
 }
 
@@ -282,7 +396,7 @@ function branches(b) {
   if (!b.units?.length) return "";
   const rows = UNIT_ORDER.map(st => b.units.filter(u => u.status === st).map(u =>
     `<div class="r">${chip(u.status)}<code>${esc(u.name)}</code>
-     <span class="ev">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`
+     <span class="ev2">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`
   ).join("")).join("");
   return `<section class="panel"><h2>Branches</h2><div class="rows">${rows}</div></section>`;
 }
@@ -291,15 +405,16 @@ function digest(b) {
   const shipped = (b.shipped || []).map(s =>
     `<div class="r"><time>${esc(s.date)}</time>
       <span style="color:var(--done)">✓</span>
-      <span><b>${esc(s.title)}</b> <span class="muted"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
+      <span><b>${esc(s.title)}</b> <span style="color:var(--muted)"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
   const rest = (b.digest || []).filter(c => !c.spec).slice(0, 12).map(c =>
-    `<div class="r"><time>${esc(c.date)}</time><span class="muted">${esc(c.subject)}</span></div>`).join("");
-  const divider = shipped && rest ? `<div class="r"><span class="muted" style="font-size:.72rem">also landed</span></div>` : "";
+    `<div class="r"><time>${esc(c.date)}</time><span class="ev2">${esc(c.subject)}</span></div>`).join("");
+  const divider = shipped && rest ? `<div class="r"><span class="ev2" style="font-size:.7rem">also landed</span></div>` : "";
   return `<section class="panel digest"><h2>Landed in the last ${b.digest_days} days</h2>
-    <div class="rows">${(shipped + divider + rest) || `<span class="ev">nothing landed</span>`}</div></section>`;
+    <div class="rows">${(shipped + divider + rest) || `<span class="ev2">nothing landed</span>`}</div></section>`;
 }
 
 function render(b) {
+  lastBoard = b;
   const repoLabel = b.forge || (b.repo || "").split("/").filter(Boolean).pop() || b.repo;
   document.getElementById("meta").textContent =
     `${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`;
@@ -330,7 +445,45 @@ async function tick() {
 }
 tick();
 
-/* ---------- intent editing: the promise, never the proof ---------- */
+/* ---------- detail view ---------- */
+const detailDlg = document.getElementById("detail");
+let detailSpec = null;
+
+function openDetail(full) {
+  detailSpec = full;
+  const onBoard = (lastBoard?.specs || []).find(x => x.id === full.id) || {};
+  const st = onBoard.status || "planned";
+  document.getElementById("dt-status").outerHTML = `<span class="status" id="dt-status" style="color:${sv(st)}">${(STATUS[st]||{}).ico || ""} ${esc((STATUS[st]||{}).label || st)}</span>`;
+  document.getElementById("dt-title").textContent = full.title;
+  document.getElementById("dt-chips").innerHTML =
+    `<code>${esc(full.id)}</code>` +
+    (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
+    (full.epic ? `<span class="tag">${esc(full.epic)}</span>` : "") +
+    (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
+  document.getElementById("dt-md").innerHTML = md(full.body);
+  const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];
+  if (onBoard.branches?.length) rows.push(["Branches", onBoard.branches.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
+  if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>`]);
+  if (full.branch) rows.push(["Branch glob", `<code>${esc(full.branch)}</code>`]);
+  if (full.paths?.length) rows.push(["Scope", full.paths.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
+  document.getElementById("dt-truth").innerHTML = `<h4>Derived truth — computed, not editable</h4>` +
+    rows.map(([k,v]) => `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");
+  detailDlg.showModal();
+}
+
+document.getElementById("app").addEventListener("click", async e => {
+  const card = e.target.closest("[data-spec]");
+  if (!card) return;
+  try {
+    const r = await fetch("/api/specs/" + encodeURIComponent(card.dataset.spec));
+    if (!r.ok) throw new Error(await r.text());
+    openDetail(await r.json());
+  } catch (err) { console.error(err); }
+});
+document.getElementById("dt-close").addEventListener("click", () => detailDlg.close());
+document.getElementById("dt-edit").addEventListener("click", () => { detailDlg.close(); openEditor(detailSpec); });
+
+/* ---------- editor ---------- */
 const dlg = document.getElementById("editor");
 let editingId = null;
 const TEMPLATE = "## Goal\n\n(what outcome, and why)\n\n## Acceptance\n\n- [ ] (observable criterion)\n";
@@ -344,19 +497,22 @@ function openEditor(spec) {
   document.getElementById("ed-p").value = String(spec?.priority || 0);
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
+  setTab(false);
   dlg.showModal();
 }
 
+function setTab(preview) {
+  document.getElementById("tab-write").classList.toggle("on", !preview);
+  document.getElementById("tab-preview").classList.toggle("on", preview);
+  document.getElementById("ed-b").hidden = preview;
+  const pv = document.getElementById("ed-preview");
+  pv.hidden = !preview;
+  if (preview) pv.innerHTML = md(document.getElementById("ed-b").value) || `<p style="color:var(--muted)">Nothing to preview.</p>`;
+}
+document.getElementById("tab-write").addEventListener("click", () => setTab(false));
+document.getElementById("tab-preview").addEventListener("click", () => setTab(true));
+
 document.getElementById("new-story").addEventListener("click", () => openEditor(null));
-document.getElementById("app").addEventListener("click", async e => {
-  const card = e.target.closest("[data-spec]");
-  if (!card) return;
-  try {
-    const r = await fetch("/api/specs/" + encodeURIComponent(card.dataset.spec));
-    if (!r.ok) throw new Error(await r.text());
-    openEditor(await r.json());
-  } catch (err) { console.error(err); }
-});
 
 document.getElementById("ed-form").addEventListener("submit", async e => {
   if (e.submitter?.value === "cancel") return;
@@ -376,7 +532,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     });
     if (!r.ok) throw new Error(await r.text());
     dlg.close();
-    last = ""; // force a re-render on the next poll
+    last = ""; // force re-render on next poll
   } catch (err) {
     document.getElementById("ed-err").textContent = err.message;
   }

@@ -19,13 +19,13 @@ information-dense, and editing should preview what you write.
 
 ## Acceptance
 
-- [ ] Editor dialog opens centered with a dimmed backdrop, on every screen size
-- [ ] Clicking a card opens a **detail view**: rendered markdown (headings,
+- [x] Editor dialog opens centered with a dimmed backdrop, on every screen size
+- [x] Clicking a card opens a **detail view**: rendered markdown (headings,
       bold, code, lists, checkboxes), meta chips, and a "derived truth"
       section (status evidence, branches, landing commit) — with an Edit button
-- [ ] Markdown is rendered safely: content is HTML-escaped before transforming
-- [ ] Cards are compact and scannable: clamped title, one-line evidence,
+- [x] Markdown is rendered safely: content is HTML-escaped before transforming
+- [x] Cards are compact and scannable: clamped title, one-line evidence,
       id/priority/epic chips, owner initials — and an acceptance progress
       indicator (n/m checkboxes) computed server-side from the spec body
-- [ ] The editor has Write / Preview tabs so a PO sees the story as it will read
-- [ ] Columns keep a sane width when only one or two statuses exist
+- [x] The editor has Write / Preview tabs so a PO sees the story as it will read
+- [x] Columns keep a sane width when only one or two statuses exist
