@@ -16,6 +16,6 @@ face (description, topics, README head) say what the tool is in one glance.
 
 ## Acceptance
 
-- [ ] LICENSE file with the MIT text, copyright Emmanuel Dadem
-- [ ] README states the license
-- [ ] GitHub repo description and topics set (git, project-management, developer-tools, mcp, ai-agents, kanban, golang)
+- [x] LICENSE file with the MIT text, copyright Emmanuel Dadem
+- [x] README states the license
+- [x] GitHub repo description and topics set (git, project-management, developer-tools, mcp, ai-agents, kanban, golang)

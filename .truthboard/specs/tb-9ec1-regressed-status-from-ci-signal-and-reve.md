@@ -15,7 +15,7 @@ rotten `done` is exactly the kind of lie Truthboard exists to catch.
 
 ## Acceptance
 
-- [ ] A `git revert` of a spec-linked merge flips the spec from done to regressed
-- [ ] With `gh` available, red CI on the landing commit flips the spec to regressed
-- [ ] Regressed is rendered loudly (top of the board, red) in term/md/json
-- [ ] Without CI data the tool says nothing rather than guessing (honesty rule)
+- [x] A `git revert` of a spec-linked merge flips the spec from done to regressed
+- [x] With `gh` available, red CI on the landing commit flips the spec to regressed
+- [x] Regressed is rendered loudly (top of the board, red) in term/md/json
+- [x] Without CI data the tool says nothing rather than guessing (honesty rule)

@@ -16,6 +16,6 @@ and give our own `regressed` detection a real signal to read on this repo.
 
 ## Acceptance
 
-- [ ] A workflow runs `go vet` and `go test ./...` on every push to main and every PR
+- [x] A workflow runs `go vet` and `go test ./...` on every push to main and every PR
 - [ ] gofmt violations fail the build (diff shown in the log)
-- [ ] The workflow is green on main after merge
+- [x] The workflow is green on main after merge

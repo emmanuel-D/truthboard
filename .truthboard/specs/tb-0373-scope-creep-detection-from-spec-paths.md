@@ -14,6 +14,6 @@ drift finding. Catches "while I was in there" commits before review does.
 
 ## Acceptance
 
-- [ ] A linked branch whose diff is >50% outside the spec's paths yields a scope-creep drift finding
-- [ ] Specs without `paths:` are never flagged (opt-in only)
-- [ ] Finding names the top offending directories, not every file
+- [x] A linked branch whose diff is >50% outside the spec's paths yields a scope-creep drift finding
+- [x] Specs without `paths:` are never flagged (opt-in only)
+- [x] Finding names the top offending directories, not every file

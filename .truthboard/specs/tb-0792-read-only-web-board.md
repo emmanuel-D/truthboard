@@ -14,7 +14,7 @@ mutate — the page just renders the derived Result.
 
 ## Acceptance
 
-- [ ] `truthboard ui` opens a localhost page rendering board, drift, and digest
+- [x] `truthboard ui` opens a localhost page rendering board, drift, and digest
 - [ ] Zero write endpoints; the page carries a "derived from git, never typed" banner
-- [ ] Static assets embedded via go:embed — still a single binary
-- [ ] Auto-refreshes when the repo changes (poll or fs-watch)
+- [x] Static assets embedded via go:embed — still a single binary
+- [x] Auto-refreshes when the repo changes (poll or fs-watch)

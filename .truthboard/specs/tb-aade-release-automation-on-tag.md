@@ -16,6 +16,6 @@ generated notes — so releasing never depends on someone's laptop.
 
 ## Acceptance
 
-- [ ] Pushing a `v*` tag builds darwin/linux (amd64+arm64) and windows/amd64 binaries with the version stamped in (`truthboard version` prints the tag)
-- [ ] A GitHub release is created with the tarballs, a checksums file, and generated notes
-- [ ] Verified end-to-end by cutting v0.2.0
+- [x] Pushing a `v*` tag builds darwin/linux (amd64+arm64) and windows/amd64 binaries with the version stamped in (`truthboard version` prints the tag)
+- [x] A GitHub release is created with the tarballs, a checksums file, and generated notes
+- [x] Verified end-to-end by cutting v0.2.0

@@ -18,13 +18,13 @@ affect derived statuses.
 
 ## Acceptance
 
-- Frontmatter gains `epic:` (free-form slug) and `priority:` (1=now,
+- [x] Frontmatter gains `epic:` (free-form slug) and `priority:` (1=now,
   2=next, 3=later; unset sorts last); both optional, both round-trip
   through Save
-- **Given** planned specs with priorities, **then** every surface (CLI
+- [x] **Given** planned specs with priorities, **then** every surface (CLI
   board, markdown report, web UI, JSON) orders within a status by
   priority, then id
-- Cards and rows show the epic as a small tag; specs without an epic
+- [x] Cards and rows show the epic as a small tag; specs without an epic
   render unchanged
-- `list_specs` output includes epic and priority so agents can pick
+- [x] `list_specs` output includes epic and priority so agents can pick
   "highest-priority planned story" without heuristics

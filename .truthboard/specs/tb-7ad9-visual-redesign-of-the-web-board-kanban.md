@@ -17,8 +17,8 @@ still read-only by construction.
 
 ## Acceptance
 
-- [ ] Specs render as cards grouped in status columns (kanban), not rows
-- [ ] Stat tiles show done / active / stalled / drift counts at a glance
-- [ ] Status colors follow a validated palette; every status pairs icon + label
+- [x] Specs render as cards grouped in status columns (kanban), not rows
+- [x] Stat tiles show done / active / stalled / drift counts at a glance
+- [x] Status colors follow a validated palette; every status pairs icon + label
 - [ ] Light and dark themes both deliberate (tokens, not an automatic flip)
 - [ ] Page shows it is live (pulse, last-updated time); still zero write affordances

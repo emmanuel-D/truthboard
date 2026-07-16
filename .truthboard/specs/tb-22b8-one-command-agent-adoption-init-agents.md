@@ -19,12 +19,12 @@ a commit forgets its trailer.
 
 ## Acceptance
 
-- **Given** a fresh repo, **when** I run `truthboard init --agents`, **then**
+- [x] **Given** a fresh repo, **when** I run `truthboard init --agents`, **then**
   it writes `.mcp.json` (truthboard MCP server) and an `AGENTS.md` working
   agreement (brief before work, trailer in every commit, board before new
   work), and appends a pointer to `CLAUDE.md` if one exists
-- **Given** `--hooks` is passed, **then** a `commit-msg` hook is installed
+- [x] **Given** `--hooks` is passed, **then** a `commit-msg` hook is installed
   that **warns** (never blocks) when a commit message has no `Spec:` trailer
   and no obvious exempt prefix (merge/revert/fixup)
-- Running it twice is idempotent — no duplicated blocks, no clobbered files
-- Plain `truthboard init` behavior is unchanged
+- [x] Running it twice is idempotent — no duplicated blocks, no clobbered files
+- [x] Plain `truthboard init` behavior is unchanged

@@ -19,15 +19,15 @@ remain computed with no endpoint able to touch them.
 
 ## Acceptance
 
-- **Given** the board in a browser, **when** I click "New story," **then**
+- [ ] **Given** the board in a browser, **when** I click "New story," **then**
   a form (title, goal, acceptance, owner, epic, priority) creates the
   spec file and the card appears as `planned` on next refresh
-- **Given** an existing card, **when** I open it and edit intent fields,
+- [x] **Given** an existing card, **when** I open it and edit intent fields,
   **then** the file is rewritten and the diff shows in `git status`
-- The page shows an "uncommitted intent changes" indicator when spec
+- [x] The page shows an "uncommitted intent changes" indicator when spec
   files differ from HEAD, so edits don't silently pile up
-- Write endpoints exist only under `/api/specs` and can only touch spec
+- [x] Write endpoints exist only under `/api/specs` and can only touch spec
   files; a request attempting to set a status has no route to succeed —
   pinned by tests (method-guard test updated to the new contract)
-- Every intent field remains equally editable via CLI/editor — the UI is
+- [x] Every intent field remains equally editable via CLI/editor — the UI is
   a convenience, not the source of truth

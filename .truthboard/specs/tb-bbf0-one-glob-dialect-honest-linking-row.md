@@ -18,8 +18,8 @@ one panel row that states all three signals.
 
 ## Acceptance
 
-- [ ] Branch globs use the same `**`-aware dialect as spec paths (e.g.
+- [x] Branch globs use the same `**`-aware dialect as spec paths (e.g.
       `feat/**` links `feat/x/custom-name`)
-- [ ] The detail view replaces "Branch glob" with a "Linking" row: id-in-name,
+- [x] The detail view replaces "Branch glob" with a "Linking" row: id-in-name,
       trailer, and glob — all three, in strength order
-- [ ] Existing default globs (`*/tb-xxxx-*`) keep matching exactly as before
+- [x] Existing default globs (`*/tb-xxxx-*`) keep matching exactly as before

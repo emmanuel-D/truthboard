@@ -18,12 +18,12 @@ to a supporting "also landed" list.
 
 ## Acceptance
 
-- **Given** a spec whose landing commit falls inside the digest window,
+- [x] **Given** a spec whose landing commit falls inside the digest window,
   **then** the digest leads with "✓ <spec title> (<id>) — landed <date>"
   in term, md, and web UI
-- Commits not attributable to any spec still appear, under an
+- [x] Commits not attributable to any spec still appear, under an
   "also landed" subsection — nothing is hidden
-- **Given** a repo with no specs, **then** the digest renders exactly as
+- [x] **Given** a repo with no specs, **then** the digest renders exactly as
   today (pure commit list)
-- The weekly GitHub Action issue picks the new format up with no
+- [ ] The weekly GitHub Action issue picks the new format up with no
   workflow change

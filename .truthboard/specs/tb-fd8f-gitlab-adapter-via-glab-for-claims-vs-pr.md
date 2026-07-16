@@ -16,5 +16,5 @@ degradation when `glab` is missing.
 ## Acceptance
 
 - [ ] On a GitLab repo with `glab` authed, branches with open MRs show in-review
-- [ ] Claims section works: stale assigned issues, done-but-open, abandoned MRs
-- [ ] Without `glab`, output is byte-identical to today's pure-git audit
+- [x] Claims section works: stale assigned issues, done-but-open, abandoned MRs
+- [x] Without `glab`, output is byte-identical to today's pure-git audit
