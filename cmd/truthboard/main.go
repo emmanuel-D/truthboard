@@ -15,7 +15,7 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/web"
 )
 
-const version = "0.1.0-dev"
+const version = "0.1.0"
 
 const usage = `truthboard — your repo already knows the status
 
