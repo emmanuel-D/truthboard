@@ -9,6 +9,31 @@ digest are computed from branches, merges, and commit trailers. On repos with
 no specs it runs as a pure read-only auditor, and either way it can check
 your existing tracker's claims against what the repo proves.
 
+## Install
+
+Grab a binary from [Releases](https://github.com/emmanuel-D/truthboard/releases)
+and put it on your PATH, or build from source:
+
+```sh
+go install github.com/emmanuel-D/truthboard/cmd/truthboard@latest
+```
+
+Single static binary; the only runtime dependency is `git`. Optional:
+`gh`/`glab` for tracker claims, `npm` for package scripts.
+
+## Quick start in an existing project
+
+```sh
+cd your-project
+truthboard init --agents --hooks   # specs + MCP + AGENTS.md + trailer nudge
+truthboard ui --detach             # the board, running in the background
+```
+
+That's the whole setup. Write your first story (`truthboard spec new` or
+the board's **+ New story**), work on a branch containing its id, and the
+card moves itself. In npm projects, init also wires `npm run board`,
+`board:status`, `board:stop`, and `board:audit`.
+
 ## Spec mode — the tracker
 
 ```sh

@@ -17,10 +17,10 @@ the journey.
 
 ## Acceptance
 
-- [ ] README opens with Install (release binaries + go install) and a
+- [x] README opens with Install (release binaries + go install) and a
       Quick start for an existing project (init --agents --hooks, board,
       npm-scripts variant) before any feature section
-- [ ] `truthboard help` ends with a "getting started in a repo" block
+- [x] `truthboard help` ends with a "getting started in a repo" block
       showing the same three-command path
-- [ ] Every command in help supports `-h` for its flags (already true —
-      assert by trying each)
+- [x] Every command in help supports `-h` for its flags (asserting it
+      found and fixed status/stop treating -h as a repo path)
