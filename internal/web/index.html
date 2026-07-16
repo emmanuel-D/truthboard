@@ -121,16 +121,68 @@
   .digest time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 5.6rem; font-size: .78rem; }
 
   footer { text-align: center; color: var(--muted); font-size: .74rem; padding: .6rem 0 1.6rem; }
+
+  /* ---------- intent editing ---------- */
+  .btn {
+    margin-left: auto; background: var(--card); color: var(--ink);
+    border: 1px solid var(--ring); border-radius: 8px; padding: .3rem .8rem;
+    font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--in-progress); }
+  .card { cursor: pointer; }
+  .dirty { color: var(--stalled); font-size: .78rem; margin: 0 0 .8rem; }
+  .dirty code { font-family: ui-monospace, Menlo, monospace; font-size: .74rem; }
+  dialog {
+    background: var(--card); color: var(--ink); border: 1px solid var(--ring);
+    border-radius: 12px; padding: 1.2rem 1.4rem; width: min(34rem, 92vw);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { font-size: .95rem; margin-bottom: .8rem; }
+  dialog .note { font-size: .75rem; color: var(--muted); margin-bottom: .8rem; }
+  dialog label { display: block; font-size: .74rem; color: var(--ink-2); margin: .55rem 0 .15rem; }
+  dialog input, dialog select, dialog textarea {
+    width: 100%; background: var(--page); color: var(--ink);
+    border: 1px solid var(--hairline); border-radius: 7px; padding: .4rem .55rem;
+    font: inherit; font-size: .85rem;
+  }
+  dialog textarea { font-family: ui-monospace, Menlo, monospace; font-size: .78rem; min-height: 11rem; }
+  dialog .row2 { display: grid; grid-template-columns: 1fr 1fr 6rem; gap: .6rem; }
+  dialog .actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; }
+  dialog .err { color: var(--regressed); font-size: .78rem; margin-top: .5rem; min-height: 1em; }
 </style>
 </head>
 <body>
 <header>
   <h1>Truthboard</h1>
   <span class="live"><span class="dot"></span><span id="updated">connecting…</span></span>
+  <button class="btn" id="new-story">+ New story</button>
   <div class="meta" id="meta"></div>
 </header>
-<p class="banner"><b>Derived from git, never typed.</b> Every status on this page is computed from repository facts — there is nothing here to edit.</p>
+<p class="banner"><b>Statuses: derived from git, never typed.</b> Stories (title, goal, acceptance, priority) are yours to edit — click a card. The promise is editable; the proof is not.</p>
+<div class="dirty" id="dirty" hidden></div>
 <div id="app"></div>
+
+<dialog id="editor">
+  <h2 id="ed-title">New story</h2>
+  <p class="note">You are editing <b>intent</b>. The status stays derived from git — finish the work and the card moves itself.</p>
+  <form method="dialog" id="ed-form">
+    <label>Title</label><input id="ed-t" required maxlength="120">
+    <div class="row2">
+      <div><label>Owner</label><input id="ed-o"></div>
+      <div><label>Epic</label><input id="ed-e" placeholder="e.g. user-auth"></div>
+      <div><label>Priority</label><select id="ed-p">
+        <option value="0">—</option><option value="1">p1 · now</option>
+        <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
+    </div>
+    <label>Goal &amp; acceptance (markdown)</label>
+    <textarea id="ed-b" spellcheck="false"></textarea>
+    <div class="err" id="ed-err"></div>
+    <div class="actions">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn" id="ed-save" value="default">Save story</button>
+    </div>
+  </form>
+</dialog>
 <footer>truthboard · refreshes automatically · read-only by construction</footer>
 
 <script>
@@ -181,7 +233,7 @@ function kanban(b) {
   return `<div class="board">` + cols.map(st => {
     const d = STATUS[st];
     const cards = b.specs.filter(s => s.status === st).map(s =>
-      `<div class="card" style="border-left-color:${sv(st)}">
+      `<div class="card" data-spec="${esc(s.id)}" title="Edit story (intent only)" style="border-left-color:${sv(st)}">
          <div class="title">${esc(s.title)}</div>
          <div class="sub"><code>${esc(s.id)}</code>${
            s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
@@ -264,6 +316,10 @@ async function tick() {
   try {
     const r = await fetch("/api/board");
     if (!r.ok) throw new Error(r.statusText);
+    const dirty = parseInt(r.headers.get("X-Truthboard-Dirty") || "0", 10);
+    const dirtyEl = document.getElementById("dirty");
+    dirtyEl.hidden = !dirty;
+    if (dirty) dirtyEl.textContent = `● ${dirty} uncommitted intent change${dirty > 1 ? "s" : ""} — review and commit .truthboard/specs like code`;
     const text = await r.text();
     if (text !== last) { last = text; render(JSON.parse(text)); }
     document.getElementById("updated").textContent = "live · " + new Date().toLocaleTimeString();
@@ -273,6 +329,58 @@ async function tick() {
   setTimeout(tick, 3000);
 }
 tick();
+
+/* ---------- intent editing: the promise, never the proof ---------- */
+const dlg = document.getElementById("editor");
+let editingId = null;
+const TEMPLATE = "## Goal\n\n(what outcome, and why)\n\n## Acceptance\n\n- [ ] (observable criterion)\n";
+
+function openEditor(spec) {
+  editingId = spec ? spec.id : null;
+  document.getElementById("ed-title").textContent = spec ? `Edit ${spec.id} — intent only` : "New story";
+  document.getElementById("ed-t").value = spec?.title || "";
+  document.getElementById("ed-o").value = spec?.owner || "";
+  document.getElementById("ed-e").value = spec?.epic || "";
+  document.getElementById("ed-p").value = String(spec?.priority || 0);
+  document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
+  document.getElementById("ed-err").textContent = "";
+  dlg.showModal();
+}
+
+document.getElementById("new-story").addEventListener("click", () => openEditor(null));
+document.getElementById("app").addEventListener("click", async e => {
+  const card = e.target.closest("[data-spec]");
+  if (!card) return;
+  try {
+    const r = await fetch("/api/specs/" + encodeURIComponent(card.dataset.spec));
+    if (!r.ok) throw new Error(await r.text());
+    openEditor(await r.json());
+  } catch (err) { console.error(err); }
+});
+
+document.getElementById("ed-form").addEventListener("submit", async e => {
+  if (e.submitter?.value === "cancel") return;
+  e.preventDefault();
+  const payload = {
+    title: document.getElementById("ed-t").value.trim(),
+    owner: document.getElementById("ed-o").value.trim(),
+    epic: document.getElementById("ed-e").value.trim(),
+    priority: parseInt(document.getElementById("ed-p").value, 10) || 0,
+    body: document.getElementById("ed-b").value,
+  };
+  try {
+    const r = await fetch(editingId ? "/api/specs/" + encodeURIComponent(editingId) : "/api/specs", {
+      method: editingId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    dlg.close();
+    last = ""; // force a re-render on the next poll
+  } catch (err) {
+    document.getElementById("ed-err").textContent = err.message;
+  }
+});
 </script>
 </body>
 </html>
