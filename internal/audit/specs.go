@@ -113,10 +113,10 @@ func unitMatchesSpec(repo, base string, s *spec.Spec, u *Unit) bool {
 	if strings.Contains(u.Name, s.ID) {
 		return true
 	}
-	if s.Branch != "" {
-		if ok, _ := path.Match(s.Branch, u.Name); ok {
-			return true
-		}
+	// Same glob dialect as spec paths (matchScope): ** crosses slashes,
+	// * stays within one segment — one dialect everywhere.
+	if s.Branch != "" && matchScope(s.Branch, u.Name) {
+		return true
 	}
 	// Trailer in any unmerged commit of the branch.
 	out, ok := gitrepo.Try(repo, "log", "-n", "200", "--grep", s.Trailer(), base+".."+u.Tip, "--format=%h")

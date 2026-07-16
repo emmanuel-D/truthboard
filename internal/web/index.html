@@ -625,7 +625,8 @@ function openDetail(full) {
   const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];
   if (onBoard.branches?.length) rows.push(["Branches", onBoard.branches.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
   if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>`]);
-  if (full.branch) rows.push(["Branch glob", `<code>${esc(full.branch)}</code>`]);
+  rows.push(["Linking", `any branch containing <code>${esc(full.id)}</code> · trailer <code>Spec: ${esc(full.id)}</code>` +
+    (full.branch ? ` · glob <code>${esc(full.branch)}</code>` : "")]);
   if (full.paths?.length) rows.push(["Scope", full.paths.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
   document.getElementById("dt-truth").innerHTML = `<h4>Derived truth — computed, not editable</h4>` +
     rows.map(([k,v]) => `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");

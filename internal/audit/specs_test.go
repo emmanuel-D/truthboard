@@ -131,6 +131,26 @@ func TestSpecBranchGlobLinking(t *testing.T) {
 	}
 }
 
+func TestSpecBranchGlobCrossesSlashesWithDoublestar(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -30))
+	f.git("checkout", "-b", "feat/nested/custom-name")
+	f.commit("feat: deep work, no id anywhere", now.AddDate(0, 0, -1))
+	f.git("checkout", "main")
+
+	// Same dialect as spec paths: ** crosses slashes; plain * would not.
+	writeSpec(t, f.dir, "tb-gggg", "Deep glob", "feat/**")
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := specByID(t, res, "tb-gggg"); got.Status != InProgress || len(got.Branches) != 1 {
+		t.Errorf("doublestar glob = %+v, want linked to feat/nested/custom-name", got)
+	}
+}
+
 func TestBacklogOrderingAndFields(t *testing.T) {
 	now := time.Now()
 	f := newFixture(t)
