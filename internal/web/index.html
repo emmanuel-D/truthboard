@@ -161,6 +161,10 @@
   .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
   .tag.pri { font-weight: 700; }
   .tag.sprint { border-style: dashed; }
+  #dt-assign { background: var(--bg-2, transparent); color: var(--ink); border: 1px solid var(--hairline);
+    border-radius: 999px; padding: .15rem .7rem; font: inherit; font-size: .75rem; width: 11rem; }
+  #dt-assign:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
+  #dt-assign-note { font-size: .7rem; color: var(--muted); margin-left: .5rem; }
   .sprow { display: flex; align-items: baseline; gap: .7rem; padding: .35rem 0; border-top: 1px solid var(--hairline); flex-wrap: wrap; }
   .sprow:first-of-type { border-top: 0; }
   .sprow .spname { font-weight: 700; min-width: 5.5rem; }
@@ -291,6 +295,11 @@
     <h2 id="dt-title"></h2>
   </div>
   <div class="chips" id="dt-chips" style="padding: 0 1.25rem .4rem"></div>
+  <div id="dt-assign-wrap" style="padding: 0 1.25rem .5rem">
+    <input id="dt-assign" list="owners-known" placeholder="assign to…" autocomplete="off">
+    <datalist id="owners-known"></datalist>
+    <span class="note" id="dt-assign-note"></span>
+  </div>
   <div class="dbody">
     <p class="note" id="dt-hint" style="padding:0" hidden>☑ Acceptance boxes are sign-off — click one to record that you verified it.</p>
     <div class="md" id="dt-md"></div>
@@ -397,8 +406,11 @@ function syncFilterChips(b) {
   document.getElementById("f-sprints").innerHTML = sprints.map(sp =>
     `<button class="fchip${F.sprints.has(sp) ? " on" : ""}" data-sprint="${esc(sp)}">${esc(sp)}</button>`).join("");
   const owners = [...new Set((b.specs || []).map(s => s.owner).filter(Boolean))].sort();
-  document.getElementById("f-owners").innerHTML = owners.length > 1 ? owners.map(o =>
-    `<button class="fchip${F.owners.has(o) ? " on" : ""}" data-owner="${esc(o)}">${esc(initials(o))} · ${esc(o)}</button>`).join("") : "";
+  let ownerChips = owners.map(o =>
+    `<button class="fchip${F.owners.has(o) ? " on" : ""}" data-owner="${esc(o)}">${esc(initials(o))} · ${esc(o)}</button>`);
+  if ((b.specs || []).some(s => !s.owner))
+    ownerChips.push(`<button class="fchip${F.owners.has("") ? " on" : ""}" data-owner="">∅ unassigned</button>`);
+  document.getElementById("f-owners").innerHTML = ownerChips.length > 1 ? ownerChips.join("") : "";
   document.getElementById("f-clear").hidden = !filterActive();
 }
 document.getElementById("f-text").addEventListener("input", e => {
@@ -632,6 +644,7 @@ function setReadOnly(ro) {
   RO = ro;
   document.getElementById("new-story").hidden = ro;
   document.getElementById("dt-edit").hidden = ro;
+  document.getElementById("dt-assign-wrap").hidden = ro;
 }
 
 let last = "";
@@ -690,6 +703,12 @@ function openDetail(full) {
     epicTag(full.epic) +
     (full.sprint ? `<span class="tag sprint">${esc(full.sprint)}</span>` : "") +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
+  document.getElementById("dt-assign-wrap").hidden = RO;
+  document.getElementById("dt-assign").value = full.owner || "";
+  document.getElementById("dt-assign-note").textContent = "";
+  document.getElementById("owners-known").innerHTML =
+    [...new Set((lastBoard?.specs || []).map(x => x.owner).filter(Boolean))].sort()
+      .map(o => `<option value="${esc(o)}">`).join("");
   document.getElementById("dt-md").innerHTML = md(full.body, true);
   if (RO) document.querySelectorAll("#dt-md input[type=checkbox]").forEach(b => { b.disabled = true; });
   document.getElementById("dt-hint").hidden = RO || !/^\s*[-*]\s+\[[ xX]\]/m.test(full.body);
@@ -713,6 +732,27 @@ document.getElementById("app").addEventListener("click", async e => {
     openDetail(await r.json());
   } catch (err) { console.error(err); }
 });
+document.getElementById("dt-assign").addEventListener("change", async e => {
+  if (!detailSpec || RO) return;
+  const owner = e.target.value.trim();
+  if (owner === (detailSpec.owner || "")) return;
+  const note = document.getElementById("dt-assign-note");
+  try {
+    const r = await fetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    detailSpec.owner = owner;
+    note.textContent = owner ? `assigned to ${owner}` : "unassigned";
+    last = ""; // avatars and owner chips pick it up on the next poll
+  } catch (err) {
+    e.target.value = detailSpec.owner || "";
+    note.textContent = "could not assign: " + err.message;
+  }
+});
+
 document.getElementById("dt-close").addEventListener("click", () => detailDlg.close());
 document.getElementById("dt-edit").addEventListener("click", () => { detailDlg.close(); openEditor(detailSpec); });
 
