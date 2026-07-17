@@ -69,18 +69,45 @@ func (c *boardCache) get() ([]byte, error) {
 	return body, nil
 }
 
+// Options configures the board server.
+type Options struct {
+	Port        int
+	Host        string // listen host; empty means loopback only
+	Forge       bool
+	OpenBrowser bool
+	FetchEvery  time.Duration // >0: poll origin so the board tracks the remote
+	Version     string
+}
+
+// ReadOnly reports whether intent writes are disabled: a board served
+// beyond loopback has no auth story, so it shows the truth and edits
+// nothing. Intent editing stays a same-machine privilege.
+func (o Options) ReadOnly() bool {
+	switch o.Host {
+	case "", "127.0.0.1", "localhost", "::1":
+		return false
+	}
+	return true
+}
+
 // Handler returns the board handler; exposed for tests. The repo path is
 // resolved to absolute so the page never labels the board "." — the audit
 // result carries the path the viewer should recognize.
-func Handler(repo string, useForge bool, version string) http.Handler {
+func Handler(repo string, o Options) http.Handler {
 	if abs, err := filepath.Abs(repo); err == nil {
 		repo = abs
 	}
 	interval := 2 * time.Second
-	if useForge {
+	if o.Forge {
 		interval = 15 * time.Second // forge APIs are slow and rate-limited
 	}
-	cache := &boardCache{repo: repo, useForge: useForge, interval: interval}
+	cache := &boardCache{repo: repo, useForge: o.Forge, interval: interval}
+
+	var remote *syncer
+	if o.FetchEvery > 0 {
+		remote = &syncer{repo: repo, every: o.FetchEvery}
+		go remote.run()
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +126,12 @@ func Handler(repo string, useForge bool, version string) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Truthboard-Dirty", fmt.Sprint(dirtySpecs(repo)))
+		if o.ReadOnly() {
+			w.Header().Set("X-Truthboard-Readonly", "1")
+		}
+		if remote != nil {
+			remote.headers(w.Header())
+		}
 		w.Write(body)
 	})
 	mux.HandleFunc("/api/specs", specCreate(repo, cache.invalidate))
@@ -108,14 +141,19 @@ func Handler(repo string, useForge bool, version string) http.Handler {
 	// under /api/specs) is editable; the proof (everything else) is not.
 	// A status has no route by which it could be written.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowed := r.Method == http.MethodGet || r.Method == http.MethodHead ||
+		read := r.Method == http.MethodGet || r.Method == http.MethodHead
+		if !read && o.ReadOnly() {
+			http.Error(w, "this board is shared beyond localhost and serves read-only — edit intent from a clone of the repo", http.StatusForbidden)
+			return
+		}
+		allowed := read ||
 			(r.Method == http.MethodPost && r.URL.Path == "/api/specs") ||
 			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/specs/"))
 		if !allowed {
 			http.Error(w, "statuses are derived from git, never typed; only spec intent under /api/specs is writable", http.StatusMethodNotAllowed)
 			return
 		}
-		w.Header().Set("X-Truthboard-Version", version)
+		w.Header().Set("X-Truthboard-Version", o.Version)
 		mux.ServeHTTP(w, r)
 	})
 }
@@ -255,19 +293,29 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 	}
 }
 
-// Serve listens on localhost only and optionally opens the browser.
-func Serve(repo string, port int, useForge, openBrowser bool, version string) error {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+// Serve listens on loopback by default and optionally opens the browser.
+func Serve(repo string, o Options) error {
+	host := o.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, fmt.Sprint(o.Port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("cannot listen on %s: %w", addr, err)
 	}
 	url := "http://" + addr
-	fmt.Printf("truthboard ui — read-only board for %s\n%s (ctrl-c to stop)\n", repo, url)
-	if openBrowser {
+	fmt.Printf("truthboard ui — board for %s\n%s (ctrl-c to stop)\n", repo, url)
+	if o.ReadOnly() {
+		fmt.Printf("serving beyond localhost: the board is read-only (no auth story yet) — intent editing needs a clone\n")
+	}
+	if o.FetchEvery > 0 {
+		fmt.Printf("fetching origin every %s so the board tracks the remote\n", o.FetchEvery)
+	}
+	if o.OpenBrowser {
 		browse(url)
 	}
-	return http.Serve(ln, Handler(repo, useForge, version))
+	return http.Serve(ln, Handler(repo, o))
 }
 
 // Browse opens the URL in the default browser, best effort.

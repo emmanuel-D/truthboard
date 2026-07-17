@@ -73,6 +73,7 @@ through commits with the spec trailer.
 truthboard ui              # opens http://127.0.0.1:1337, auto-refreshing
 truthboard ui --forge      # include tracker claims (slower refresh)
 truthboard ui --detach     # keep it running in the background
+truthboard ui --fetch 60s  # poll origin so the board tracks the remote
 truthboard status          # is a board running for this repo?
 truthboard stop            # stop the detached board
 ```
@@ -91,6 +92,34 @@ not:** intent edits write the markdown spec files (a plain git diff, with
 an uncommitted-changes nudge on the page), while statuses stay computed
 with no route by which anything could set one. Single embedded HTML file
 via go:embed — still one binary.
+
+### Multi-machine: a board that tracks the remote
+
+The board derives everything from the local clone, so by default it is
+only as fresh as your last `git fetch`. When the machine showing the board
+is not the machine doing the work — a PO's laptop, a shared box — add
+`--fetch`:
+
+```sh
+truthboard ui --detach --fetch 60s
+```
+
+Remote-tracking refs refresh unconditionally, so branch statuses, drift,
+and the digest track the remote with no local git use. Spec files are
+intent and live in the working tree, so the checkout is fast-forwarded
+only when it is clean and on the integration branch — uncommitted work is
+never touched, and the page says loudly when refs are fresh but story
+files are not (or when fetching fails).
+
+To give the whole team one URL, bind beyond loopback:
+
+```sh
+truthboard ui --detach --fetch 60s --host 0.0.0.0 --no-open
+```
+
+There is no auth story yet, so a board served beyond loopback is strictly
+read-only: it shows the truth; intent editing stays a same-machine (clone)
+privilege. `truthboard status` reports the fetch interval and shared host.
 
 ## Audit mode — works on any repo, no specs needed
 
