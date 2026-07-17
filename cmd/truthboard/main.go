@@ -37,6 +37,9 @@ Usage:
   truthboard mcp                            serve specs/board over MCP (stdio) for AI agents
   truthboard board [repo]                   the board in your terminal (read-only TUI):
                                             kanban columns, drift, digest — keyboard only
+  truthboard draft "Concept" [--owner X]    LLM drafts an epic of real stories (goal +
+                                            acceptance) — needs ANTHROPIC_API_KEY or OLLAMA_HOST
+  truthboard review [sprint]                LLM narrates a sprint review from derived facts
   truthboard ui [--port 1337] [--forge] [--no-open] [--detach] [repo]
                                             web board; --detach keeps it running in the background
                 --fetch 60s                 poll origin so the board tracks the remote, not just
@@ -85,6 +88,10 @@ func main() {
 		}
 	case "board":
 		os.Exit(runBoard(os.Args[2:]))
+	case "draft":
+		os.Exit(runDraft(os.Args[2:]))
+	case "review":
+		os.Exit(runReview(os.Args[2:]))
 	case "ui":
 		os.Exit(runUI(os.Args[2:]))
 	case "status":
