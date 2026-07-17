@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,6 +63,54 @@ func TestSprintRollupIsDerivedArithmetic(t *testing.T) {
 	}
 	if res.Sprints[1].Name != "s9" || res.Sprints[1].Done != 0 || res.Sprints[1].Total != 1 {
 		t.Errorf("s9 = %+v, want 0/1 done", res.Sprints[1])
+	}
+}
+
+func writeSpecPoints(t *testing.T, repo, id, title, sprint string, points int) {
+	t.Helper()
+	dir := spec.Dir(repo)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nid: " + id + "\ntitle: " + title + "\nsprint: " + sprint + "\n"
+	if points > 0 {
+		content += fmt.Sprintf("points: %d\n", points)
+	}
+	content += "---\n\n## Goal\nTest.\n"
+	if err := os.WriteFile(filepath.Join(dir, id+"-test.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSprintPointRollup(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -10))
+
+	f.git("checkout", "-b", "feature/tb-p1a-done")
+	f.commit("feat: done work\n\nSpec: tb-p1a", now.AddDate(0, 0, -2))
+	f.git("checkout", "main")
+	f.gitAt(now.AddDate(0, 0, -2), "merge", "--no-ff", "-m", "Merge branch 'feature/tb-p1a-done'", "feature/tb-p1a-done")
+	f.git("branch", "-D", "feature/tb-p1a-done")
+
+	writeSpecPoints(t, f.dir, "tb-p1a", "Landed, 5pt", "s12", 5)
+	writeSpecPoints(t, f.dir, "tb-p1b", "Open, 3pt", "s12", 3)
+	writeSpecPoints(t, f.dir, "tb-p1c", "Open, unestimated", "s12", 0)
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Sprints) != 1 {
+		t.Fatalf("sprints = %+v, want just s12", res.Sprints)
+	}
+	sp := res.Sprints[0]
+	if sp.PointsDone != 5 || sp.PointsTotal != 8 || sp.Unestimated != 1 {
+		t.Errorf("points = %d/%d, %d unestimated; want 5/8 with 1 unestimated (never counted as zero)",
+			sp.PointsDone, sp.PointsTotal, sp.Unestimated)
+	}
+	if sp.Done != 1 || sp.Total != 3 {
+		t.Errorf("arithmetic = %d/%d, points must not disturb story counts", sp.Done, sp.Total)
 	}
 }
 

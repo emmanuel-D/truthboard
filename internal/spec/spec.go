@@ -26,6 +26,7 @@ type Spec struct {
 	Epic     string   `yaml:"epic,omitempty" json:"epic,omitempty"`         // backlog grouping (intent, like everything here)
 	Sprint   string   `yaml:"sprint,omitempty" json:"sprint,omitempty"`     // iteration slug (e.g. s12, 2026-29); intent, never a status
 	Priority int      `yaml:"priority,omitempty" json:"priority,omitempty"` // 1=now, 2=next, 3=later; 0 = unset
+	Points   int      `yaml:"points,omitempty" json:"points,omitempty"`     // estimate (story points); 0 = unestimated
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter
 	File string `yaml:"-" json:"-"`

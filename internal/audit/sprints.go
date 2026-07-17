@@ -19,14 +19,17 @@ import (
 // window. There is still nothing to type: a date window is intent, the
 // state falls out of it.
 type SprintRollup struct {
-	Name     string       `json:"name"`
-	Done     int          `json:"done"`
-	Total    int          `json:"total"`
-	Open     []SprintOpen `json:"open,omitempty"`      // everything not done, backlog order
-	Start    string       `json:"start,omitempty"`     // from the sprint intent file
-	End      string       `json:"end,omitempty"`       // inclusive
-	State    string       `json:"state,omitempty"`     // future | active | completed — derived from dates
-	DaysLeft int          `json:"days_left,omitempty"` // active sprints: days until end, 0 = ends today
+	Name        string       `json:"name"`
+	Done        int          `json:"done"`
+	Total       int          `json:"total"`
+	PointsDone  int          `json:"points_done,omitempty"`  // sum of points over done stories
+	PointsTotal int          `json:"points_total,omitempty"` // sum of points over estimated stories
+	Unestimated int          `json:"unestimated,omitempty"`  // stories with no points — excluded from the sums, not counted as zero
+	Open        []SprintOpen `json:"open,omitempty"`         // everything not done, backlog order
+	Start       string       `json:"start,omitempty"`        // from the sprint intent file
+	End         string       `json:"end,omitempty"`          // inclusive
+	State       string       `json:"state,omitempty"`        // future | active | completed — derived from dates
+	DaysLeft    int          `json:"days_left,omitempty"`    // active sprints: days until end, 0 = ends today
 }
 
 type SprintOpen struct {
@@ -52,8 +55,14 @@ func rollupSprints(res *Result, intents []spec.SprintIntent, now time.Time) {
 			byName[s.Sprint] = r
 		}
 		r.Total++
+		if s.Points > 0 {
+			r.PointsTotal += s.Points
+		} else {
+			r.Unestimated++
+		}
 		if s.Status == Done {
 			r.Done++
+			r.PointsDone += s.Points
 		} else {
 			r.Open = append(r.Open, SprintOpen{ID: s.ID, Title: s.Title, Status: s.Status})
 		}

@@ -57,6 +57,19 @@ func backlogTag(s audit.SpecStatus) string {
 	return " · " + strings.Join(parts, " · ")
 }
 
+// sprintPoints renders " · 5/13 pts (2 unestimated)" when the sprint has
+// estimated stories; empty otherwise so point-free repos see no change.
+func sprintPoints(sp audit.SprintRollup) string {
+	if sp.PointsTotal == 0 {
+		return ""
+	}
+	out := fmt.Sprintf(" · %d/%d pts", sp.PointsDone, sp.PointsTotal)
+	if sp.Unestimated > 0 {
+		out += fmt.Sprintf(" (%d unestimated)", sp.Unestimated)
+	}
+	return out
+}
+
 // sprintWindow renders the derived calendar state for a dated sprint:
 // " · 2026-07-14 → 2026-07-25 · active, 8d left". Empty for date-less
 // sprints, which keep their original arithmetic-only line.
@@ -142,7 +155,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	if len(res.Sprints) > 0 {
 		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "SPRINTS (arithmetic over derived statuses — a sprint finishes when its stories land)"))
 		for _, sp := range res.Sprints {
-			fmt.Fprintf(w, "  %s  %d/%d done%s\n", c(ansiCyan, sp.Name), sp.Done, sp.Total, c(ansiDim, sprintWindow(sp)))
+			fmt.Fprintf(w, "  %s  %d/%d done%s%s\n", c(ansiCyan, sp.Name), sp.Done, sp.Total, c(ansiDim, sprintPoints(sp)), c(ansiDim, sprintWindow(sp)))
 			for _, o := range sp.Open {
 				fmt.Fprintf(w, "    %s %s %s\n",
 					c(ansi[o.Status], fmt.Sprintf("%-12s", strings.ToUpper(string(o.Status)))), o.ID, o.Title)

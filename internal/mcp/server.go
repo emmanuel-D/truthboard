@@ -151,6 +151,7 @@ func tools() []toolDef {
 				"epic":     map[string]any{"type": "string", "description": "Backlog grouping slug (e.g. user-auth)"},
 				"sprint":   map[string]any{"type": "string", "description": "Iteration slug (e.g. s12, 2026-29) — intent, never a status"},
 				"priority": map[string]any{"type": "number", "description": "1=now, 2=next, 3=later"},
+				"points":   map[string]any{"type": "number", "description": "Story-point estimate; omit for unestimated"},
 				"repo":     repoProp,
 			}, "title"),
 		},
@@ -167,6 +168,7 @@ func tools() []toolDef {
 				"epic":     map[string]any{"type": "string"},
 				"sprint":   map[string]any{"type": "string", "description": "Iteration slug; empty string clears it"},
 				"priority": map[string]any{"type": "number"},
+				"points":   map[string]any{"type": "number", "description": "Story-point estimate; 0 clears it"},
 				"repo":     repoProp,
 			}, "id"),
 		},
@@ -280,6 +282,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Epic     string   `json:"epic"`
 			Sprint   string   `json:"sprint"`
 			Priority int      `json:"priority"`
+			Points   int      `json:"points"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -294,7 +297,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if a.Body != "" {
 			s.Body = a.Body
 		}
-		s.Paths, s.Epic, s.Sprint, s.Priority = a.Paths, a.Epic, a.Sprint, a.Priority
+		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points
 		if err := s.Save(); err != nil {
 			return "", err
 		}
@@ -318,6 +321,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Epic     *string   `json:"epic"`
 			Sprint   *string   `json:"sprint"`
 			Priority *int      `json:"priority"`
+			Points   *int      `json:"points"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -343,6 +347,9 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		}
 		if a.Priority != nil {
 			s.Priority = *a.Priority
+		}
+		if a.Points != nil {
+			s.Points = *a.Points
 		}
 		if err := s.Save(); err != nil {
 			return "", err
