@@ -71,21 +71,21 @@ type Drift struct {
 }
 
 type Result struct {
-	Repo         string        `json:"repo"`
-	Integration  string        `json:"integration_branch"`
-	ElectedVia   string        `json:"elected_via"`
-	ElectionNote string        `json:"election_note,omitempty"`
-	Units        []Unit        `json:"units"`
-	Drift        Drift         `json:"drift"`
-	Digest       []Commit      `json:"digest"`
-	Shipped      []ShippedSpec `json:"shipped,omitempty"` // specs landed within the digest window
+	Repo         string         `json:"repo"`
+	Integration  string         `json:"integration_branch"`
+	ElectedVia   string         `json:"elected_via"`
+	ElectionNote string         `json:"election_note,omitempty"`
+	Units        []Unit         `json:"units"`
+	Drift        Drift          `json:"drift"`
+	Digest       []Commit       `json:"digest"`
+	Shipped      []ShippedSpec  `json:"shipped,omitempty"` // specs landed within the digest window
 	Sprints      []SprintRollup `json:"sprints,omitempty"` // per-sprint arithmetic over derived statuses
-	Specs        []SpecStatus  `json:"specs,omitempty"`
-	Claims       []Claim       `json:"claims,omitempty"`
-	Forge        string        `json:"forge,omitempty"` // owner/name when forge data enriched the audit
-	StaleDays    int           `json:"stale_days"`
-	DigestDays   int           `json:"digest_days"`
-	GeneratedAt  time.Time     `json:"generated_at"`
+	Specs        []SpecStatus   `json:"specs,omitempty"`
+	Claims       []Claim        `json:"claims,omitempty"`
+	Forge        string         `json:"forge,omitempty"` // owner/name when forge data enriched the audit
+	StaleDays    int            `json:"stale_days"`
+	DigestDays   int            `json:"digest_days"`
+	GeneratedAt  time.Time      `json:"generated_at"`
 }
 
 type Options struct {
