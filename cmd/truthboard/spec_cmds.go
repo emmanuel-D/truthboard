@@ -57,11 +57,12 @@ func runInit(args []string) int {
 
 func runSpec(args []string) int {
 	if len(args) < 1 || args[0] != "new" {
-		fmt.Fprintln(os.Stderr, `usage: truthboard spec new "Title" [--owner name] [--repo path]`)
+		fmt.Fprintln(os.Stderr, `usage: truthboard spec new "Title" [--owner name] [--sprint slug] [--repo path]`)
 		return 2
 	}
 	fs := flag.NewFlagSet("spec new", flag.ExitOnError)
 	owner := fs.String("owner", "", "who owns this spec")
+	sprint := fs.String("sprint", "", "iteration slug (e.g. s12) — intent, never a status")
 	repo := fs.String("repo", ".", "repository path")
 	// stdlib flag stops at the first positional arg, so split the title
 	// (everything before the first flag) from the flags ourselves.
@@ -74,7 +75,7 @@ func runSpec(args []string) int {
 	fs.Parse(rest)
 	title := strings.Join(titleParts, " ")
 	if title == "" {
-		fmt.Fprintln(os.Stderr, `usage: truthboard spec new "Title" [--owner name]`)
+		fmt.Fprintln(os.Stderr, `usage: truthboard spec new "Title" [--owner name] [--sprint slug]`)
 		return 2
 	}
 
@@ -82,6 +83,13 @@ func runSpec(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
+	}
+	if *sprint != "" {
+		s.Sprint = *sprint
+		if err := s.Save(); err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 1
+		}
 	}
 	fmt.Printf("created %s\n\n", s.File)
 	fmt.Printf("  id:      %s\n  branch:  %s (suggested glob — any branch containing %q links too)\n  trailer: %s (add to commits for the strongest link)\n",

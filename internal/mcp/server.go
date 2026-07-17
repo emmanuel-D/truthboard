@@ -149,13 +149,14 @@ func tools() []toolDef {
 				"owner":    map[string]any{"type": "string", "description": "Who owns this spec"},
 				"paths":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Declared scope globs (e.g. src/auth/**); work mostly outside them is reported as scope creep"},
 				"epic":     map[string]any{"type": "string", "description": "Backlog grouping slug (e.g. user-auth)"},
+				"sprint":   map[string]any{"type": "string", "description": "Iteration slug (e.g. s12, 2026-29) — intent, never a status"},
 				"priority": map[string]any{"type": "number", "description": "1=now, 2=next, 3=later"},
 				"repo":     repoProp,
 			}, "title"),
 		},
 		{
 			Name:        "update_spec",
-			Description: "Adjust an existing story's intent: title, body, owner, branch glob, paths, epic, priority — any subset. Writes the markdown file (a plain git diff). Status is not an intent field and cannot be set, here or anywhere.",
+			Description: "Adjust an existing story's intent: title, body, owner, branch glob, paths, epic, sprint, priority — any subset. Writes the markdown file (a plain git diff). Status is not an intent field and cannot be set, here or anywhere.",
 			InputSchema: objSchema(map[string]any{
 				"id":       map[string]any{"type": "string", "description": "Spec id, e.g. tb-4f2a"},
 				"title":    map[string]any{"type": "string"},
@@ -164,6 +165,7 @@ func tools() []toolDef {
 				"branch":   map[string]any{"type": "string", "description": "Branch glob to link"},
 				"paths":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 				"epic":     map[string]any{"type": "string"},
+				"sprint":   map[string]any{"type": "string", "description": "Iteration slug; empty string clears it"},
 				"priority": map[string]any{"type": "number"},
 				"repo":     repoProp,
 			}, "id"),
@@ -276,6 +278,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Owner    string   `json:"owner"`
 			Paths    []string `json:"paths"`
 			Epic     string   `json:"epic"`
+			Sprint   string   `json:"sprint"`
 			Priority int      `json:"priority"`
 		}
 		if err := strictArgs(args, &a); err != nil {
@@ -291,7 +294,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if a.Body != "" {
 			s.Body = a.Body
 		}
-		s.Paths, s.Epic, s.Priority = a.Paths, a.Epic, a.Priority
+		s.Paths, s.Epic, s.Sprint, s.Priority = a.Paths, a.Epic, a.Sprint, a.Priority
 		if err := s.Save(); err != nil {
 			return "", err
 		}
@@ -313,6 +316,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Branch   *string   `json:"branch"`
 			Paths    *[]string `json:"paths"`
 			Epic     *string   `json:"epic"`
+			Sprint   *string   `json:"sprint"`
 			Priority *int      `json:"priority"`
 		}
 		if err := strictArgs(args, &a); err != nil {
@@ -333,6 +337,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		apply(&s.Owner, a.Owner)
 		apply(&s.Branch, a.Branch)
 		apply(&s.Epic, a.Epic)
+		apply(&s.Sprint, a.Sprint)
 		if a.Paths != nil {
 			s.Paths = *a.Paths
 		}

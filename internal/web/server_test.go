@@ -155,7 +155,7 @@ func TestIntentEditingLifecycle(t *testing.T) {
 
 	// PO refines the story.
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/specs/"+created.ID,
-		strings.NewReader(`{"priority":2,"title":"Onboarding flow v2"}`))
+		strings.NewReader(`{"priority":2,"title":"Onboarding flow v2","sprint":"s12"}`))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestIntentEditingLifecycle(t *testing.T) {
 		t.Fatalf("spec file: %v", matches)
 	}
 	raw, _ := os.ReadFile(matches[0])
-	for _, want := range []string{"Onboarding flow v2", "priority: 2", "under 60s"} {
+	for _, want := range []string{"Onboarding flow v2", "priority: 2", "sprint: s12", "under 60s"} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("spec file missing %q", want)
 		}

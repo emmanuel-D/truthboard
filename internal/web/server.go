@@ -176,6 +176,7 @@ type specPayload struct {
 	Owner    string   `json:"owner"`
 	Branch   string   `json:"branch"`
 	Epic     string   `json:"epic"`
+	Sprint   string   `json:"sprint"`
 	Priority int      `json:"priority"`
 	Paths    []string `json:"paths"`
 	Body     string   `json:"body"`
@@ -183,7 +184,7 @@ type specPayload struct {
 
 func payload(s *spec.Spec) specPayload {
 	return specPayload{ID: s.ID, Title: s.Title, Owner: s.Owner, Branch: s.Branch,
-		Epic: s.Epic, Priority: s.Priority, Paths: s.Paths, Body: s.Body}
+		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Paths: s.Paths, Body: s.Body}
 }
 
 // decodeIntent rejects unknown fields so a "status" in the payload fails
@@ -208,6 +209,7 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 			Title    string   `json:"title"`
 			Owner    string   `json:"owner"`
 			Epic     string   `json:"epic"`
+			Sprint   string   `json:"sprint"`
 			Priority int      `json:"priority"`
 			Paths    []string `json:"paths"`
 			Body     string   `json:"body"`
@@ -227,7 +229,7 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 		if in.Body != "" {
 			s.Body = in.Body
 		}
-		s.Epic, s.Priority, s.Paths = in.Epic, in.Priority, in.Paths
+		s.Epic, s.Sprint, s.Priority, s.Paths = in.Epic, in.Sprint, in.Priority, in.Paths
 		if err := s.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -256,6 +258,7 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 			Owner    *string   `json:"owner"`
 			Branch   *string   `json:"branch"`
 			Epic     *string   `json:"epic"`
+			Sprint   *string   `json:"sprint"`
 			Priority *int      `json:"priority"`
 			Paths    *[]string `json:"paths"`
 			Body     *string   `json:"body"`
@@ -272,6 +275,7 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 		set(&s.Owner, in.Owner)
 		set(&s.Branch, in.Branch)
 		set(&s.Epic, in.Epic)
+		set(&s.Sprint, in.Sprint)
 		set(&s.Body, in.Body)
 		if in.Priority != nil {
 			s.Priority = *in.Priority

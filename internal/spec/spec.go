@@ -24,6 +24,7 @@ type Spec struct {
 	Branch   string   `yaml:"branch,omitempty" json:"branch,omitempty"`     // glob, e.g. feature/tb-4f2a-*
 	Paths    []string `yaml:"paths,omitempty" json:"paths,omitempty"`       // declared scope; powers creep detection
 	Epic     string   `yaml:"epic,omitempty" json:"epic,omitempty"`         // backlog grouping (intent, like everything here)
+	Sprint   string   `yaml:"sprint,omitempty" json:"sprint,omitempty"`     // iteration slug (e.g. s12, 2026-29); intent, never a status
 	Priority int      `yaml:"priority,omitempty" json:"priority,omitempty"` // 1=now, 2=next, 3=later; 0 = unset
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter

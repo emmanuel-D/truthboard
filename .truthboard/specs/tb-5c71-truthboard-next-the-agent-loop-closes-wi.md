@@ -35,7 +35,7 @@ idle agents the call, so "pick up the next story" needs no human phrasing.
 
 ## Acceptance
 
-- [ ] `truthboard next` prints the highest-priority planned story as a
+- [x] `truthboard next` prints the highest-priority planned story as a
       ready-to-work brief; ordering matches the board (priority, then id)
 - [ ] specs with any linked work (in-progress, in-review, stalled, done,
       regressed) are never returned — planned only
