@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Truthboard</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <h1>Truthboard</h1>
+  <span class="live"><span class="dot"></span><span id="updated">connecting…</span></span>
+  <button class="btn" id="theme" title="Theme">◐ auto</button>
+  <button class="btn" id="new-story" style="margin-left:0">+ New story</button>
+  <div class="meta" id="meta"></div>
+</header>
+<p class="banner"><b>Statuses: derived from git, never typed.</b> Stories are yours to shape — click a card to read or edit. The promise is editable; the proof is not.</p>
+<div class="dirty" id="dirty" hidden></div>
+<div class="warn" id="sync" hidden></div>
+<div class="filters">
+  <input type="search" id="f-text" placeholder="Filter stories… (title or id)">
+  <span id="f-epics"></span>
+  <span id="f-sprints"></span>
+  <span id="f-owners"></span>
+  <span id="f-types"></span>
+  <button class="fclear" id="f-clear" hidden>clear filters</button>
+</div>
+<div id="app"></div>
+<footer id="foot">truthboard · refreshes automatically</footer>
+
+<!-- story detail: rendered intent + derived truth -->
+<dialog id="detail">
+  <div class="dhead">
+    <span class="status" id="dt-status"></span>
+    <h2 id="dt-title"></h2>
+  </div>
+  <div class="chips" id="dt-chips" style="padding: 0 1.25rem .4rem"></div>
+  <div id="dt-assign-wrap" style="padding: 0 1.25rem .5rem">
+    <input id="dt-assign" list="owners-known" placeholder="assign to…" autocomplete="off">
+    <datalist id="owners-known"></datalist>
+    <span class="note" id="dt-assign-note"></span>
+  </div>
+  <div class="dbody">
+    <p class="note" id="dt-hint" style="padding:0" hidden>☑ Acceptance boxes are sign-off — click one to record that you verified it.</p>
+    <div class="md" id="dt-md"></div>
+    <div class="truth" id="dt-truth"></div>
+  </div>
+  <div class="dfoot">
+    <button class="btn" id="dt-close">Close</button>
+    <button class="btn primary" id="dt-edit">Edit story</button>
+  </div>
+</dialog>
+
+<!-- story editor: intent only -->
+<dialog id="editor">
+  <div class="dhead"><h2 id="ed-title">New story</h2></div>
+  <p class="note">You are editing <b>intent</b>. The status stays derived from git — finish the work and the card moves itself.</p>
+  <form method="dialog" id="ed-form" class="ed">
+    <div class="dbody">
+      <label>Title</label><input id="ed-t" required maxlength="120" placeholder="One line, outcome-shaped">
+      <div class="row3">
+        <div><label>Owner</label><input id="ed-o"></div>
+        <div><label>Epic</label><input id="ed-e" placeholder="e.g. user-auth"></div>
+        <div><label>Sprint</label><input id="ed-sp" placeholder="e.g. s12"></div>
+        <div><label>Priority</label><select id="ed-p">
+          <option value="0">—</option><option value="1">p1 · now</option>
+          <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
+        <div><label>Points</label><input id="ed-pts" type="number" min="0" step="1" placeholder="—"></div>
+        <div><label>Type</label><select id="ed-ty">
+          <option value="">story</option><option value="bug">bug</option><option value="task">task</option></select></div>
+      </div>
+      <div class="tabs">
+        <button type="button" class="on" id="tab-write">Write</button>
+        <button type="button" id="tab-preview">Preview</button>
+      </div>
+      <textarea id="ed-b" spellcheck="false"></textarea>
+      <div class="md" id="ed-preview" hidden></div>
+    </div>
+    <div class="err" id="ed-err"></div>
+    <div class="dfoot">
+      <!-- formnovalidate: Cancel must close even when required fields are empty -->
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" id="ed-save" value="default">Save story</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>

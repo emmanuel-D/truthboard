@@ -5,9 +5,10 @@
 package web
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"os/exec"
@@ -23,8 +24,20 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/spec"
 )
 
-//go:embed index.html
-var indexHTML []byte
+// The page ships as separate files (markup, styles, behavior) embedded as
+// a directory — organized and diffable, with go build still the entire
+// pipeline.
+//
+//go:embed static
+var staticFiles embed.FS
+
+var indexHTML = func() []byte {
+	b, err := staticFiles.ReadFile("static/index.html")
+	if err != nil {
+		panic(err) // impossible: embedded at compile time
+	}
+	return b
+}()
 
 // boardCache recomputes the audit at most once per interval so a polling
 // browser tab never turns into a git-subprocess storm.
@@ -146,6 +159,9 @@ func Handler(repo string, o Options) http.Handler {
 	})
 	mux.HandleFunc("/api/specs", specCreate(repo, cache.invalidate))
 	mux.HandleFunc("/api/specs/", specItem(repo, cache.invalidate))
+	if sub, err := fs.Sub(staticFiles, "static"); err == nil {
+		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
+	}
 	mux.HandleFunc("/api/events", events(live))
 	if o.WebhookSecret != "" {
 		mux.HandleFunc("/webhook", webhook(o.WebhookSecret, func() {
