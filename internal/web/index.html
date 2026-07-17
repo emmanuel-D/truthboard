@@ -173,6 +173,11 @@
   .sprow .spbar i.full { background: var(--done); }
   .sprow .spn { font-size: .75rem; color: var(--ink-2); }
   .sprow .spopen { font-size: .75rem; color: var(--ink-2); }
+  .sprow .spwindow { font-size: .75rem; color: var(--ink-2); }
+  .sprow .spwindow b { font-weight: 700; }
+  .sprow .sp-active { color: var(--in-progress); }
+  .sprow .sp-completed { color: var(--done); }
+  .sprow .sp-future { color: var(--ink-2); }
   .sprow .spopen code { font-size: .7rem; }
   .ev { color: var(--muted); font-size: .73rem; margin-top: .3rem;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -547,9 +552,14 @@ function sprintsPanel(b) {
     const open = (sp.open || []).map(o =>
       `<span class="spopen" style="color:${sv(o.status)}">${(STATUS[o.status]||{}).ico || ""}</span> <code>${esc(o.id)}</code> <span class="spopen">${esc(o.title)}</span>`
     ).join(" ");
+    let window = "";
+    if (sp.state) {
+      const left = sp.state === "active" ? (sp.days_left ? ` · ${sp.days_left}d left` : " · ends today") : "";
+      window = `<span class="spwindow" title="${esc(sp.start)} → ${esc(sp.end)}">${esc(sp.start)} → ${esc(sp.end)} · <b class="sp-${esc(sp.state)}">${esc(sp.state)}</b>${left}</span>`;
+    }
     return `<div class="sprow"><span class="spname">${esc(sp.name)}</span>
       <span class="spbar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span>
-      <span class="spn">${sp.done}/${sp.total} done</span>${open}</div>`;
+      <span class="spn">${sp.done}/${sp.total} done</span>${window}${open}</div>`;
   }).join("");
   return `<section class="panel"><h2>Sprints — derived, a sprint finishes when its stories land</h2>${rows}</section>`;
 }

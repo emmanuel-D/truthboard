@@ -150,6 +150,10 @@ func Audit(repo string, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	sprintIntents, err := spec.LoadSprints(repo)
+	if err != nil {
+		return nil, err
+	}
 
 	shadow, err := shadowWork(repo, base, opts.DigestDays)
 	if err != nil {
@@ -173,7 +177,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 	}
 	linkSpecs(repo, base, res, specs, opts)
 	attributeDigest(res)
-	rollupSprints(res)
+	rollupSprints(res, sprintIntents, opts.Now)
 	for _, u := range res.Units {
 		switch u.Status {
 		case Stalled:
