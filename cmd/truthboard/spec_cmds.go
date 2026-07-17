@@ -57,13 +57,14 @@ func runInit(args []string) int {
 
 func runSpec(args []string) int {
 	if len(args) < 1 || args[0] != "new" {
-		fmt.Fprintln(os.Stderr, `usage: truthboard spec new "Title" [--owner name] [--sprint slug] [--points n] [--repo path]`)
+		fmt.Fprintln(os.Stderr, `usage: truthboard spec new "Title" [--owner name] [--sprint slug] [--points n] [--type story|bug|task] [--repo path]`)
 		return 2
 	}
 	fs := flag.NewFlagSet("spec new", flag.ExitOnError)
 	owner := fs.String("owner", "", "who owns this spec")
 	sprint := fs.String("sprint", "", "iteration slug (e.g. s12) — intent, never a status")
 	points := fs.Int("points", 0, "story-point estimate; 0 = unestimated")
+	typ := fs.String("type", "", "story | bug | task (default story)")
 	repo := fs.String("repo", ".", "repository path")
 	// stdlib flag stops at the first positional arg, so split the title
 	// (everything before the first flag) from the flags ourselves.
@@ -85,9 +86,14 @@ func runSpec(args []string) int {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-	if *sprint != "" || *points > 0 {
+	if !spec.ValidType(*typ) {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", spec.ErrType(*typ))
+		return 2
+	}
+	if *sprint != "" || *points > 0 || *typ != "" {
 		s.Sprint = *sprint
 		s.Points = *points
+		s.Type = *typ
 		if err := s.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 			return 1

@@ -27,6 +27,7 @@ type Spec struct {
 	Sprint   string   `yaml:"sprint,omitempty" json:"sprint,omitempty"`     // iteration slug (e.g. s12, 2026-29); intent, never a status
 	Priority int      `yaml:"priority,omitempty" json:"priority,omitempty"` // 1=now, 2=next, 3=later; 0 = unset
 	Points   int      `yaml:"points,omitempty" json:"points,omitempty"`     // estimate (story points); 0 = unestimated
+	Type     string   `yaml:"type,omitempty" json:"type,omitempty"`         // story | bug | task; empty means story
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter
 	File string `yaml:"-" json:"-"`
@@ -35,6 +36,17 @@ type Spec struct {
 // Trailer returns the commit trailer that links commits to this spec —
 // the primary linking signal (branch globs are secondary).
 func (s *Spec) Trailer() string { return "Spec: " + s.ID }
+
+// ValidType reports whether t is a recognized spec type. Empty is valid
+// and means story, so existing specs never need touching.
+func ValidType(t string) bool {
+	return t == "" || t == "story" || t == "bug" || t == "task"
+}
+
+// ErrType is the shared complaint for an unrecognized type value.
+func ErrType(t string) error {
+	return fmt.Errorf("type %q is not one of story, bug, task", t)
+}
 
 func Dir(repo string) string { return filepath.Join(repo, ".truthboard", "specs") }
 
@@ -94,6 +106,9 @@ func parseFile(path string) (Spec, error) {
 	}
 	if s.ID == "" || s.Title == "" {
 		return Spec{}, fmt.Errorf("%s: frontmatter needs at least id and title", path)
+	}
+	if !ValidType(s.Type) {
+		return Spec{}, fmt.Errorf("%s: %w", path, ErrType(s.Type))
 	}
 	s.Body = strings.TrimSpace(string(m[2]))
 	s.File = path

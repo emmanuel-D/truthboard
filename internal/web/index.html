@@ -160,6 +160,8 @@
   .chips code { font-size: .68rem; color: var(--muted); }
   .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
   .tag.pri { font-weight: 700; }
+  .tag.type-bug { color: var(--stalled); border-color: var(--stalled); font-weight: 700; }
+  .tag.type-task { color: var(--muted); }
   .tag.sprint { border-style: dashed; }
   #dt-assign { background: var(--bg-2, transparent); color: var(--ink); border: 1px solid var(--hairline);
     border-radius: 999px; padding: .15rem .7rem; font: inherit; font-size: .75rem; width: 11rem; }
@@ -288,6 +290,7 @@
   <span id="f-epics"></span>
   <span id="f-sprints"></span>
   <span id="f-owners"></span>
+  <span id="f-types"></span>
   <button class="fclear" id="f-clear" hidden>clear filters</button>
 </div>
 <div id="app"></div>
@@ -331,6 +334,8 @@
           <option value="0">—</option><option value="1">p1 · now</option>
           <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
         <div><label>Points</label><input id="ed-pts" type="number" min="0" step="1" placeholder="—"></div>
+        <div><label>Type</label><select id="ed-ty">
+          <option value="">story</option><option value="bug">bug</option><option value="task">task</option></select></div>
       </div>
       <div class="tabs">
         <button type="button" class="on" id="tab-write">Write</button>
@@ -377,6 +382,8 @@ function epicColor(name) {
   return `var(--cat${(h % 8) + 1})`;
 }
 const epicTag = name => name ? `<span class="tag"><i class="dot" style="background:${epicColor(name)}"></i>${esc(name)}</span>` : "";
+const TYPE_ICO = { story: "✦", bug: "✗", task: "⚙" };
+const typeTag = t => (t && t !== "story") ? `<span class="tag type-${esc(t)}">${TYPE_ICO[t] || ""} ${esc(t)}</span>` : "";
 
 /* ---------- theme: system → light → dark ---------- */
 const THEMES = [["", "◐ auto"], ["light", "☀ light"], ["dark", "☾ dark"]];
@@ -394,13 +401,14 @@ document.getElementById("theme").addEventListener("click", () => {
 });
 
 /* ---------- filters ---------- */
-const F = { text: "", epics: new Set(), sprints: new Set(), owners: new Set(), older: false };
-const filterActive = () => F.text !== "" || F.epics.size > 0 || F.sprints.size > 0 || F.owners.size > 0;
+const F = { text: "", epics: new Set(), sprints: new Set(), owners: new Set(), types: new Set(), older: false };
+const filterActive = () => F.text !== "" || F.epics.size > 0 || F.sprints.size > 0 || F.owners.size > 0 || F.types.size > 0;
 function specMatches(s) {
   if (F.text && !(s.title + " " + s.id).toLowerCase().includes(F.text)) return false;
   if (F.epics.size && !F.epics.has(s.epic || "")) return false;
   if (F.sprints.size && !F.sprints.has(s.sprint || "")) return false;
   if (F.owners.size && !F.owners.has(s.owner || "")) return false;
+  if (F.types.size && !F.types.has(s.type || "story")) return false;
   return true;
 }
 function syncFilterChips(b) {
@@ -419,6 +427,9 @@ function syncFilterChips(b) {
   if ((b.specs || []).some(s => !s.owner))
     ownerChips.push(`<button class="fchip${F.owners.has("") ? " on" : ""}" data-owner="">∅ unassigned</button>`);
   document.getElementById("f-owners").innerHTML = ownerChips.length > 1 ? ownerChips.join("") : "";
+  const types = [...new Set((b.specs || []).map(s => s.type || "story"))];
+  document.getElementById("f-types").innerHTML = types.length > 1 ? ["story","bug","task"].filter(t => types.includes(t)).map(t =>
+    `<button class="fchip${F.types.has(t) ? " on" : ""}" data-type="${t}">${TYPE_ICO[t]} ${t}</button>`).join("") : "";
   document.getElementById("f-clear").hidden = !filterActive();
 }
 document.getElementById("f-text").addEventListener("input", e => {
@@ -431,11 +442,12 @@ document.querySelector(".filters").addEventListener("click", e => {
   if (chip.dataset.epic !== undefined) toggle(F.epics, chip.dataset.epic);
   else if (chip.dataset.sprint !== undefined) toggle(F.sprints, chip.dataset.sprint);
   else if (chip.dataset.owner !== undefined) toggle(F.owners, chip.dataset.owner);
+  else if (chip.dataset.type !== undefined) toggle(F.types, chip.dataset.type);
   else return;
   rerender();
 });
 document.getElementById("f-clear").addEventListener("click", () => {
-  F.text = ""; F.epics.clear(); F.sprints.clear(); F.owners.clear();
+  F.text = ""; F.epics.clear(); F.sprints.clear(); F.owners.clear(); F.types.clear();
   document.getElementById("f-text").value = "";
   rerender();
 });
@@ -512,7 +524,7 @@ function cardHTML(s, st) {
     <div class="title">${esc(s.title)}</div>
     <div class="chips"><code>${esc(s.id)}</code>${
       s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
-      s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${epicTag(s.epic)}${
+      s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${typeTag(s.type)}${epicTag(s.epic)}${
       s.sprint ? `<span class="tag sprint">${esc(s.sprint)}</span>` : ""}</div>
     <div class="ev">${esc(s.evidence)}</div>
     <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
@@ -611,10 +623,12 @@ function branches(b) {
 }
 
 function digest(b) {
-  const shipped = (b.shipped || []).map(s =>
+  const torder = { story: 0, bug: 1, task: 2 };
+  const byType = [...(b.shipped || [])].sort((a, c) => (torder[a.type || "story"] || 0) - (torder[c.type || "story"] || 0));
+  const shipped = byType.map(s =>
     `<div class="r"><time>${esc(s.date)}</time>
       <span style="color:var(--done)">✓</span>
-      <span><b>${esc(s.title)}</b> <span style="color:var(--muted)"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
+      <span><b>${esc(s.title)}</b> ${typeTag(s.type)} <span style="color:var(--muted)"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
   const rest = (b.digest || []).filter(c => !c.spec).slice(0, 12).map(c =>
     `<div class="r"><time>${esc(c.date)}</time><span class="ev2">${esc(c.subject)}</span></div>`).join("");
   const divider = shipped && rest ? `<div class="r"><span class="ev2" style="font-size:.7rem">also landed</span></div>` : "";
@@ -721,6 +735,7 @@ function openDetail(full) {
     `<code>${esc(full.id)}</code>` +
     (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
     (full.points ? `<span class="tag pts">${esc(full.points)}pt</span>` : "") +
+    typeTag(full.type) +
     epicTag(full.epic) +
     (full.sprint ? `<span class="tag sprint">${esc(full.sprint)}</span>` : "") +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
@@ -822,6 +837,7 @@ function openEditor(spec) {
   document.getElementById("ed-sp").value = spec?.sprint || "";
   document.getElementById("ed-p").value = String(spec?.priority || 0);
   document.getElementById("ed-pts").value = spec?.points || "";
+  document.getElementById("ed-ty").value = (spec?.type === "story" ? "" : spec?.type) || "";
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
   setTab(false);
@@ -851,6 +867,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     sprint: document.getElementById("ed-sp").value.trim(),
     priority: parseInt(document.getElementById("ed-p").value, 10) || 0,
     points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
+    type: document.getElementById("ed-ty").value,
     body: document.getElementById("ed-b").value,
   };
   try {

@@ -200,6 +200,34 @@ func TestAgentDraftsAndAdjustsStory(t *testing.T) {
 	}
 }
 
+func TestSpecTypeIsValidatedNotInvented(t *testing.T) {
+	repo := fixtureRepo(t)
+	responses := drive(t, repo,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_spec","arguments":{"title":"A bug report","type":"bug"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_spec","arguments":{"title":"Nonsense","type":"epic-saga"}}}`,
+	)
+	text, isErr := toolText(t, responses[0])
+	if isErr {
+		t.Fatalf("create_spec with type bug failed: %s", text)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(text), &created); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(specFileByID(t, repo, created.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "type: bug") {
+		t.Errorf("spec file missing type: bug:\n%s", raw)
+	}
+	if text, isErr := toolText(t, responses[1]); !isErr || !strings.Contains(text, "story, bug, task") {
+		t.Errorf("unknown type must fail listing valid values, got %.150s (err=%v)", text, isErr)
+	}
+}
+
 func specFileByID(t *testing.T, repo, id string) string {
 	t.Helper()
 	matches, err := filepath.Glob(filepath.Join(repo, ".truthboard", "specs", id+"-*.md"))
