@@ -9,6 +9,28 @@ digest are computed from branches, merges, and commit trailers. On repos with
 no specs it runs as a pure read-only auditor, and either way it can check
 your existing tracker's claims against what the repo proves.
 
+## What it looks like
+
+![The Truthboard web board: derived kanban columns, stat tiles, filters, and the sprint rollup](docs/screenshots/board.jpg)
+
+Every status on this board was computed, not typed. **Apple Pay support**
+is *in progress* because a branch carrying its id has commits;
+**One-page checkout flow** is *done* because its work landed on main —
+the card's evidence line says so. Cards carry the story's intent: priority,
+points, `bug`/`task` type badges, epic and sprint tags, and the owner's
+avatar. The filter row totals points per epic, and the sprint panel is
+pure arithmetic plus a date window: `s12 · 1/3 done · 5/10 pts ·
+2026-07-14 → 2026-07-25 · active, 8d left` — nothing there can be edited,
+because none of it is an opinion.
+
+![Story detail: Gherkin acceptance with sign-off checkboxes and the derived-truth panel](docs/screenshots/story-detail.jpg)
+
+A story opens into its intent — goal and Given/When/Then acceptance,
+where checking a box records *human sign-off*, deliberately separate from
+delivery — followed by the **derived truth** panel: the status, the
+commit that landed it, and every signal that links work to this spec.
+The promise is editable; the proof is not.
+
 ## Install
 
 Grab a binary from [Releases](https://github.com/emmanuel-D/truthboard/releases)
