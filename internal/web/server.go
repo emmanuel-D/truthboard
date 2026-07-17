@@ -94,6 +94,10 @@ type Options struct {
 	// secret triggers an immediate fetch + re-derive and a push to open
 	// browsers, instead of waiting out the poll interval.
 	WebhookSecret string
+	// NotifyURL turns on transition notifications: when a story's derived
+	// status enters (or leaves) stalled/regressed, the board posts the
+	// transition to this webhook (generic JSON, Slack-compatible).
+	NotifyURL string
 }
 
 // ReadOnly reports whether intent writes are disabled: a board served
@@ -132,6 +136,12 @@ func Handler(repo string, o Options) http.Handler {
 
 	live := newBroadcaster()
 
+	var alerts *notifier
+	if o.NotifyURL != "" {
+		alerts = &notifier{repo: repo, url: o.NotifyURL}
+		go alerts.run(time.Minute)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -168,6 +178,9 @@ func Handler(repo string, o Options) http.Handler {
 			remote.kick()
 			cache.invalidate()
 			live.notify()
+			if alerts != nil {
+				alerts.check() // a push is exactly when a regression can appear
+			}
 		}))
 	}
 

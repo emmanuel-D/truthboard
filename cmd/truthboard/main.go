@@ -45,6 +45,8 @@ Usage:
                 --fetch 60s                 poll origin so the board tracks the remote, not just
                                             this clone (fast-forwards only a clean checkout)
                 --host 0.0.0.0              share the board beyond this machine (read-only)
+                --notify <url>              post stalled/regressed transitions to a webhook
+                                            (Slack-compatible; recoveries are news too)
   truthboard status [repo]                  is a detached board running for this repo?
   truthboard stop [repo]                    stop the detached board
   truthboard update [--check]               update this binary to the latest release
@@ -178,6 +180,8 @@ func runUI(args []string) int {
 	detach := fs.Bool("detach", false, "run the board in the background (truthboard status / stop to manage)")
 	webhookSecret := fs.String("webhook-secret", os.Getenv("TRUTHBOARD_WEBHOOK_SECRET"),
 		"arm POST /webhook: a forge push webhook with this secret triggers an immediate fetch (env TRUTHBOARD_WEBHOOK_SECRET)")
+	notify := fs.String("notify", os.Getenv("TRUTHBOARD_NOTIFY_URL"),
+		"post stalled/regressed transitions to this webhook URL (Slack-compatible JSON; env TRUTHBOARD_NOTIFY_URL)")
 	fs.Parse(args)
 
 	repo := "."
@@ -186,7 +190,7 @@ func runUI(args []string) int {
 	}
 	opts := web.Options{Port: *port, Host: *host, Forge: *useForge,
 		FetchEvery: *fetch, OpenBrowser: !*noOpen, Version: version,
-		WebhookSecret: *webhookSecret}
+		WebhookSecret: *webhookSecret, NotifyURL: *notify}
 	if *detach {
 		state, err := lifecycle.Detach(repo, opts)
 		if err != nil {
