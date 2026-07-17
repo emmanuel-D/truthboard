@@ -162,10 +162,17 @@ func Detach(repo string, o web.Options) (*State, error) {
 	}
 	args = append(args, repo)
 	cmd := exec.Command(exe, args...)
-	if o.WebhookSecret != "" {
-		// Through the environment, never argv — a secret must not show up
-		// in `ps` on a shared box.
-		cmd.Env = append(os.Environ(), "TRUTHBOARD_WEBHOOK_SECRET="+o.WebhookSecret)
+	if o.WebhookSecret != "" || o.NotifyURL != "" {
+		// Through the environment, never argv — secrets (and Slack webhook
+		// URLs are secrets) must not show up in `ps` on a shared box.
+		env := os.Environ()
+		if o.WebhookSecret != "" {
+			env = append(env, "TRUTHBOARD_WEBHOOK_SECRET="+o.WebhookSecret)
+		}
+		if o.NotifyURL != "" {
+			env = append(env, "TRUTHBOARD_NOTIFY_URL="+o.NotifyURL)
+		}
+		cmd.Env = env
 	}
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	cmd.SysProcAttr = detachAttr()
