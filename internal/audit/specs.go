@@ -26,6 +26,7 @@ type SpecStatus struct {
 	Epic     string   `json:"epic,omitempty"`
 	Sprint   string   `json:"sprint,omitempty"`
 	Priority int      `json:"priority,omitempty"`
+	Points   int      `json:"points,omitempty"`
 	Status   Status   `json:"status"`
 	Evidence string   `json:"evidence"`
 	Branches []string `json:"branches,omitempty"`
@@ -61,7 +62,7 @@ func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) 
 	for i := range specs {
 		s := &specs[i]
 		ss := SpecStatus{ID: s.ID, Title: s.Title, Owner: s.Owner,
-			Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, File: s.File}
+			Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, File: s.File}
 		ss.AcceptanceDone, ss.AcceptanceTotal = acceptanceProgress(s.Body)
 
 		var linked []*Unit

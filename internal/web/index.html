@@ -330,6 +330,7 @@
         <div><label>Priority</label><select id="ed-p">
           <option value="0">—</option><option value="1">p1 · now</option>
           <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
+        <div><label>Points</label><input id="ed-pts" type="number" min="0" step="1" placeholder="—"></div>
       </div>
       <div class="tabs">
         <button type="button" class="on" id="tab-write">Write</button>
@@ -404,9 +405,11 @@ function specMatches(s) {
 }
 function syncFilterChips(b) {
   const epics = [...new Set((b.specs || []).map(s => s.epic).filter(Boolean))].sort();
+  const epicPts = {};
+  for (const s of b.specs || []) if (s.epic && s.points) epicPts[s.epic] = (epicPts[s.epic] || 0) + s.points;
   document.getElementById("f-epics").innerHTML = epics.map(e =>
     `<button class="fchip${F.epics.has(e) ? " on" : ""}" data-epic="${esc(e)}">
-      <span class="dot" style="background:${epicColor(e)}"></span>${esc(e)}</button>`).join("");
+      <span class="dot" style="background:${epicColor(e)}"></span>${esc(e)}${epicPts[e] ? ` · ${epicPts[e]}pt` : ""}</button>`).join("");
   const sprints = [...new Set((b.specs || []).map(s => s.sprint).filter(Boolean))].sort().reverse();
   document.getElementById("f-sprints").innerHTML = sprints.map(sp =>
     `<button class="fchip${F.sprints.has(sp) ? " on" : ""}" data-sprint="${esc(sp)}">${esc(sp)}</button>`).join("");
@@ -491,8 +494,10 @@ function tiles(b) {
   const tile = (num, label, color) =>
     `<div class="tile"><div class="num">${num}</div>
       <div class="lbl"><span class="mark" style="background:${color}"></span>${label}</div></div>`;
+  const pts = (b.specs || []).reduce((a, s) => { if (s.points) { a.total += s.points; if (s.status === "done") a.done += s.points; } return a; }, { done: 0, total: 0 });
   return `<div class="tiles">` +
     tile(n("done"), "done", "var(--done)") +
+    (pts.total ? tile(`${pts.done}/${pts.total}`, "points landed", "var(--done)") : "") +
     tile(active, "in flight", "var(--in-progress)") +
     tile(n("planned"), "planned", "var(--planned)") +
     tile(drift, "drift findings", drift ? "var(--stalled)" : "var(--done)") +
@@ -506,7 +511,8 @@ function cardHTML(s, st) {
   return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}; view-transition-name: c-${esc(s.id)}">
     <div class="title">${esc(s.title)}</div>
     <div class="chips"><code>${esc(s.id)}</code>${
-      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${epicTag(s.epic)}${
+      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
+      s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${epicTag(s.epic)}${
       s.sprint ? `<span class="tag sprint">${esc(s.sprint)}</span>` : ""}</div>
     <div class="ev">${esc(s.evidence)}</div>
     <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
@@ -559,7 +565,7 @@ function sprintsPanel(b) {
     }
     return `<div class="sprow"><span class="spname">${esc(sp.name)}</span>
       <span class="spbar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span>
-      <span class="spn">${sp.done}/${sp.total} done</span>${window}${open}</div>`;
+      <span class="spn">${sp.done}/${sp.total} done${sp.points_total ? ` · ${sp.points_done || 0}/${sp.points_total} pts` : ""}${sp.unestimated && sp.points_total ? ` (+${sp.unestimated} unest.)` : ""}</span>${window}${open}</div>`;
   }).join("");
   return `<section class="panel"><h2>Sprints — derived, a sprint finishes when its stories land</h2>${rows}</section>`;
 }
@@ -714,6 +720,7 @@ function openDetail(full) {
   document.getElementById("dt-chips").innerHTML =
     `<code>${esc(full.id)}</code>` +
     (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
+    (full.points ? `<span class="tag pts">${esc(full.points)}pt</span>` : "") +
     epicTag(full.epic) +
     (full.sprint ? `<span class="tag sprint">${esc(full.sprint)}</span>` : "") +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
@@ -814,6 +821,7 @@ function openEditor(spec) {
   document.getElementById("ed-e").value = spec?.epic || "";
   document.getElementById("ed-sp").value = spec?.sprint || "";
   document.getElementById("ed-p").value = String(spec?.priority || 0);
+  document.getElementById("ed-pts").value = spec?.points || "";
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
   setTab(false);
@@ -842,6 +850,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     epic: document.getElementById("ed-e").value.trim(),
     sprint: document.getElementById("ed-sp").value.trim(),
     priority: parseInt(document.getElementById("ed-p").value, 10) || 0,
+    points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
     body: document.getElementById("ed-b").value,
   };
   try {
