@@ -14,6 +14,7 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/mcp"
 	"github.com/emmanuel-D/truthboard/internal/report"
 	"github.com/emmanuel-D/truthboard/internal/selfupdate"
+	"github.com/emmanuel-D/truthboard/internal/tui"
 	"github.com/emmanuel-D/truthboard/internal/web"
 )
 
@@ -34,6 +35,8 @@ Usage:
                                             deterministic, so "start the next story" is one call
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
   truthboard mcp                            serve specs/board over MCP (stdio) for AI agents
+  truthboard board [repo]                   the board in your terminal (read-only TUI):
+                                            kanban columns, drift, digest — keyboard only
   truthboard ui [--port 1337] [--forge] [--no-open] [--detach] [repo]
                                             web board; --detach keeps it running in the background
                 --fetch 60s                 poll origin so the board tracks the remote, not just
@@ -80,6 +83,8 @@ func main() {
 			fmt.Fprintf(os.Stderr, "truthboard mcp: %v\n", err)
 			os.Exit(1)
 		}
+	case "board":
+		os.Exit(runBoard(os.Args[2:]))
 	case "ui":
 		os.Exit(runUI(os.Args[2:]))
 	case "status":
@@ -96,6 +101,20 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(2)
 	}
+}
+
+func runBoard(args []string) int {
+	fs := flag.NewFlagSet("board", flag.ExitOnError)
+	fs.Parse(args)
+	repo := "."
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
+	}
+	if err := tui.Run(repo); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard board: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func runAudit(args []string) int {
