@@ -48,6 +48,9 @@ func backlogTag(s audit.SpecStatus) string {
 	if s.Epic != "" {
 		parts = append(parts, s.Epic)
 	}
+	if s.Sprint != "" {
+		parts = append(parts, s.Sprint)
+	}
 	if len(parts) == 0 {
 		return ""
 	}
@@ -114,6 +117,17 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 				fmt.Fprintf(w, "  %s %-*s %s%s%s\n    %s\n",
 					c(ansi[st], fmt.Sprintf("%-12s", strings.ToUpper(string(st)))),
 					idWidth, s.ID, s.Title, c(ansiDim, backlogTag(s)), branches, c(ansiDim, s.Evidence))
+			}
+		}
+	}
+
+	if len(res.Sprints) > 0 {
+		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "SPRINTS (arithmetic over derived statuses — a sprint finishes when its stories land)"))
+		for _, sp := range res.Sprints {
+			fmt.Fprintf(w, "  %s  %d/%d done\n", c(ansiCyan, sp.Name), sp.Done, sp.Total)
+			for _, o := range sp.Open {
+				fmt.Fprintf(w, "    %s %s %s\n",
+					c(ansi[o.Status], fmt.Sprintf("%-12s", strings.ToUpper(string(o.Status)))), o.ID, o.Title)
 			}
 		}
 	}
@@ -272,6 +286,22 @@ func Markdown(w io.Writer, res *audit.Result) error {
 				fmt.Fprintf(w, "| %s | `%s` | %s | %s | %s |\n",
 					statusCell, s.ID, strings.TrimPrefix(backlogTag(s), " · "), title, s.Evidence)
 			}
+		}
+		fmt.Fprintln(w)
+	}
+
+	if len(res.Sprints) > 0 {
+		fmt.Fprintf(w, "### Sprints (derived — a sprint finishes when its stories land)\n\n")
+		for _, sp := range res.Sprints {
+			fmt.Fprintf(w, "- **%s** — %d/%d done", sp.Name, sp.Done, sp.Total)
+			if len(sp.Open) > 0 {
+				var open []string
+				for _, o := range sp.Open {
+					open = append(open, fmt.Sprintf("`%s` %s (%s)", o.ID, o.Title, o.Status))
+				}
+				fmt.Fprintf(w, " · open: %s", strings.Join(open, ", "))
+			}
+			fmt.Fprintln(w)
 		}
 		fmt.Fprintln(w)
 	}

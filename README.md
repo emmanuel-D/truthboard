@@ -47,7 +47,12 @@ truthboard link tb-4f2a "hotfix/*"          # fix a linking miss — fixes the i
 ```
 
 A spec is one markdown file (YAML frontmatter + Goal/Acceptance body),
-versioned with your code. Linking signals, strongest first: a `Spec: tb-4f2a`
+versioned with your code. Backlog structure is intent too: `epic` groups
+stories, `priority` orders them, and `sprint` (e.g. `--sprint s12`) puts a
+story in an iteration — the audit, reports, and board then show a
+per-sprint rollup (done/total and what's still open, each story's status
+derived as always). There is no sprint status to set and no sprint clock:
+a sprint finishes when its stories land. Linking signals, strongest first: a `Spec: tb-4f2a`
 commit trailer, the id in a branch name, the spec's branch glob. Derived
 statuses: `planned → in-progress → in-review → done` (plus `stalled`), and a
 done spec loudly becomes `regressed` when its landed work is reverted or CI

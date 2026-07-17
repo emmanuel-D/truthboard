@@ -160,6 +160,16 @@
   .chips code { font-size: .68rem; color: var(--muted); }
   .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
   .tag.pri { font-weight: 700; }
+  .tag.sprint { border-style: dashed; }
+  .sprow { display: flex; align-items: baseline; gap: .7rem; padding: .35rem 0; border-top: 1px solid var(--hairline); flex-wrap: wrap; }
+  .sprow:first-of-type { border-top: 0; }
+  .sprow .spname { font-weight: 700; min-width: 5.5rem; }
+  .sprow .spbar { flex: 0 0 8rem; height: 5px; border-radius: 4px; background: var(--hairline); overflow: hidden; align-self: center; }
+  .sprow .spbar i { display: block; height: 100%; background: var(--in-progress); }
+  .sprow .spbar i.full { background: var(--done); }
+  .sprow .spn { font-size: .75rem; color: var(--ink-2); }
+  .sprow .spopen { font-size: .75rem; color: var(--ink-2); }
+  .sprow .spopen code { font-size: .7rem; }
   .ev { color: var(--muted); font-size: .73rem; margin-top: .3rem;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cfoot { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; }
@@ -267,6 +277,7 @@
 <div class="filters">
   <input type="search" id="f-text" placeholder="Filter stories… (title or id)">
   <span id="f-epics"></span>
+  <span id="f-sprints"></span>
   <span id="f-owners"></span>
   <button class="fclear" id="f-clear" hidden>clear filters</button>
 </div>
@@ -301,6 +312,7 @@
       <div class="row3">
         <div><label>Owner</label><input id="ed-o"></div>
         <div><label>Epic</label><input id="ed-e" placeholder="e.g. user-auth"></div>
+        <div><label>Sprint</label><input id="ed-sp" placeholder="e.g. s12"></div>
         <div><label>Priority</label><select id="ed-p">
           <option value="0">—</option><option value="1">p1 · now</option>
           <option value="2">p2 · next</option><option value="3">p3 · later</option></select></div>
@@ -367,11 +379,12 @@ document.getElementById("theme").addEventListener("click", () => {
 });
 
 /* ---------- filters ---------- */
-const F = { text: "", epics: new Set(), owners: new Set(), older: false };
-const filterActive = () => F.text !== "" || F.epics.size > 0 || F.owners.size > 0;
+const F = { text: "", epics: new Set(), sprints: new Set(), owners: new Set(), older: false };
+const filterActive = () => F.text !== "" || F.epics.size > 0 || F.sprints.size > 0 || F.owners.size > 0;
 function specMatches(s) {
   if (F.text && !(s.title + " " + s.id).toLowerCase().includes(F.text)) return false;
   if (F.epics.size && !F.epics.has(s.epic || "")) return false;
+  if (F.sprints.size && !F.sprints.has(s.sprint || "")) return false;
   if (F.owners.size && !F.owners.has(s.owner || "")) return false;
   return true;
 }
@@ -380,6 +393,9 @@ function syncFilterChips(b) {
   document.getElementById("f-epics").innerHTML = epics.map(e =>
     `<button class="fchip${F.epics.has(e) ? " on" : ""}" data-epic="${esc(e)}">
       <span class="dot" style="background:${epicColor(e)}"></span>${esc(e)}</button>`).join("");
+  const sprints = [...new Set((b.specs || []).map(s => s.sprint).filter(Boolean))].sort().reverse();
+  document.getElementById("f-sprints").innerHTML = sprints.map(sp =>
+    `<button class="fchip${F.sprints.has(sp) ? " on" : ""}" data-sprint="${esc(sp)}">${esc(sp)}</button>`).join("");
   const owners = [...new Set((b.specs || []).map(s => s.owner).filter(Boolean))].sort();
   document.getElementById("f-owners").innerHTML = owners.length > 1 ? owners.map(o =>
     `<button class="fchip${F.owners.has(o) ? " on" : ""}" data-owner="${esc(o)}">${esc(initials(o))} · ${esc(o)}</button>`).join("") : "";
@@ -390,16 +406,16 @@ document.getElementById("f-text").addEventListener("input", e => {
 });
 document.querySelector(".filters").addEventListener("click", e => {
   const chip = e.target.closest(".fchip");
-  if (chip?.dataset.epic !== undefined) {
-    F.epics.has(chip.dataset.epic) ? F.epics.delete(chip.dataset.epic) : F.epics.add(chip.dataset.epic);
-    rerender();
-  } else if (chip?.dataset.owner !== undefined) {
-    F.owners.has(chip.dataset.owner) ? F.owners.delete(chip.dataset.owner) : F.owners.add(chip.dataset.owner);
-    rerender();
-  }
+  if (!chip) return;
+  const toggle = (set, v) => set.has(v) ? set.delete(v) : set.add(v);
+  if (chip.dataset.epic !== undefined) toggle(F.epics, chip.dataset.epic);
+  else if (chip.dataset.sprint !== undefined) toggle(F.sprints, chip.dataset.sprint);
+  else if (chip.dataset.owner !== undefined) toggle(F.owners, chip.dataset.owner);
+  else return;
+  rerender();
 });
 document.getElementById("f-clear").addEventListener("click", () => {
-  F.text = ""; F.epics.clear(); F.owners.clear();
+  F.text = ""; F.epics.clear(); F.sprints.clear(); F.owners.clear();
   document.getElementById("f-text").value = "";
   rerender();
 });
@@ -473,7 +489,8 @@ function cardHTML(s, st) {
   return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}; view-transition-name: c-${esc(s.id)}">
     <div class="title">${esc(s.title)}</div>
     <div class="chips"><code>${esc(s.id)}</code>${
-      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${epicTag(s.epic)}</div>
+      s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${epicTag(s.epic)}${
+      s.sprint ? `<span class="tag sprint">${esc(s.sprint)}</span>` : ""}</div>
     <div class="ev">${esc(s.evidence)}</div>
     <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
   </div>`;
@@ -507,6 +524,22 @@ function kanban(b) {
     return `<div class="col"><h3 style="color:${sv(st)}">${d.ico} ${esc(d.label)}
       <span class="count">${specs.length}</span></h3>${specs.map(s => cardHTML(s, st)).join("")}${older}</div>`;
   }).join("") + `</div>`;
+}
+
+// Sprints are arithmetic over the same derived statuses as the board —
+// a sprint "finishes" when its stories land, and there is nothing to set.
+function sprintsPanel(b) {
+  if (!b.sprints?.length) return "";
+  const rows = b.sprints.map(sp => {
+    const pct = sp.total ? Math.round(100 * sp.done / sp.total) : 0;
+    const open = (sp.open || []).map(o =>
+      `<span class="spopen" style="color:${sv(o.status)}">${(STATUS[o.status]||{}).ico || ""}</span> <code>${esc(o.id)}</code> <span class="spopen">${esc(o.title)}</span>`
+    ).join(" ");
+    return `<div class="sprow"><span class="spname">${esc(sp.name)}</span>
+      <span class="spbar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span>
+      <span class="spn">${sp.done}/${sp.total} done</span>${open}</div>`;
+  }).join("");
+  return `<section class="panel"><h2>Sprints — derived, a sprint finishes when its stories land</h2>${rows}</section>`;
 }
 
 function drift(b) {
@@ -569,7 +602,7 @@ function render(b) {
   syncFilterChips(b);
   let html = "";
   if (b.election_note) html += `<div class="warn">⚠ ${esc(b.election_note)}</div>`;
-  html += tiles(b) + kanban(b);
+  html += tiles(b) + kanban(b) + sprintsPanel(b);
   html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
   html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
   document.getElementById("app").innerHTML = html;
@@ -655,6 +688,7 @@ function openDetail(full) {
     `<code>${esc(full.id)}</code>` +
     (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
     epicTag(full.epic) +
+    (full.sprint ? `<span class="tag sprint">${esc(full.sprint)}</span>` : "") +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
   document.getElementById("dt-md").innerHTML = md(full.body, true);
   if (RO) document.querySelectorAll("#dt-md input[type=checkbox]").forEach(b => { b.disabled = true; });
@@ -724,6 +758,7 @@ function openEditor(spec) {
   document.getElementById("ed-t").value = spec?.title || "";
   document.getElementById("ed-o").value = spec?.owner || "";
   document.getElementById("ed-e").value = spec?.epic || "";
+  document.getElementById("ed-sp").value = spec?.sprint || "";
   document.getElementById("ed-p").value = String(spec?.priority || 0);
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
@@ -751,6 +786,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     title: document.getElementById("ed-t").value.trim(),
     owner: document.getElementById("ed-o").value.trim(),
     epic: document.getElementById("ed-e").value.trim(),
+    sprint: document.getElementById("ed-sp").value.trim(),
     priority: parseInt(document.getElementById("ed-p").value, 10) || 0,
     body: document.getElementById("ed-b").value,
   };
