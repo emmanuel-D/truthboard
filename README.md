@@ -21,6 +21,12 @@ go install github.com/emmanuel-D/truthboard/cmd/truthboard@latest
 Single static binary; the only runtime dependency is `git`. Optional:
 `gh`/`glab` for tracker claims, `npm` for package scripts.
 
+Stay current with `truthboard update` (`--check` to only look): it
+verifies the download against the release checksums and swaps the binary
+atomically. Detached boards keep running the old binary until you
+`truthboard stop && truthboard ui --detach` — the board's footer shows
+which version is serving it.
+
 ## Quick start in an existing project
 
 ```sh

@@ -13,6 +13,7 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/lifecycle"
 	"github.com/emmanuel-D/truthboard/internal/mcp"
 	"github.com/emmanuel-D/truthboard/internal/report"
+	"github.com/emmanuel-D/truthboard/internal/selfupdate"
 	"github.com/emmanuel-D/truthboard/internal/web"
 )
 
@@ -40,6 +41,8 @@ Usage:
                 --host 0.0.0.0              share the board beyond this machine (read-only)
   truthboard status [repo]                  is a detached board running for this repo?
   truthboard stop [repo]                    stop the detached board
+  truthboard update [--check]               update this binary to the latest release
+                                            (detached boards need a stop/detach after)
   truthboard version
 
 Every command takes -h for its flags (e.g. truthboard audit -h).
@@ -83,6 +86,8 @@ func main() {
 		os.Exit(runLifecycle("status", lifecycle.Status, os.Args[2:]))
 	case "stop":
 		os.Exit(runLifecycle("stop", lifecycle.Stop, os.Args[2:]))
+	case "update":
+		os.Exit(runUpdate(os.Args[2:]))
 	case "version", "--version", "-v":
 		fmt.Println("truthboard " + version)
 	case "help", "--help", "-h":
@@ -167,6 +172,17 @@ func runUI(args []string) int {
 		return 0
 	}
 	if err := web.Serve(repo, opts); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runUpdate(args []string) int {
+	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	check := fs.Bool("check", false, "only report current vs latest; change nothing")
+	fs.Parse(args)
+	if err := selfupdate.Run(os.Stdout, version, *check); err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
