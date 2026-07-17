@@ -40,6 +40,8 @@ card moves itself. In npm projects, init also wires `npm run board`,
 truthboard init                             # opt in: creates .truthboard/specs/
 truthboard spec new "Add email verification" --owner emmanuel
 truthboard brief tb-4f2a                    # context packet for an AI agent (or a human)
+truthboard next                             # highest-priority planned story, as a brief —
+                                            # "start the next story" is one deterministic call
 truthboard audit                            # spec board + drift + digest, all derived
 truthboard link tb-4f2a "hotfix/*"          # fix a linking miss — fixes the input, never the status
 ```
@@ -63,9 +65,10 @@ claude mcp add truthboard -- truthboard mcp
 ```
 
 Tools: `list_specs`, `get_brief` (the context packet to start work),
-`create_spec`, `get_board`. Deliberately absent: any tool that sets a
-status — an agent's work shows up on the board the same way a human's does,
-through commits with the spec trailer.
+`next_spec` (the highest-priority planned story — an idle agent needs no
+human to pick), `create_spec`, `get_board`. Deliberately absent: any tool
+that sets a status — an agent's work shows up on the board the same way a
+human's does, through commits with the spec trailer.
 
 ## Web board — for the people who used to ask "what's the status?"
 

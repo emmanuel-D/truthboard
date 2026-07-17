@@ -29,6 +29,8 @@ Usage:
                                             AGENTS.md so AI tools track work here by default
   truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
   truthboard brief <spec-id>                print the context packet for an agent or human
+  truthboard next [repo]                    the highest-priority planned story, as a brief —
+                                            deterministic, so "start the next story" is one call
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
   truthboard mcp                            serve specs/board over MCP (stdio) for AI agents
   truthboard ui [--port 1337] [--forge] [--no-open] [--detach] [repo]
@@ -66,6 +68,8 @@ func main() {
 		os.Exit(runSpec(os.Args[2:]))
 	case "brief":
 		os.Exit(runBrief(os.Args[2:]))
+	case "next":
+		os.Exit(runNext(os.Args[2:]))
 	case "link":
 		os.Exit(runLink(os.Args[2:]))
 	case "mcp":
