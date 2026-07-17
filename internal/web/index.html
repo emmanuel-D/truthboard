@@ -286,7 +286,7 @@
   <button class="fclear" id="f-clear" hidden>clear filters</button>
 </div>
 <div id="app"></div>
-<footer>truthboard · refreshes automatically</footer>
+<footer id="foot">truthboard · refreshes automatically</footer>
 
 <!-- story detail: rendered intent + derived truth -->
 <dialog id="detail">
@@ -657,6 +657,10 @@ async function tick() {
     dirtyEl.hidden = !dirty;
     if (dirty) dirtyEl.textContent = `● ${dirty} uncommitted intent change${dirty > 1 ? "s" : ""} — review and commit .truthboard/specs like code`;
     setReadOnly(r.headers.get("X-Truthboard-Readonly") === "1");
+    // The serving binary's version, so a stale board is visible at a
+    // glance (`truthboard update`, then stop && ui --detach).
+    const v = r.headers.get("X-Truthboard-Version");
+    if (v) document.getElementById("foot").textContent = `truthboard ${v} · refreshes automatically`;
     syncAt = r.headers.get("X-Truthboard-Sync-At") || "";
     const syncErr = r.headers.get("X-Truthboard-Sync-Err");
     const syncNote = r.headers.get("X-Truthboard-Sync-Note");
