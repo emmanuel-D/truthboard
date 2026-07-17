@@ -77,6 +77,10 @@ type Options struct {
 	OpenBrowser bool
 	FetchEvery  time.Duration // >0: poll origin so the board tracks the remote
 	Version     string
+	// WebhookSecret arms POST /webhook: a forge push webhook carrying this
+	// secret triggers an immediate fetch + re-derive and a push to open
+	// browsers, instead of waiting out the poll interval.
+	WebhookSecret string
 }
 
 // ReadOnly reports whether intent writes are disabled: a board served
@@ -107,7 +111,13 @@ func Handler(repo string, o Options) http.Handler {
 	if o.FetchEvery > 0 {
 		remote = &syncer{repo: repo, every: o.FetchEvery}
 		go remote.run()
+	} else if o.WebhookSecret != "" {
+		// Webhook-only mode: the syncer exists so a push can fetch, but
+		// nothing polls — the webhook is the clock.
+		remote = &syncer{repo: repo}
 	}
+
+	live := newBroadcaster()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -136,11 +146,27 @@ func Handler(repo string, o Options) http.Handler {
 	})
 	mux.HandleFunc("/api/specs", specCreate(repo, cache.invalidate))
 	mux.HandleFunc("/api/specs/", specItem(repo, cache.invalidate))
+	mux.HandleFunc("/api/events", events(live))
+	if o.WebhookSecret != "" {
+		mux.HandleFunc("/webhook", webhook(o.WebhookSecret, func() {
+			remote.kick()
+			cache.invalidate()
+			live.notify()
+		}))
+	}
 
 	// The write guard sits in front of routing: the promise (spec intent,
 	// under /api/specs) is editable; the proof (everything else) is not.
 	// A status has no route by which it could be written.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The webhook is the exception to both guards: it carries its own
+		// auth (the shared secret) and can only make the board fresher —
+		// that is exactly what a shared read-only board wants from a push.
+		if r.Method == http.MethodPost && r.URL.Path == "/webhook" && o.WebhookSecret != "" {
+			w.Header().Set("X-Truthboard-Version", o.Version)
+			mux.ServeHTTP(w, r)
+			return
+		}
 		read := r.Method == http.MethodGet || r.Method == http.MethodHead
 		if !read && o.ReadOnly() {
 			http.Error(w, "this board is shared beyond localhost and serves read-only — edit intent from a clone of the repo", http.StatusForbidden)

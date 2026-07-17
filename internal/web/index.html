@@ -678,7 +678,10 @@ function setReadOnly(ro) {
 }
 
 let last = "";
-async function tick() {
+let ticking = false;
+async function tick(reschedule = true) {
+  if (ticking) return; // an SSE nudge during a poll: that poll already sees the new state
+  ticking = true;
   try {
     const r = await fetch("/api/board");
     if (!r.ok) throw new Error(r.statusText);
@@ -717,9 +720,19 @@ async function tick() {
   } catch (e) {
     document.getElementById("updated").textContent = "audit unavailable — retrying";
   }
-  setTimeout(tick, 3000);
+  ticking = false;
+  if (reschedule) setTimeout(tick, 3000);
 }
 tick();
+
+// Server push: a webhook-armed board announces pushes over SSE, so the
+// page refreshes the moment work lands instead of on the next poll. The
+// poll above keeps running regardless — SSE is an accelerator, not a
+// dependency.
+try {
+  const es = new EventSource("/api/events");
+  es.onmessage = () => tick(false);
+} catch (e) { /* no EventSource, polling covers it */ }
 
 /* ---------- detail view ---------- */
 const detailDlg = document.getElementById("detail");
