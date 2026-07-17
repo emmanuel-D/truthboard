@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -69,8 +70,22 @@ func TestBoardEndpointAndPage(t *testing.T) {
 	if !strings.Contains(strings.ToLower(html), "derived from git, never typed") {
 		t.Error("page must carry the derived-never-typed banner")
 	}
-	if strings.Contains(html, "<script src=") || strings.Contains(html, `rel="stylesheet"`) {
-		t.Error("page must be fully self-contained (go:embed, no external assets)")
+	// Self-contained means no external hosts — every referenced asset is
+	// embedded and served same-origin from the binary itself.
+	for _, m := range regexp.MustCompile(`(?:src|href)="([^"]+)"`).FindAllStringSubmatch(html, -1) {
+		url := m[1]
+		if !strings.HasPrefix(url, "/") {
+			t.Errorf("page references a non-embedded asset %q — the binary must be self-contained", url)
+			continue
+		}
+		asset, err := http.Get(srv.URL + url)
+		if err != nil {
+			t.Fatal(err)
+		}
+		asset.Body.Close()
+		if asset.StatusCode != http.StatusOK {
+			t.Errorf("embedded asset %s: status %d", url, asset.StatusCode)
+		}
 	}
 }
 
