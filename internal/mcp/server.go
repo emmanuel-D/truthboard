@@ -152,6 +152,7 @@ func tools() []toolDef {
 				"sprint":   map[string]any{"type": "string", "description": "Iteration slug (e.g. s12, 2026-29) — intent, never a status"},
 				"priority": map[string]any{"type": "number", "description": "1=now, 2=next, 3=later"},
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; omit for unestimated"},
+				"type":     map[string]any{"type": "string", "description": "story | bug | task (default story)"},
 				"repo":     repoProp,
 			}, "title"),
 		},
@@ -169,6 +170,7 @@ func tools() []toolDef {
 				"sprint":   map[string]any{"type": "string", "description": "Iteration slug; empty string clears it"},
 				"priority": map[string]any{"type": "number"},
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; 0 clears it"},
+				"type":     map[string]any{"type": "string", "description": "story | bug | task; empty string resets to story"},
 				"repo":     repoProp,
 			}, "id"),
 		},
@@ -283,6 +285,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Sprint   string   `json:"sprint"`
 			Priority int      `json:"priority"`
 			Points   int      `json:"points"`
+			Type     string   `json:"type"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -297,7 +300,10 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if a.Body != "" {
 			s.Body = a.Body
 		}
-		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points
+		if !spec.ValidType(a.Type) {
+			return "", spec.ErrType(a.Type)
+		}
+		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type
 		if err := s.Save(); err != nil {
 			return "", err
 		}
@@ -322,6 +328,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Sprint   *string   `json:"sprint"`
 			Priority *int      `json:"priority"`
 			Points   *int      `json:"points"`
+			Type     *string   `json:"type"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -350,6 +357,12 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		}
 		if a.Points != nil {
 			s.Points = *a.Points
+		}
+		if a.Type != nil {
+			if !spec.ValidType(*a.Type) {
+				return "", spec.ErrType(*a.Type)
+			}
+			s.Type = *a.Type
 		}
 		if err := s.Save(); err != nil {
 			return "", err

@@ -179,13 +179,14 @@ type specPayload struct {
 	Sprint   string   `json:"sprint"`
 	Priority int      `json:"priority"`
 	Points   int      `json:"points"`
+	Type     string   `json:"type"`
 	Paths    []string `json:"paths"`
 	Body     string   `json:"body"`
 }
 
 func payload(s *spec.Spec) specPayload {
 	return specPayload{ID: s.ID, Title: s.Title, Owner: s.Owner, Branch: s.Branch,
-		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Paths: s.Paths, Body: s.Body}
+		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Paths: s.Paths, Body: s.Body}
 }
 
 // decodeIntent rejects unknown fields so a "status" in the payload fails
@@ -213,6 +214,7 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 			Sprint   string   `json:"sprint"`
 			Priority int      `json:"priority"`
 			Points   int      `json:"points"`
+			Type     string   `json:"type"`
 			Paths    []string `json:"paths"`
 			Body     string   `json:"body"`
 		}
@@ -231,7 +233,11 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 		if in.Body != "" {
 			s.Body = in.Body
 		}
-		s.Epic, s.Sprint, s.Priority, s.Points, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Paths
+		if !spec.ValidType(in.Type) {
+			http.Error(w, spec.ErrType(in.Type).Error(), http.StatusBadRequest)
+			return
+		}
+		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Paths
 		if err := s.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -263,6 +269,7 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 			Sprint   *string   `json:"sprint"`
 			Priority *int      `json:"priority"`
 			Points   *int      `json:"points"`
+			Type     *string   `json:"type"`
 			Paths    *[]string `json:"paths"`
 			Body     *string   `json:"body"`
 		}
@@ -285,6 +292,13 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 		}
 		if in.Points != nil {
 			s.Points = *in.Points
+		}
+		if in.Type != nil {
+			if !spec.ValidType(*in.Type) {
+				http.Error(w, spec.ErrType(*in.Type).Error(), http.StatusBadRequest)
+				return
+			}
+			s.Type = *in.Type
 		}
 		if in.Paths != nil {
 			s.Paths = *in.Paths

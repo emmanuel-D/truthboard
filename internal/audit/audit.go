@@ -60,6 +60,7 @@ type ShippedSpec struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Epic  string `json:"epic,omitempty"`
+	Type  string `json:"type,omitempty"` // story | bug | task; empty means story
 	Date  string `json:"date"`
 }
 
@@ -371,7 +372,7 @@ func attributeDigest(res *Result) {
 			if s.Status == Done && !shipped[s.ID] {
 				shipped[s.ID] = true
 				res.Shipped = append(res.Shipped, ShippedSpec{
-					ID: s.ID, Title: s.Title, Epic: s.Epic, Date: c.Date,
+					ID: s.ID, Title: s.Title, Epic: s.Epic, Type: s.Type, Date: c.Date,
 				})
 			}
 			break

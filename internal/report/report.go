@@ -251,12 +251,41 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	}
 
 	fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("DIGEST — what landed on %s in the last %d days", res.Integration, res.DigestDays)))
-	for _, sh := range res.Shipped {
+	line := func(sh audit.ShippedSpec) {
 		tag := ""
 		if sh.Epic != "" {
 			tag = " · " + sh.Epic
 		}
 		fmt.Fprintf(w, "  %s %s (%s%s)\n", c(ansiGreen, "✓ "+sh.Title), c(ansiDim, "landed "+sh.Date), sh.ID, tag)
+	}
+	// One type of work → the familiar flat list. Mixed types → grouped, so
+	// a release note can separate features from fixes at a glance.
+	typeOf := func(sh audit.ShippedSpec) string {
+		if sh.Type == "" {
+			return "story"
+		}
+		return sh.Type
+	}
+	distinct := map[string]bool{}
+	for _, sh := range res.Shipped {
+		distinct[typeOf(sh)] = true
+	}
+	if len(distinct) > 1 {
+		for _, g := range [][2]string{{"story", "Features"}, {"bug", "Fixes"}, {"task", "Chores"}} {
+			if !distinct[g[0]] {
+				continue
+			}
+			fmt.Fprintf(w, "  %s\n", c(ansiDim, g[1]+":"))
+			for _, sh := range res.Shipped {
+				if typeOf(sh) == g[0] {
+					line(sh)
+				}
+			}
+		}
+	} else {
+		for _, sh := range res.Shipped {
+			line(sh)
+		}
 	}
 	other := 0
 	for _, cm := range res.Digest {
