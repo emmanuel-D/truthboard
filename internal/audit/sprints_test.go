@@ -65,6 +65,86 @@ func TestSprintRollupIsDerivedArithmetic(t *testing.T) {
 	}
 }
 
+func writeSprintFile(t *testing.T, repo, slug, start, end string) {
+	t.Helper()
+	dir := spec.SprintDir(repo)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nslug: " + slug + "\n"
+	if start != "" {
+		content += "start: " + start + "\n"
+	}
+	if end != "" {
+		content += "end: " + end + "\n"
+	}
+	content += "---\n"
+	if err := os.WriteFile(filepath.Join(dir, slug+".md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSprintDatesDeriveState(t *testing.T) {
+	now := time.Date(2026, 7, 17, 15, 0, 0, 0, time.UTC)
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -10))
+	writeSpecSprint(t, f.dir, "tb-da1", "Active story", "s12")
+	writeSprintFile(t, f.dir, "s12", "2026-07-14", "2026-07-25")
+	writeSprintFile(t, f.dir, "s11", "2026-06-29", "2026-07-10")
+	writeSprintFile(t, f.dir, "s13", "2026-07-28", "2026-08-08")
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]SprintRollup{}
+	for _, sp := range res.Sprints {
+		got[sp.Name] = sp
+	}
+	// s12 has a story and a window it sits inside: active, 8 days to the
+	// inclusive end date.
+	s12 := got["s12"]
+	if s12.State != "active" || s12.DaysLeft != 8 || s12.Start != "2026-07-14" || s12.End != "2026-07-25" {
+		t.Errorf("s12 = %+v, want active with 8d left and its window", s12)
+	}
+	if s12.Done != 0 || s12.Total != 1 {
+		t.Errorf("s12 arithmetic = %d/%d, dates must not disturb it", s12.Done, s12.Total)
+	}
+	// Dated sprints appear even before stories are pulled into them.
+	if got["s11"].State != "completed" {
+		t.Errorf("s11 = %+v, want completed (window elapsed)", got["s11"])
+	}
+	if got["s13"].State != "future" {
+		t.Errorf("s13 = %+v, want future (window not started)", got["s13"])
+	}
+}
+
+func TestSprintEndDateIsInclusive(t *testing.T) {
+	now := time.Date(2026, 7, 25, 23, 0, 0, 0, time.UTC)
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -10))
+	writeSprintFile(t, f.dir, "s12", "2026-07-14", "2026-07-25")
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Sprints) != 1 || res.Sprints[0].State != "active" || res.Sprints[0].DaysLeft != 0 {
+		t.Errorf("sprints = %+v, want s12 active with 0d left on its last day", res.Sprints)
+	}
+}
+
+func TestSprintFileWithBadDateFailsLoudly(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -1))
+	writeSprintFile(t, f.dir, "s12", "July 14", "")
+
+	if _, err := Audit(f.dir, Options{Now: now}); err == nil {
+		t.Error("want an error for a non-YYYY-MM-DD sprint date, got none")
+	}
+}
+
 func TestNoSprintsNoRollup(t *testing.T) {
 	now := time.Now()
 	f := newFixture(t)

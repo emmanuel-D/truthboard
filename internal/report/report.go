@@ -57,6 +57,24 @@ func backlogTag(s audit.SpecStatus) string {
 	return " · " + strings.Join(parts, " · ")
 }
 
+// sprintWindow renders the derived calendar state for a dated sprint:
+// " · 2026-07-14 → 2026-07-25 · active, 8d left". Empty for date-less
+// sprints, which keep their original arithmetic-only line.
+func sprintWindow(sp audit.SprintRollup) string {
+	if sp.State == "" {
+		return ""
+	}
+	out := fmt.Sprintf(" · %s → %s · %s", sp.Start, sp.End, sp.State)
+	if sp.State == "active" {
+		if sp.DaysLeft == 0 {
+			out += ", ends today"
+		} else {
+			out += fmt.Sprintf(", %dd left", sp.DaysLeft)
+		}
+	}
+	return out
+}
+
 func countClaims(claims []audit.Claim, kind string) int {
 	n := 0
 	for _, c := range claims {
@@ -124,7 +142,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	if len(res.Sprints) > 0 {
 		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "SPRINTS (arithmetic over derived statuses — a sprint finishes when its stories land)"))
 		for _, sp := range res.Sprints {
-			fmt.Fprintf(w, "  %s  %d/%d done\n", c(ansiCyan, sp.Name), sp.Done, sp.Total)
+			fmt.Fprintf(w, "  %s  %d/%d done%s\n", c(ansiCyan, sp.Name), sp.Done, sp.Total, c(ansiDim, sprintWindow(sp)))
 			for _, o := range sp.Open {
 				fmt.Fprintf(w, "    %s %s %s\n",
 					c(ansi[o.Status], fmt.Sprintf("%-12s", strings.ToUpper(string(o.Status)))), o.ID, o.Title)
