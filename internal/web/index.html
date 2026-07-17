@@ -263,6 +263,7 @@
 </header>
 <p class="banner"><b>Statuses: derived from git, never typed.</b> Stories are yours to shape — click a card to read or edit. The promise is editable; the proof is not.</p>
 <div class="dirty" id="dirty" hidden></div>
+<div class="warn" id="sync" hidden></div>
 <div class="filters">
   <input type="search" id="f-text" placeholder="Filter stories… (title or id)">
   <span id="f-epics"></span>
@@ -585,6 +586,21 @@ document.getElementById("app").addEventListener("click", e => {
   if (e.target.id === "show-older") { F.older = !F.older; rerender(); }
 });
 
+let syncAt = "";
+function ago(iso) {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+  return s < 90 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
+}
+
+// A board shared beyond this machine has no auth story, so it shows the
+// truth and edits nothing — the server refuses writes; we hide the doors.
+let RO = false;
+function setReadOnly(ro) {
+  RO = ro;
+  document.getElementById("new-story").hidden = ro;
+  document.getElementById("dt-edit").hidden = ro;
+}
+
 let last = "";
 async function tick() {
   try {
@@ -594,6 +610,16 @@ async function tick() {
     const dirtyEl = document.getElementById("dirty");
     dirtyEl.hidden = !dirty;
     if (dirty) dirtyEl.textContent = `● ${dirty} uncommitted intent change${dirty > 1 ? "s" : ""} — review and commit .truthboard/specs like code`;
+    setReadOnly(r.headers.get("X-Truthboard-Readonly") === "1");
+    syncAt = r.headers.get("X-Truthboard-Sync-At") || "";
+    const syncErr = r.headers.get("X-Truthboard-Sync-Err");
+    const syncNote = r.headers.get("X-Truthboard-Sync-Note");
+    const syncEl = document.getElementById("sync");
+    // A failing fetch or a skipped fast-forward must read as staleness,
+    // never as a quiet repo.
+    if (syncErr) { syncEl.hidden = false; syncEl.textContent = `⚠ remote sync failing: ${syncErr}`; }
+    else if (syncNote) { syncEl.hidden = false; syncEl.textContent = `⚠ branch statuses are fresh, but story files are not: ${syncNote}`; }
+    else syncEl.hidden = true;
     const text = await r.text();
     // generated_at changes on every audit; comparing without it keeps
     // unchanged boards from re-rendering (and cross-fading) every poll.
@@ -606,7 +632,8 @@ async function tick() {
       if (lastBoard && document.startViewTransition) document.startViewTransition(() => render(b));
       else render(b);
     }
-    document.getElementById("updated").textContent = "live · " + new Date().toLocaleTimeString();
+    document.getElementById("updated").textContent = "live · " + new Date().toLocaleTimeString() +
+      (syncAt ? " · remote synced " + ago(syncAt) : "");
   } catch (e) {
     document.getElementById("updated").textContent = "audit unavailable — retrying";
   }
@@ -630,7 +657,8 @@ function openDetail(full) {
     epicTag(full.epic) +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
   document.getElementById("dt-md").innerHTML = md(full.body, true);
-  document.getElementById("dt-hint").hidden = !/^\s*[-*]\s+\[[ xX]\]/m.test(full.body);
+  if (RO) document.querySelectorAll("#dt-md input[type=checkbox]").forEach(b => { b.disabled = true; });
+  document.getElementById("dt-hint").hidden = RO || !/^\s*[-*]\s+\[[ xX]\]/m.test(full.body);
   const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];
   if (onBoard.branches?.length) rows.push(["Branches", onBoard.branches.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
   if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>`]);
@@ -659,6 +687,7 @@ document.getElementById("dt-edit").addEventListener("click", () => { detailDlg.c
 document.getElementById("dt-md").addEventListener("change", async e => {
   const box = e.target.closest("input[type=checkbox][data-ti]");
   if (!box || !detailSpec) return;
+  if (RO) { box.checked = !box.checked; return; }
   const idx = +box.dataset.ti;
   let i = -1;
   const newBody = detailSpec.body.replace(/^(\s*[-*]\s+)\[([ xX])\]/gm, (m, pre, mark) => {

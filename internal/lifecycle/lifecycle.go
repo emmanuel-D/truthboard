@@ -6,6 +6,7 @@ package lifecycle
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/web"
 )
 
 // State describes a detached board.
@@ -21,6 +23,8 @@ type State struct {
 	PID     int       `json:"pid"`
 	Port    int       `json:"port"`
 	URL     string    `json:"url"`
+	Host    string    `json:"host,omitempty"`
+	Fetch   string    `json:"fetch,omitempty"`
 	Started time.Time `json:"started"`
 }
 
@@ -96,9 +100,19 @@ func logPath(repo string) string {
 	return filepath.Join(dir, "ui.log")
 }
 
+// probeURL is where the parent can reach the child: a wildcard or empty
+// host answers on loopback; a specific host answers only there.
+func probeURL(host string, port int) string {
+	switch host {
+	case "", "0.0.0.0", "::":
+		host = "127.0.0.1"
+	}
+	return fmt.Sprintf("http://%s", net.JoinHostPort(host, fmt.Sprint(port)))
+}
+
 // Detach starts the board in its own session and records it. Refuses when
 // a live board is already recorded; silently replaces stale state.
-func Detach(repo string, port int, forge bool, version string) (*State, error) {
+func Detach(repo string, o web.Options) (*State, error) {
 	if err := supported(); err != nil {
 		return nil, err
 	}
@@ -114,9 +128,9 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 	// Pre-flight: if anything already answers on the port, refuse now —
 	// otherwise the readiness probe could mistake the squatter's 200 for
 	// our child coming up.
-	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+	url := probeURL(o.Host, o.Port)
 	if portOccupied(url) {
-		return nil, fmt.Errorf("port %d is already serving something (another board? old process?) — stop it or use --port", port)
+		return nil, fmt.Errorf("port %d is already serving something (another board? old process?) — stop it or use --port", o.Port)
 	}
 
 	exe, err := os.Executable()
@@ -136,9 +150,15 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 	}
 	defer logFile.Close()
 
-	args := []string{"ui", "--no-open", "--port", fmt.Sprint(port)}
-	if forge {
+	args := []string{"ui", "--no-open", "--port", fmt.Sprint(o.Port)}
+	if o.Forge {
 		args = append(args, "--forge")
+	}
+	if o.Host != "" {
+		args = append(args, "--host", o.Host)
+	}
+	if o.FetchEvery > 0 {
+		args = append(args, "--fetch", o.FetchEvery.String())
 	}
 	args = append(args, repo)
 	cmd := exec.Command(exe, args...)
@@ -150,9 +170,13 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 
 	s := &State{
 		PID:     cmd.Process.Pid,
-		Port:    port,
-		URL:     fmt.Sprintf("http://127.0.0.1:%d", port),
+		Port:    o.Port,
+		URL:     url,
+		Host:    o.Host,
 		Started: time.Now(),
+	}
+	if o.FetchEvery > 0 {
+		s.Fetch = o.FetchEvery.String()
 	}
 	// The parent must not wait on the child, but the child must be
 	// reparented rather than reaped by us.
@@ -168,7 +192,7 @@ func Detach(repo string, port int, forge bool, version string) (*State, error) {
 	time.Sleep(400 * time.Millisecond)
 	if !Alive(s.PID) {
 		tail := logTail(repo, 5)
-		return nil, fmt.Errorf("port %d answers but our board exited — something else is listening there (try --port)%s", port, tail)
+		return nil, fmt.Errorf("port %d answers but our board exited — something else is listening there (try --port)%s", o.Port, tail)
 	}
 	if err := save(repo, s); err != nil {
 		return nil, err
@@ -227,8 +251,15 @@ func Status(repo string) (string, error) {
 		Remove(repo)
 		return fmt.Sprintf("stale state cleaned up (pid %d is gone) — start again with `truthboard ui --detach`", s.PID), nil
 	}
-	return fmt.Sprintf("running · %s · pid %d · up %s",
-		s.URL, s.PID, time.Since(s.Started).Round(time.Second)), nil
+	line := fmt.Sprintf("running · %s · pid %d · up %s",
+		s.URL, s.PID, time.Since(s.Started).Round(time.Second))
+	if s.Fetch != "" {
+		line += " · fetching origin every " + s.Fetch
+	}
+	if (web.Options{Host: s.Host}).ReadOnly() {
+		line += fmt.Sprintf(" · shared on %s (read-only)", s.Host)
+	}
+	return line, nil
 }
 
 // Stop terminates the detached board and clears state.

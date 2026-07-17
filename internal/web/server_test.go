@@ -37,7 +37,7 @@ func fixtureRepo(t *testing.T) string {
 }
 
 func TestBoardEndpointAndPage(t *testing.T) {
-	srv := httptest.NewServer(Handler(fixtureRepo(t), false, "test"))
+	srv := httptest.NewServer(Handler(fixtureRepo(t), Options{Version: "test"}))
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/api/board")
@@ -75,7 +75,7 @@ func TestBoardEndpointAndPage(t *testing.T) {
 }
 
 func TestStatusesHaveNoWritableRoute(t *testing.T) {
-	srv := httptest.NewServer(Handler(fixtureRepo(t), false, "test"))
+	srv := httptest.NewServer(Handler(fixtureRepo(t), Options{Version: "test"}))
 	defer srv.Close()
 
 	// Everything except spec-intent writes is rejected before routing.
@@ -99,9 +99,41 @@ func TestStatusesHaveNoWritableRoute(t *testing.T) {
 	}
 }
 
+func TestSharedBoardIsReadOnly(t *testing.T) {
+	srv := httptest.NewServer(Handler(fixtureRepo(t), Options{Host: "0.0.0.0", Version: "test"}))
+	defer srv.Close()
+
+	// Reading works and announces read-only so the page hides editing.
+	resp, err := http.Get(srv.URL + "/api/board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 || resp.Header.Get("X-Truthboard-Readonly") != "1" {
+		t.Errorf("board read = %d readonly=%q, want 200 with X-Truthboard-Readonly: 1",
+			resp.StatusCode, resp.Header.Get("X-Truthboard-Readonly"))
+	}
+
+	// Intent writes refuse with the reason, before routing.
+	for _, tc := range []struct{ method, path string }{
+		{"POST", "/api/specs"}, {"PUT", "/api/specs/tb-x"},
+	} {
+		req, _ := http.NewRequest(tc.method, srv.URL+tc.path, strings.NewReader(`{"title":"x"}`))
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden || !strings.Contains(string(body), "read-only") {
+			t.Errorf("%s %s = %d %q, want 403 citing read-only", tc.method, tc.path, resp.StatusCode, body)
+		}
+	}
+}
+
 func TestIntentEditingLifecycle(t *testing.T) {
 	repo := fixtureRepo(t)
-	srv := httptest.NewServer(Handler(repo, false, "test"))
+	srv := httptest.NewServer(Handler(repo, Options{Version: "test"}))
 	defer srv.Close()
 
 	// PO creates a story in the browser.

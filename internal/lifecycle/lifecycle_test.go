@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/emmanuel-D/truthboard/internal/web"
 )
 
 func gitRepo(t *testing.T) string {
@@ -93,7 +95,7 @@ func TestAliveOnRealProcess(t *testing.T) {
 }
 
 func TestDetachRefusesNonGitDir(t *testing.T) {
-	if _, err := Detach(t.TempDir(), 1337, false, "test"); err == nil ||
+	if _, err := Detach(t.TempDir(), web.Options{Port: 1337, Version: "test"}); err == nil ||
 		!strings.Contains(err.Error(), "not a git repository") {
 		t.Errorf("detach outside git = %v, want a clear error", err)
 	}
