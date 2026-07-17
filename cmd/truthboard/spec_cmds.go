@@ -109,6 +109,43 @@ func runBrief(args []string) int {
 	return 0
 }
 
+func runNext(args []string) int {
+	fs := flag.NewFlagSet("next", flag.ExitOnError)
+	fs.Parse(args)
+	repo := "."
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
+	}
+
+	next, stalled, err := audit.Next(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	if next == nil {
+		msg := "nothing is planned — every story has work in flight or landed."
+		if stalled > 0 {
+			msg += fmt.Sprintf(" %d stalled — worth resuming? See truthboard audit.", stalled)
+		}
+		msg += ` New intent: truthboard spec new "Title"`
+		fmt.Fprintln(os.Stderr, msg)
+		return 1
+	}
+
+	pri := ""
+	if next.Priority > 0 {
+		pri = fmt.Sprintf(" (priority %d)", next.Priority)
+	}
+	fmt.Printf("next up: %s — %s%s\n\n", next.ID, next.Title, pri)
+	text, err := audit.Brief(repo, next.ID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	fmt.Print(text)
+	return 0
+}
+
 func runLink(args []string) int {
 	fs := flag.NewFlagSet("link", flag.ExitOnError)
 	repo := fs.String("repo", ".", "repository path")

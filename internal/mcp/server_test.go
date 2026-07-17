@@ -35,7 +35,9 @@ func fixtureRepo(t *testing.T) string {
 	if err := os.MkdirAll(specDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	specMD := "---\nid: tb-mcp1\ntitle: MCP fixture spec\n---\n\n## Goal\nTest.\n"
+	// priority 1 keeps next_spec deterministic even after tests create
+	// more (unprioritized) specs alongside it.
+	specMD := "---\nid: tb-mcp1\ntitle: MCP fixture spec\npriority: 1\n---\n\n## Goal\nTest.\n"
 	if err := os.WriteFile(filepath.Join(specDir, "tb-mcp1-test.md"), []byte(specMD), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -88,14 +90,14 @@ func TestHandshakeAndToolList(t *testing.T) {
 		t.Errorf("initialize result = %v", init)
 	}
 	tools := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 5 {
-		t.Errorf("got %d tools, want 5", len(tools))
+	if len(tools) != 6 {
+		t.Errorf("got %d tools, want 6", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tl := range tools {
 		names[tl.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"list_specs", "get_brief", "create_spec", "update_spec", "get_board"} {
+	for _, want := range []string{"list_specs", "get_brief", "next_spec", "create_spec", "update_spec", "get_board"} {
 		if !names[want] {
 			t.Errorf("missing tool %q", want)
 		}
@@ -110,9 +112,10 @@ func TestToolCalls(t *testing.T) {
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_spec","arguments":{"title":"Agent-created spec","owner":"claude"}}}`,
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_board","arguments":{}}}`,
 		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"set_status","arguments":{"id":"tb-mcp1","status":"done"}}}`,
+		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"next_spec","arguments":{}}}`,
 	)
-	if len(responses) != 5 {
-		t.Fatalf("got %d responses, want 5", len(responses))
+	if len(responses) != 6 {
+		t.Fatalf("got %d responses, want 6", len(responses))
 	}
 
 	if text, isErr := toolText(t, responses[0]); isErr || !strings.Contains(text, "tb-mcp1") || !strings.Contains(text, "planned") {
@@ -140,6 +143,11 @@ func TestToolCalls(t *testing.T) {
 	// There is no set_status tool and there never will be.
 	if text, isErr := toolText(t, responses[4]); !isErr || !strings.Contains(text, "unknown tool") {
 		t.Errorf("set_status must fail as unknown, got %.120s (err=%v)", text, isErr)
+	}
+	// next_spec hands an idle agent the planned fixture story as a brief.
+	if text, isErr := toolText(t, responses[5]); isErr ||
+		!strings.Contains(text, "Next up: tb-mcp1") || !strings.Contains(text, "Spec: tb-mcp1") {
+		t.Errorf("next_spec = %.120s (err=%v), want tb-mcp1 as a brief", text, isErr)
 	}
 }
 

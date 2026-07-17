@@ -169,6 +169,11 @@ func tools() []toolDef {
 			}, "id"),
 		},
 		{
+			Name:        "next_spec",
+			Description: "The story an idle agent should pick up: the highest-priority planned spec (planned = no branch or commit yet, so unclaimed), returned as the same ready-to-work packet as get_brief. Deterministic — same repo state, same answer. When nothing is planned it says so; never invents work.",
+			InputSchema: objSchema(map[string]any{"repo": repoProp}),
+		},
+		{
 			Name:        "get_board",
 			Description: "Get the full derived board as JSON: spec statuses, branch units, drift report (stale promises, shadow work, scope creep, regressions), and digest. Read-only.",
 			InputSchema: objSchema(map[string]any{"repo": repoProp}),
@@ -231,6 +236,37 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			return "", fmt.Errorf("get_brief requires an id")
 		}
 		return audit.Brief(orDefault(a.Repo, defaultRepo), a.ID)
+
+	case "next_spec":
+		var a struct {
+			Repo string `json:"repo"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
+		repo := orDefault(a.Repo, defaultRepo)
+		next, stalled, err := audit.Next(repo)
+		if err != nil {
+			return "", err
+		}
+		if next == nil {
+			// An empty backlog is an answer, not an error — and it must
+			// not tempt the caller into inventing work.
+			msg := "Nothing is planned — every story has work in flight or landed."
+			if stalled > 0 {
+				msg += fmt.Sprintf(" %d stalled stories may be worth resuming (see get_board).", stalled)
+			}
+			return msg + " If you have new intent, create_spec it; do not invent work.", nil
+		}
+		pri := ""
+		if next.Priority > 0 {
+			pri = fmt.Sprintf(" (priority %d)", next.Priority)
+		}
+		brief, err := audit.Brief(repo, next.ID)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Next up: %s — %s%s\n\n%s", next.ID, next.Title, pri, brief), nil
 
 	case "create_spec":
 		var a struct {
