@@ -337,7 +337,12 @@ async function tick(reschedule = true) {
     // The serving binary's version, so a stale board is visible at a
     // glance (`truthboard update`, then stop && ui --detach).
     const v = r.headers.get("X-Truthboard-Version");
-    if (v) document.getElementById("foot").textContent = `truthboard ${v} · refreshes automatically`;
+    if (v) {
+      // "dev" is not a version — say what it is instead of looking broken.
+      const label = v === "dev" ? "dev build (source)" : v;
+      document.getElementById("ver").textContent = label;
+      document.getElementById("foot").textContent = `truthboard ${label} · refreshes automatically`;
+    }
     syncAt = r.headers.get("X-Truthboard-Sync-At") || "";
     const syncErr = r.headers.get("X-Truthboard-Sync-Err");
     const syncNote = r.headers.get("X-Truthboard-Sync-Note");

@@ -153,6 +153,7 @@
   .chips code { font-size: .68rem; color: var(--muted); }
   .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
   .tag.pri { font-weight: 700; }
+  .ver { font-size: .68rem; font-weight: 600; color: var(--muted); vertical-align: .35em; margin-left: .15rem; }
   .tag.type-bug { color: var(--stalled); border-color: var(--stalled); font-weight: 700; }
   .tag.type-task { color: var(--muted); }
   .tag.sprint { border-style: dashed; }
@@ -212,14 +213,18 @@
   /* ---------- dialogs ---------- */
   dialog {
     background: var(--card); color: var(--ink); border: 1px solid var(--ring);
-    border-radius: 14px; padding: 0; width: min(38rem, 94vw); max-height: 86vh;
+    border-radius: 14px; padding: 0; width: min(38rem, 94vw); max-height: min(86vh, 100dvh - 2rem);
     box-shadow: var(--shadow);
   }
+  /* Flex column: header/footer keep their size, the body gets the rest and
+     scrolls. No guessed chrome heights — the layout is the measurement. */
+  dialog[open] { display: flex; flex-direction: column; }
+  dialog > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
   dialog::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(2px); }
   .dhead { display: flex; align-items: center; gap: .6rem; padding: .95rem 1.25rem .6rem; }
   .dhead h2 { font-size: 1rem; line-height: 1.3; flex: 1; }
   .dhead .status { flex: none; }
-  .dbody { padding: 0 1.25rem 1.1rem; overflow-y: auto; max-height: calc(86vh - 8rem); }
+  .dbody { padding: 0 1.25rem 1.1rem; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
   .dfoot { display: flex; gap: .6rem; justify-content: flex-end; padding: .8rem 1.25rem 1rem; border-top: 1px solid var(--hairline); }
   .note { font-size: .74rem; color: var(--muted); padding: 0 1.25rem .6rem; }
 
