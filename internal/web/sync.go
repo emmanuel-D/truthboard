@@ -24,17 +24,29 @@ type syncer struct {
 	repo  string
 	every time.Duration
 
-	mu   sync.Mutex
-	at   time.Time // last successful fetch
-	err  string    // last fetch failure
-	note string    // why the working tree (intent) was left stale
+	mu       sync.Mutex
+	stepping sync.Mutex // held while a webhook-kicked step runs, to coalesce storms
+	at       time.Time  // last successful fetch
+	err      string     // last fetch failure
+	note     string     // why the working tree (intent) was left stale
 }
 
 func (s *syncer) run() {
 	for {
-		s.step()
+		s.kick()
 		time.Sleep(s.every)
 	}
+}
+
+// kick runs one sync step now — the webhook's "a push just happened".
+// Coalesced: a storm of pushes while a fetch is already running does not
+// queue further fetches; the running one already sees the new commits.
+func (s *syncer) kick() {
+	if !s.stepping.TryLock() {
+		return
+	}
+	defer s.stepping.Unlock()
+	s.step()
 }
 
 // step fetches, then fast-forwards the checkout only when that is provably

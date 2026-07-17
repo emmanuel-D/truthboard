@@ -162,6 +162,11 @@ func Detach(repo string, o web.Options) (*State, error) {
 	}
 	args = append(args, repo)
 	cmd := exec.Command(exe, args...)
+	if o.WebhookSecret != "" {
+		// Through the environment, never argv — a secret must not show up
+		// in `ps` on a shared box.
+		cmd.Env = append(os.Environ(), "TRUTHBOARD_WEBHOOK_SECRET="+o.WebhookSecret)
+	}
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	cmd.SysProcAttr = detachAttr()
 	if err := cmd.Start(); err != nil {

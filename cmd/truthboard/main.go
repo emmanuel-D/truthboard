@@ -176,6 +176,8 @@ func runUI(args []string) int {
 	fetch := fs.Duration("fetch", 0, "poll origin on this interval (e.g. 60s) so the board tracks the remote")
 	noOpen := fs.Bool("no-open", false, "do not open the browser")
 	detach := fs.Bool("detach", false, "run the board in the background (truthboard status / stop to manage)")
+	webhookSecret := fs.String("webhook-secret", os.Getenv("TRUTHBOARD_WEBHOOK_SECRET"),
+		"arm POST /webhook: a forge push webhook with this secret triggers an immediate fetch (env TRUTHBOARD_WEBHOOK_SECRET)")
 	fs.Parse(args)
 
 	repo := "."
@@ -183,7 +185,8 @@ func runUI(args []string) int {
 		repo = fs.Arg(0)
 	}
 	opts := web.Options{Port: *port, Host: *host, Forge: *useForge,
-		FetchEvery: *fetch, OpenBrowser: !*noOpen, Version: version}
+		FetchEvery: *fetch, OpenBrowser: !*noOpen, Version: version,
+		WebhookSecret: *webhookSecret}
 	if *detach {
 		state, err := lifecycle.Detach(repo, opts)
 		if err != nil {
