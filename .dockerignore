@@ -1,0 +1,9 @@
+.git
+.github
+.truthboard
+docs
+prototype
+*.pdf
+*.md
+truthboard
+action.yml

@@ -242,6 +242,10 @@ instantly over server-sent events. Bad or missing secrets are rejected in
 constant time and logged; the endpoint can only make the board fresher,
 never change what it says.
 
+To put a board like this on a real server — EC2 or any VPS under
+systemd, Docker (the repo ships a `Dockerfile`), or a PaaS like Coolify —
+follow [docs/deploy.md](docs/deploy.md).
+
 ## Audit mode — works on any repo, no specs needed
 
 ```sh
