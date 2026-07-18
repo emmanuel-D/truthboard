@@ -156,6 +156,7 @@
   .ver { font-size: .68rem; font-weight: 600; color: var(--muted); vertical-align: .35em; margin-left: .15rem; }
   .tag.type-bug { color: var(--stalled); border-color: var(--stalled); font-weight: 700; }
   .tag.type-task { color: var(--muted); }
+  .tag.wait { color: var(--stalled); border-style: dashed; }
   .tag.sprint { border-style: dashed; }
   #dt-assign { background: var(--bg-2, transparent); color: var(--ink); border: 1px solid var(--hairline);
     border-radius: 999px; padding: .15rem .7rem; font: inherit; font-size: .75rem; width: 11rem; }
@@ -262,6 +263,7 @@
   .ed input:focus, .ed select:focus, .ed textarea:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
   .ed textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.55; min-height: 14rem; resize: vertical; }
   .ed .row3 { display: grid; grid-template-columns: 1fr 1fr 7rem; gap: .6rem; }
+  .ed .row3 .wide { grid-column: 1 / -1; }
   .tabs { display: flex; gap: .2rem; margin: .7rem 0 .3rem; border-bottom: 1px solid var(--hairline); }
   .tabs button {
     background: none; border: none; color: var(--muted); font: inherit; font-size: .74rem; font-weight: 600;

@@ -43,7 +43,7 @@ func TestNextPicksHighestPriorityPlannedOnly(t *testing.T) {
 	// (otherwise uncommitted) spec files away with them.
 	f.commit("chore: backlog", now.AddDate(0, 0, -2))
 
-	next, _, err := Next(f.dir)
+	next, _, _, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestNextPicksHighestPriorityPlannedOnly(t *testing.T) {
 	f.commit("feat: claimed too", now)
 	f.git("checkout", "main")
 
-	next, _, err = Next(f.dir)
+	next, _, _, err = Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestNextEmptyBacklogReportsStalled(t *testing.T) {
 	f.git("checkout", "main")
 	writeSpecPri(t, f.dir, "tb-old", "Abandoned work", 1)
 
-	next, stalled, err := Next(f.dir)
+	next, stalled, _, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}

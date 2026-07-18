@@ -153,6 +153,7 @@ func tools() []toolDef {
 				"priority": map[string]any{"type": "number", "description": "1=now, 2=next, 3=later"},
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; omit for unestimated"},
 				"type":     map[string]any{"type": "string", "description": "story | bug | task (default story)"},
+				"needs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Spec ids that must be done before this starts; readiness is derived"},
 				"repo":     repoProp,
 			}, "title"),
 		},
@@ -171,6 +172,7 @@ func tools() []toolDef {
 				"priority": map[string]any{"type": "number"},
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; 0 clears it"},
 				"type":     map[string]any{"type": "string", "description": "story | bug | task; empty string resets to story"},
+				"needs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Full replacement needs list; empty array clears it"},
 				"repo":     repoProp,
 			}, "id"),
 		},
@@ -251,14 +253,17 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			return "", err
 		}
 		repo := orDefault(a.Repo, defaultRepo)
-		next, stalled, err := audit.Next(repo)
+		next, stalled, waiting, err := audit.Next(repo)
 		if err != nil {
 			return "", err
 		}
 		if next == nil {
 			// An empty backlog is an answer, not an error — and it must
 			// not tempt the caller into inventing work.
-			msg := "Nothing is planned — every story has work in flight or landed."
+			msg := "Nothing is startable — every story has work in flight or landed."
+			for _, w := range waiting {
+				msg += fmt.Sprintf(" %s waits on %s.", w.ID, strings.Join(w.Waiting, ", "))
+			}
 			if stalled > 0 {
 				msg += fmt.Sprintf(" %d stalled stories may be worth resuming (see get_board).", stalled)
 			}
@@ -286,12 +291,21 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Priority int      `json:"priority"`
 			Points   int      `json:"points"`
 			Type     string   `json:"type"`
+			Needs    []string `json:"needs"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
 		}
 		if a.Title == "" {
 			return "", fmt.Errorf("create_spec requires a title")
+		}
+		// Validate before creating, so a bad argument never leaves an
+		// orphan spec file behind.
+		if !spec.ValidType(a.Type) {
+			return "", spec.ErrType(a.Type)
+		}
+		if err := spec.ValidateNeeds(orDefault(a.Repo, defaultRepo), a.Needs, ""); err != nil {
+			return "", err
 		}
 		s, err := spec.New(orDefault(a.Repo, defaultRepo), a.Title, a.Owner)
 		if err != nil {
@@ -300,10 +314,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if a.Body != "" {
 			s.Body = a.Body
 		}
-		if !spec.ValidType(a.Type) {
-			return "", spec.ErrType(a.Type)
-		}
-		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type
+		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type, a.Needs
 		if err := s.Save(); err != nil {
 			return "", err
 		}
@@ -329,6 +340,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Priority *int      `json:"priority"`
 			Points   *int      `json:"points"`
 			Type     *string   `json:"type"`
+			Needs    *[]string `json:"needs"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -363,6 +375,12 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 				return "", spec.ErrType(*a.Type)
 			}
 			s.Type = *a.Type
+		}
+		if a.Needs != nil {
+			if err := spec.ValidateNeeds(repo, *a.Needs, s.ID); err != nil {
+				return "", err
+			}
+			s.Needs = *a.Needs
 		}
 		if err := s.Save(); err != nil {
 			return "", err

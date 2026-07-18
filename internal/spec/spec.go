@@ -28,6 +28,7 @@ type Spec struct {
 	Priority int      `yaml:"priority,omitempty" json:"priority,omitempty"` // 1=now, 2=next, 3=later; 0 = unset
 	Points   int      `yaml:"points,omitempty" json:"points,omitempty"`     // estimate (story points); 0 = unestimated
 	Type     string   `yaml:"type,omitempty" json:"type,omitempty"`         // story | bug | task; empty means story
+	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`       // spec ids that must be done before this starts; readiness is derived
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter
 	File string `yaml:"-" json:"-"`
@@ -46,6 +47,34 @@ func ValidType(t string) bool {
 // ErrType is the shared complaint for an unrecognized type value.
 func ErrType(t string) error {
 	return fmt.Errorf("type %q is not one of story, bug, task", t)
+}
+
+// ValidateNeeds checks a needs list against the specs that actually exist:
+// every id must name another spec in the repo. Shared by every write path
+// so a typo fails loudly at write time, listing the ids that do exist.
+func ValidateNeeds(repo string, needs []string, self string) error {
+	if len(needs) == 0 {
+		return nil
+	}
+	specs, err := Load(repo)
+	if err != nil {
+		return err
+	}
+	known := make(map[string]bool, len(specs))
+	ids := make([]string, 0, len(specs))
+	for _, s := range specs {
+		known[s.ID] = true
+		ids = append(ids, s.ID)
+	}
+	for _, need := range needs {
+		if need == self {
+			return fmt.Errorf("a spec cannot need itself")
+		}
+		if !known[need] {
+			return fmt.Errorf("needs %q: no such spec — known ids: %s", need, strings.Join(ids, ", "))
+		}
+	}
+	return nil
 }
 
 func Dir(repo string) string { return filepath.Join(repo, ".truthboard", "specs") }

@@ -235,13 +235,14 @@ type specPayload struct {
 	Priority int      `json:"priority"`
 	Points   int      `json:"points"`
 	Type     string   `json:"type"`
+	Needs    []string `json:"needs"`
 	Paths    []string `json:"paths"`
 	Body     string   `json:"body"`
 }
 
 func payload(s *spec.Spec) specPayload {
 	return specPayload{ID: s.ID, Title: s.Title, Owner: s.Owner, Branch: s.Branch,
-		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Paths: s.Paths, Body: s.Body}
+		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Paths: s.Paths, Body: s.Body}
 }
 
 // decodeIntent rejects unknown fields so a "status" in the payload fails
@@ -270,6 +271,7 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 			Priority int      `json:"priority"`
 			Points   int      `json:"points"`
 			Type     string   `json:"type"`
+			Needs    []string `json:"needs"`
 			Paths    []string `json:"paths"`
 			Body     string   `json:"body"`
 		}
@@ -280,6 +282,16 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 			http.Error(w, "a story needs a title", http.StatusBadRequest)
 			return
 		}
+		// Validate before creating, so a bad argument never leaves an
+		// orphan spec file behind.
+		if !spec.ValidType(in.Type) {
+			http.Error(w, spec.ErrType(in.Type).Error(), http.StatusBadRequest)
+			return
+		}
+		if err := spec.ValidateNeeds(repo, in.Needs, ""); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		s, err := spec.New(repo, in.Title, in.Owner)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -288,11 +300,7 @@ func specCreate(repo string, invalidate func()) http.HandlerFunc {
 		if in.Body != "" {
 			s.Body = in.Body
 		}
-		if !spec.ValidType(in.Type) {
-			http.Error(w, spec.ErrType(in.Type).Error(), http.StatusBadRequest)
-			return
-		}
-		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Paths
+		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Needs, in.Paths
 		if err := s.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -325,6 +333,7 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 			Priority *int      `json:"priority"`
 			Points   *int      `json:"points"`
 			Type     *string   `json:"type"`
+			Needs    *[]string `json:"needs"`
 			Paths    *[]string `json:"paths"`
 			Body     *string   `json:"body"`
 		}
@@ -354,6 +363,13 @@ func specItem(repo string, invalidate func()) http.HandlerFunc {
 				return
 			}
 			s.Type = *in.Type
+		}
+		if in.Needs != nil {
+			if err := spec.ValidateNeeds(repo, *in.Needs, s.ID); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			s.Needs = *in.Needs
 		}
 		if in.Paths != nil {
 			s.Paths = *in.Paths
