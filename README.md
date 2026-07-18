@@ -104,11 +104,38 @@ product.
 ## MCP — agents as first-class citizens
 
 `truthboard mcp` serves the spec layer over the Model Context Protocol
-(stdio), so Claude Code and other agents stop shelling out:
+(stdio, JSON-RPC 2.0), so agents stop shelling out. There is nothing
+Claude-specific in it: any MCP-capable client works — Claude Code is one
+of them, not the requirement. `truthboard adopt` registers the server in
+the project's `.mcp.json`, which Claude Code picks up automatically;
+other tools want the same one-liner in their own config:
 
 ```sh
+# Claude Code
 claude mcp add truthboard -- truthboard mcp
 ```
+
+```json
+// Cursor — .cursor/mcp.json
+{ "mcpServers": { "truthboard": { "command": "truthboard", "args": ["mcp"] } } }
+```
+
+```toml
+# Codex CLI — ~/.codex/config.toml
+[mcp_servers.truthboard]
+command = "truthboard"
+args = ["mcp"]
+```
+
+```json
+// Gemini CLI — .gemini/settings.json
+{ "mcpServers": { "truthboard": { "command": "truthboard", "args": ["mcp"] } } }
+```
+
+The working agreement travels the same way: it lives in `AGENTS.md`, the
+cross-tool convention that Codex, Cursor, Gemini CLI and friends already
+read — `CLAUDE.md` exists only to import it for Claude Code. Point your
+tool at the server and the agreement is already there.
 
 Tools: `list_specs`, `get_brief` (the context packet to start work),
 `next_spec` (the highest-priority *startable* story — an idle agent needs
