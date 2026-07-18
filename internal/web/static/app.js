@@ -168,7 +168,8 @@ function cardHTML(s, st) {
     <div class="title">${esc(s.title)}</div>
     <div class="chips"><code>${esc(s.id)}</code>${
       s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
-      s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${typeTag(s.type)}${epicTag(s.epic)}${
+      s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${typeTag(s.type)}${
+      s.waiting?.length ? `<span class="tag wait" title="waiting on ${esc(s.waiting.join(", "))}">⧗ ${esc(s.waiting.join(" "))}</span>` : ""}${epicTag(s.epic)}${
       s.sprint ? `<span class="tag sprint">${esc(s.sprint)}</span>` : ""}</div>
     <div class="ev">${esc(s.evidence)}</div>
     <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
@@ -416,6 +417,11 @@ function openDetail(full) {
   rows.push(["Linking", `any branch containing <code>${esc(full.id)}</code> · trailer <code>Spec: ${esc(full.id)}</code>` +
     (full.branch ? ` · glob <code>${esc(full.branch)}</code>` : "")]);
   if (full.paths?.length) rows.push(["Scope", full.paths.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
+  if (full.needs?.length) rows.push(["Needs", full.needs.map(id => {
+    const dep = (lastBoard?.specs || []).find(x => x.id === id);
+    const st = dep ? dep.status : "missing";
+    return `<code>${esc(id)}</code> <span style="color:${sv(st)}">${(STATUS[st]||{}).ico || "?"} ${esc(st)}</span>`;
+  }).join(" · ")]);
   document.getElementById("dt-truth").innerHTML = `<h4>Derived truth — computed, not editable</h4>` +
     rows.map(([k,v]) => `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");
   detailDlg.showModal();
@@ -500,6 +506,7 @@ function openEditor(spec) {
   document.getElementById("ed-p").value = String(spec?.priority || 0);
   document.getElementById("ed-pts").value = spec?.points || "";
   document.getElementById("ed-ty").value = (spec?.type === "story" ? "" : spec?.type) || "";
+  document.getElementById("ed-nd").value = (spec?.needs || []).join(", ");
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
   setTab(false);
@@ -530,6 +537,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     priority: parseInt(document.getElementById("ed-p").value, 10) || 0,
     points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
     type: document.getElementById("ed-ty").value,
+    needs: document.getElementById("ed-nd").value.split(",").map(x => x.trim()).filter(Boolean),
     body: document.getElementById("ed-b").value,
   };
   try {

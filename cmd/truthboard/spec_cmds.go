@@ -65,6 +65,7 @@ func runSpec(args []string) int {
 	sprint := fs.String("sprint", "", "iteration slug (e.g. s12) — intent, never a status")
 	points := fs.Int("points", 0, "story-point estimate; 0 = unestimated")
 	typ := fs.String("type", "", "story | bug | task (default story)")
+	needsFlag := fs.String("needs", "", "comma-separated spec ids that must land first (e.g. tb-1a2b,tb-3c4d)")
 	repo := fs.String("repo", ".", "repository path")
 	// stdlib flag stops at the first positional arg, so split the title
 	// (everything before the first flag) from the flags ourselves.
@@ -81,19 +82,32 @@ func runSpec(args []string) int {
 		return 2
 	}
 
+	// Validate every intent argument before creating the file, so a typo
+	// never leaves an orphan spec behind.
+	if !spec.ValidType(*typ) {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", spec.ErrType(*typ))
+		return 2
+	}
+	var needs []string
+	if *needsFlag != "" {
+		for _, id := range strings.Split(*needsFlag, ",") {
+			needs = append(needs, strings.TrimSpace(id))
+		}
+		if err := spec.ValidateNeeds(*repo, needs, ""); err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 2
+		}
+	}
 	s, err := spec.New(*repo, title, *owner)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-	if !spec.ValidType(*typ) {
-		fmt.Fprintf(os.Stderr, "truthboard: %v\n", spec.ErrType(*typ))
-		return 2
-	}
-	if *sprint != "" || *points > 0 || *typ != "" {
+	if *sprint != "" || *points > 0 || *typ != "" || len(needs) > 0 {
 		s.Sprint = *sprint
 		s.Points = *points
 		s.Type = *typ
+		s.Needs = needs
 		if err := s.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 			return 1
@@ -133,13 +147,16 @@ func runNext(args []string) int {
 		repo = fs.Arg(0)
 	}
 
-	next, stalled, err := audit.Next(repo)
+	next, stalled, waiting, err := audit.Next(repo)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
 	if next == nil {
-		msg := "nothing is planned — every story has work in flight or landed."
+		msg := "nothing is startable — every story has work in flight or landed."
+		for _, w := range waiting {
+			msg += fmt.Sprintf(" %s waits on %s.", w.ID, strings.Join(w.Waiting, ", "))
+		}
 		if stalled > 0 {
 			msg += fmt.Sprintf(" %d stalled — worth resuming? See truthboard audit.", stalled)
 		}

@@ -69,6 +69,7 @@ type Drift struct {
 	LandedNotDeleted []Unit       `json:"landed_not_deleted"`
 	ShadowWork       []Commit     `json:"shadow_work"`
 	ScopeCreep       []ScopeCreep `json:"scope_creep,omitempty"`
+	DependencyCycles []string     `json:"dependency_cycles,omitempty"` // intent that can never become ready
 }
 
 type Result struct {
@@ -177,6 +178,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 		GeneratedAt:  opts.Now,
 	}
 	linkSpecs(repo, base, res, specs, opts)
+	deriveWaiting(res)
 	attributeDigest(res)
 	rollupSprints(res, sprintIntents, opts.Now)
 	for _, u := range res.Units {

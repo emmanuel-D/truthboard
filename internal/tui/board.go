@@ -363,6 +363,9 @@ func (m model) card(s audit.SpecStatus, width int, selected bool) string {
 	if s.Sprint != "" {
 		tags = append(tags, s.Sprint)
 	}
+	if len(s.Waiting) > 0 {
+		tags = append(tags, "⧗ waits "+strings.Join(s.Waiting, " "))
+	}
 	meta := dim.Render(truncate(strings.Join(tags, " · "), width))
 	card := title + "\n" + meta
 	style := lipgloss.NewStyle().PaddingBottom(1)
@@ -397,6 +400,21 @@ func (m model) viewDetail() string {
 	}
 	if s.AcceptanceTotal > 0 {
 		meta = append(meta, fmt.Sprintf("acceptance: %d/%d signed off", s.AcceptanceDone, s.AcceptanceTotal))
+	}
+	if len(s.Needs) > 0 {
+		status := map[string]audit.Status{}
+		for _, other := range m.res.Specs {
+			status[other.ID] = other.Status
+		}
+		var needs []string
+		for _, id := range s.Needs {
+			st, ok := status[id]
+			if !ok {
+				st = "missing"
+			}
+			needs = append(needs, fmt.Sprintf("%s (%s)", id, st))
+		}
+		meta = append(meta, "needs: "+strings.Join(needs, ", "))
 	}
 	body := wrap(m.detailBody, w)
 	return lipgloss.NewStyle().
