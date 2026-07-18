@@ -5,8 +5,11 @@ owner: emmanuel
 branch: '*/tb-6e13-*'
 paths:
     - internal/web/**
+    - internal/lifecycle/**
+    - internal/audit/**
     - cmd/truthboard/**
     - docs/**
+    - README.md
 epic: po-experience
 priority: 2
 ---

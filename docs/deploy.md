@@ -6,13 +6,14 @@ reach: an EC2 instance, a VPS, a Coolify app. Everyone gets one URL,
 every device with a browser sees the live board, and nobody has to ask
 "what's the status?" in chat.
 
-**The one rule:** a board served beyond loopback is strictly
-**read-only**. There is no auth story yet, so the shared board shows the
-truth and edits nothing — creating and editing stories stays a
-same-machine privilege, from a clone (web UI on localhost, `truthboard
-spec new`, or an agent over MCP). Since statuses are derived from git
-anyway, the shared board loses nothing on the proof side; only intent
-editing stays local.
+**The one rule:** a board served beyond loopback is **read-only by
+default**. The shared board shows the truth and edits nothing — creating
+and editing stories stays a same-machine privilege, from a clone (web UI
+on localhost, `truthboard spec new`, or an agent over MCP). Since
+statuses are derived from git anyway, the shared board loses nothing on
+the proof side. To open intent editing on a shared board — write a story
+from your phone, have your agent pick it up at home — arm an
+[edit token](#editing-from-anywhere-the-edit-token).
 
 Whatever the shape, the server needs exactly three things:
 
@@ -96,6 +97,7 @@ default. Environment knobs:
 | `FETCH` | `60s` | origin poll interval; `0` disables polling (webhook-only) |
 | `TRUTHBOARD_WEBHOOK_SECRET` | — | arm `POST /webhook` for push-triggered refresh |
 | `TRUTHBOARD_NOTIFY_URL` | — | post stalled/regressed transitions to this webhook |
+| `TRUTHBOARD_EDIT_TOKEN` | — | arm token-gated intent editing (see below) |
 
 Extra arguments after the image name are passed through to
 `truthboard ui` (e.g. `docker run … truthboard --forge`).
@@ -165,13 +167,51 @@ location / {
 If SSE is blocked anyway, the board still works — the page falls back to
 its normal refresh cycle; updates are just not instant.
 
+## Editing from anywhere: the edit token
+
+By default a shared board is read-only. Arm it with an edit token —
+`--edit-token <secret>` or `TRUTHBOARD_EDIT_TOKEN` (in Docker/Coolify,
+just set the env var) — and intent editing opens up, gated on that
+token:
+
+- On the board, tap **🔑 unlock** and paste the token once — it is
+  remembered in that browser. Reading never needs it; only writes carry
+  it.
+- Every story you create or edit is **committed to the server's clone
+  and pushed to origin** by the board itself, with a clear
+  `Intent: <title> (<id>) — from the shared board` message. If origin
+  moved in the meantime, the board rebases your edit on top; a real
+  conflict backs out cleanly and tells you to resolve from a clone.
+- A push failure (dead credentials, network) is shown on the page, not
+  buried in a server log — the edit is still committed on the server's
+  clone, so nothing is lost.
+
+**The round trip this buys you:** on the road, open the board on your
+phone, write a story or file a bug. The board pushes it to origin. Back
+at your PC, `git pull` (or your agent's own fetch) brings it in, and
+`truthboard next` — or an agent calling `next_spec` over MCP — picks it
+up as the next thing to build. Idea to agent, zero copy-paste.
+
+Two deployment notes:
+
+- The server clone now needs **push** access: a read-write deploy key,
+  or a token with write scope in `REPO_URL`
+  (`https://x-access-token:<token>@github.com/you/your-project`).
+- Statuses are still derived. The token opens the promise (spec files),
+  never the proof — there remains no route by which a status could be
+  written, from anywhere.
+
+Treat the edit token like the webhook secret: serve the board over TLS
+only, and rotate the token by restarting with a new value.
+
 ## What the shared board can and cannot do
 
 Can: everything read — the kanban board, drift, digest, sprint state,
 card detail, filters; live updates; stalled/regressed notifications via
-`--notify`.
+`--notify`. With an edit token: create and edit stories, landed on
+origin by the board itself.
 
-Cannot: create or edit stories — writes get a `403` explaining that
-intent editing needs a clone. Statuses could never be written from
-anywhere; there is no route by which one could be set. Remote intent
-editing behind an edit token is planned (`tb-6e13`).
+Cannot (without a token): create or edit stories — writes get a `403`
+explaining that intent editing needs a clone. And with or without one:
+statuses could never be written from anywhere; there is no route by
+which one could be set.

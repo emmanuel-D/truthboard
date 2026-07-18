@@ -25,6 +25,7 @@ type State struct {
 	URL     string    `json:"url"`
 	Host    string    `json:"host,omitempty"`
 	Fetch   string    `json:"fetch,omitempty"`
+	Edit    string    `json:"edit,omitempty"` // "token" when intent editing is armed on a shared board
 	Started time.Time `json:"started"`
 }
 
@@ -162,7 +163,7 @@ func Detach(repo string, o web.Options) (*State, error) {
 	}
 	args = append(args, repo)
 	cmd := exec.Command(exe, args...)
-	if o.WebhookSecret != "" || o.NotifyURL != "" {
+	if o.WebhookSecret != "" || o.NotifyURL != "" || o.EditToken != "" {
 		// Through the environment, never argv — secrets (and Slack webhook
 		// URLs are secrets) must not show up in `ps` on a shared box.
 		env := os.Environ()
@@ -171,6 +172,9 @@ func Detach(repo string, o web.Options) (*State, error) {
 		}
 		if o.NotifyURL != "" {
 			env = append(env, "TRUTHBOARD_NOTIFY_URL="+o.NotifyURL)
+		}
+		if o.EditToken != "" {
+			env = append(env, "TRUTHBOARD_EDIT_TOKEN="+o.EditToken)
 		}
 		cmd.Env = env
 	}
@@ -189,6 +193,9 @@ func Detach(repo string, o web.Options) (*State, error) {
 	}
 	if o.FetchEvery > 0 {
 		s.Fetch = o.FetchEvery.String()
+	}
+	if o.Shared() && o.EditToken != "" {
+		s.Edit = "token"
 	}
 	// The parent must not wait on the child, but the child must be
 	// reparented rather than reaped by us.
@@ -268,8 +275,12 @@ func Status(repo string) (string, error) {
 	if s.Fetch != "" {
 		line += " · fetching origin every " + s.Fetch
 	}
-	if (web.Options{Host: s.Host}).ReadOnly() {
-		line += fmt.Sprintf(" · shared on %s (read-only)", s.Host)
+	if (web.Options{Host: s.Host}).Shared() {
+		if s.Edit == "token" {
+			line += fmt.Sprintf(" · shared on %s (intent editing via token)", s.Host)
+		} else {
+			line += fmt.Sprintf(" · shared on %s (read-only)", s.Host)
+		}
 	}
 	return line, nil
 }

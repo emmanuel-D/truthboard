@@ -11,12 +11,14 @@
   <h1>Truthboard <span class="ver" id="ver"></span></h1>
   <span class="live"><span class="dot"></span><span id="updated">connecting…</span></span>
   <button class="btn" id="theme" title="Theme">◐ auto</button>
+  <button class="btn" id="unlock" title="This shared board edits stories with a token" hidden>🔑 unlock</button>
   <button class="btn" id="new-story" style="margin-left:0">+ New story</button>
   <div class="meta" id="meta"></div>
 </header>
 <p class="banner"><b>Statuses: derived from git, never typed.</b> Stories are yours to shape — click a card to read or edit. The promise is editable; the proof is not.</p>
 <div class="dirty" id="dirty" hidden></div>
 <div class="warn" id="sync" hidden></div>
+<div class="warn" id="pusherr" hidden></div>
 <div class="filters">
   <input type="search" id="f-text" placeholder="Filter stories… (title or id)">
   <span id="f-epics"></span>
@@ -82,6 +84,25 @@
       <!-- formnovalidate: Cancel must close even when required fields are empty -->
       <button class="btn" value="cancel" formnovalidate>Cancel</button>
       <button class="btn primary" id="ed-save" value="default">Save story</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- edit token: unlocks intent editing on a shared board -->
+<dialog id="tokendlg">
+  <div class="dhead"><h2>Unlock editing</h2></div>
+  <p class="note">This shared board accepts story edits only with its edit token
+    (set by whoever runs the board). Edits are committed and pushed to origin —
+    your agent picks them up with <code>truthboard next</code>. Statuses stay
+    derived from git either way.</p>
+  <form method="dialog" class="ed">
+    <div class="dbody">
+      <label>Edit token</label>
+      <input id="tk-in" type="password" autocomplete="off" placeholder="paste the board's edit token">
+    </div>
+    <div class="dfoot">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="default">Unlock</button>
     </div>
   </form>
 </dialog>

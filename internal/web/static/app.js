@@ -312,14 +312,46 @@ function ago(iso) {
   return s < 90 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
 }
 
-// A board shared beyond this machine has no auth story, so it shows the
-// truth and edits nothing — the server refuses writes; we hide the doors.
+// A board shared beyond this machine shows the truth and, by default,
+// edits nothing — the server refuses writes; we hide the doors. When the
+// server is armed with an edit token, the doors stay open: writes carry
+// the token and the server lands each edit as a commit pushed to origin.
 let RO = false;
-function setReadOnly(ro) {
-  RO = ro;
-  document.getElementById("new-story").hidden = ro;
-  document.getElementById("dt-edit").hidden = ro;
-  document.getElementById("dt-assign-wrap").hidden = ro;
+let MODE = "rw"; // rw (same machine) · token (shared, token-gated) · ro (shared)
+const TOKEN_KEY = "truthboard-edit-token";
+function authHeaders() {
+  const t = localStorage.getItem(TOKEN_KEY);
+  return MODE === "token" && t ? { "X-Truthboard-Token": t } : {};
+}
+function setMode(mode) {
+  MODE = mode;
+  RO = mode === "ro";
+  document.getElementById("new-story").hidden = RO;
+  document.getElementById("dt-edit").hidden = RO;
+  document.getElementById("dt-assign-wrap").hidden = RO;
+  const unlock = document.getElementById("unlock");
+  unlock.hidden = mode !== "token";
+  if (mode === "token") unlock.textContent = localStorage.getItem(TOKEN_KEY) ? "🔑 unlocked" : "🔑 unlock";
+}
+
+// All intent writes go through here: the token rides along, and a 403 on
+// a token-gated board means "not unlocked yet" — offer the key.
+async function intentFetch(url, opts) {
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), ...authHeaders() } });
+  if (r.status === 403 && MODE === "token") document.getElementById("tokendlg").showModal();
+  return r;
+}
+
+// On a token-armed board the server pushes each edit to origin; a push
+// that failed must be said out loud, not buried in a server log.
+function surfacePush(out) {
+  const el = document.getElementById("pusherr");
+  if (out && out.push_error) {
+    el.hidden = false;
+    el.textContent = "⚠ story saved on the board's clone, but did not reach origin: " + out.push_error;
+  } else {
+    el.hidden = true;
+  }
 }
 
 let last = "";
@@ -334,7 +366,8 @@ async function tick(reschedule = true) {
     const dirtyEl = document.getElementById("dirty");
     dirtyEl.hidden = !dirty;
     if (dirty) dirtyEl.textContent = `● ${dirty} uncommitted intent change${dirty > 1 ? "s" : ""} — review and commit .truthboard/specs like code`;
-    setReadOnly(r.headers.get("X-Truthboard-Readonly") === "1");
+    setMode(r.headers.get("X-Truthboard-Readonly") === "1" ? "ro"
+      : r.headers.get("X-Truthboard-Edit") === "token" ? "token" : "rw");
     // The serving binary's version, so a stale board is visible at a
     // glance (`truthboard update`, then stop && ui --detach).
     const v = r.headers.get("X-Truthboard-Version");
@@ -442,12 +475,13 @@ document.getElementById("dt-assign").addEventListener("change", async e => {
   if (owner === (detailSpec.owner || "")) return;
   const note = document.getElementById("dt-assign-note");
   try {
-    const r = await fetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
+    const r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ owner }),
     });
     if (!r.ok) throw new Error(await r.text());
+    surfacePush(await r.json());
     detailSpec.owner = owner;
     note.textContent = owner ? `assigned to ${owner}` : "unassigned";
     last = ""; // avatars and owner chips pick it up on the next poll
@@ -474,12 +508,13 @@ document.getElementById("dt-md").addEventListener("change", async e => {
   });
   box.disabled = true;
   try {
-    const r = await fetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
+    const r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: newBody }),
     });
     if (!r.ok) throw new Error(await r.text());
+    surfacePush(await r.json());
     detailSpec.body = newBody;
     last = ""; // progress bars pick it up on the next poll
   } catch (err) {
@@ -541,15 +576,30 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     body: document.getElementById("ed-b").value,
   };
   try {
-    const r = await fetch(editingId ? "/api/specs/" + encodeURIComponent(editingId) : "/api/specs", {
+    const r = await intentFetch(editingId ? "/api/specs/" + encodeURIComponent(editingId) : "/api/specs", {
       method: editingId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!r.ok) throw new Error(await r.text());
+    surfacePush(await r.json());
     dlg.close();
     last = ""; // force re-render on next poll
   } catch (err) {
     document.getElementById("ed-err").textContent = err.message;
   }
+});
+
+/* ---------- edit token (shared boards) ---------- */
+const tokendlg = document.getElementById("tokendlg");
+document.getElementById("unlock").addEventListener("click", () => {
+  document.getElementById("tk-in").value = localStorage.getItem(TOKEN_KEY) || "";
+  tokendlg.showModal();
+});
+tokendlg.addEventListener("close", () => {
+  if (tokendlg.returnValue === "cancel") return;
+  const t = document.getElementById("tk-in").value.trim();
+  if (t) localStorage.setItem(TOKEN_KEY, t);
+  else localStorage.removeItem(TOKEN_KEY);
+  setMode(MODE); // refresh the 🔑 label
 });

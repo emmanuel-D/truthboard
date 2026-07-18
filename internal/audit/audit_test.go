@@ -174,6 +174,52 @@ func TestDrift(t *testing.T) {
 	}
 }
 
+func TestShadowWorkExemptsIntentOnlyCommits(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -3))
+
+	// A story written straight to main — backlog grooming, a shared-board
+	// edit — is intent, not work that bypassed the branch flow.
+	specDir := filepath.Join(f.dir, ".truthboard", "specs")
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSpec := func(name string) {
+		if err := os.WriteFile(filepath.Join(specDir, name),
+			[]byte("---\nid: "+name[:7]+"\ntitle: x\n---\n\n## Goal\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeSpec("tb-aaaa-from-the-road.md")
+	f.git("add", "-A")
+	f.gitAt(now.AddDate(0, 0, -1), "commit", "-m", "Intent: from the road (tb-aaaa) — new story from the shared board")
+
+	// Code smuggled into an intent commit is still shadow work.
+	writeSpec("tb-bbbb-second.md")
+	if err := os.WriteFile(filepath.Join(f.dir, "smuggled.go"), []byte("package x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.git("add", "-A")
+	f.gitAt(now.AddDate(0, 0, -1), "commit", "-m", "story plus smuggled code")
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var subjects []string
+	for _, c := range res.Drift.ShadowWork {
+		subjects = append(subjects, c.Subject)
+	}
+	joined := strings.Join(subjects, "\n")
+	if strings.Contains(joined, "from the road") {
+		t.Errorf("intent-only commits must not be shadow work, got:\n%s", joined)
+	}
+	if !strings.Contains(joined, "smuggled code") {
+		t.Errorf("a commit mixing intent and code must stay shadow work, got:\n%s", joined)
+	}
+}
+
 func TestDigestWindow(t *testing.T) {
 	now := time.Now()
 	f := buildStandardFixture(t, now)
