@@ -75,12 +75,25 @@ truthboard link tb-4f2a "hotfix/*"          # fix a linking miss — fixes the i
 ```
 
 A spec is one markdown file (YAML frontmatter + Goal/Acceptance body),
-versioned with your code. Backlog structure is intent too: `epic` groups
-stories, `priority` orders them, and `sprint` (e.g. `--sprint s12`) puts a
-story in an iteration — the audit, reports, and board then show a
-per-sprint rollup (done/total and what's still open, each story's status
-derived as always). There is no sprint status to set and no sprint clock:
-a sprint finishes when its stories land. Linking signals, strongest first: a `Spec: tb-4f2a`
+versioned with your code. Backlog structure is intent too:
+
+- `epic` groups stories, `priority` (1/2/3) orders them, `type` marks a
+  story, `bug`, or `task` (badges and filters follow), and `points` is an
+  optional estimate — sprint and epic rollups then count points done vs
+  planned, with unestimated stories counted distinctly, never as zero.
+- `sprint` (e.g. `--sprint s12`) puts a story in an iteration; the audit,
+  reports, and board show a per-sprint rollup (done/total, points, what's
+  still open). Give a sprint a calendar window with an intent file —
+  `.truthboard/sprints/s12.md` with `start:`/`end:` dates — and its
+  future/active/completed state and days remaining are derived from the
+  dates. There is still no sprint status to set: a sprint finishes when
+  its stories land.
+- `needs: [tb-1a2b]` declares prerequisites. Readiness is derived: a story
+  whose needs haven't all landed is *waiting* (shown on every surface),
+  `truthboard next` skips it, and a dependency cycle is a loud drift
+  finding, never a silent skip.
+
+Linking signals, strongest first: a `Spec: tb-4f2a`
 commit trailer, the id in a branch name, the spec's branch glob. Derived
 statuses: `planned → in-progress → in-review → done` (plus `stalled`), and a
 done spec loudly becomes `regressed` when its landed work is reverted or CI
@@ -98,10 +111,38 @@ claude mcp add truthboard -- truthboard mcp
 ```
 
 Tools: `list_specs`, `get_brief` (the context packet to start work),
-`next_spec` (the highest-priority planned story — an idle agent needs no
-human to pick), `create_spec`, `get_board`. Deliberately absent: any tool
-that sets a status — an agent's work shows up on the board the same way a
-human's does, through commits with the spec trailer.
+`next_spec` (the highest-priority *startable* story — an idle agent needs
+no human to pick, and is never handed a story whose dependencies haven't
+landed), `create_spec`, `update_spec`, `get_board`. Deliberately absent:
+any tool that sets a status — an agent's work shows up on the board the
+same way a human's does, through commits with the spec trailer.
+
+## Terminal board — the same truth, no browser
+
+```sh
+truthboard board
+```
+
+A read-only Bubbletea TUI: kanban columns, arrow/vim navigation, enter
+for a story's goal and acceptance, `e`/`s`/`a` to cycle epic, sprint, and
+owner filters, `d`/`g` for the drift report and digest. Refreshes itself;
+`q` quits. No keybinding writes anything, because there is nothing to set.
+
+## LLM assist — optional, explicit, never a source of truth
+
+With `ANTHROPIC_API_KEY` (Anthropic API) or `OLLAMA_HOST` (local Ollama)
+set — `TRUTHBOARD_LLM_MODEL` overrides the model — two commands light up:
+
+```sh
+truthboard draft "usage-based billing for teams"   # concept → epic of real stories
+truthboard review s12                              # narrated sprint review
+```
+
+`draft` writes fully-formed specs (goal + Given/When/Then acceptance)
+through the same files a human would edit, and refuses placeholder
+stories. `review` narrates a sprint — or the whole digest window — strictly
+from derived facts: the LLM is a writer, never a source. Nothing calls a
+model unless one of these two commands is explicitly invoked.
 
 ## Web board — for the people who used to ask "what's the status?"
 
@@ -110,6 +151,7 @@ truthboard ui              # opens http://127.0.0.1:1337, auto-refreshing
 truthboard ui --forge      # include tracker claims (slower refresh)
 truthboard ui --detach     # keep it running in the background
 truthboard ui --fetch 60s  # poll origin so the board tracks the remote
+truthboard ui --notify <url>  # post stalled/regressed transitions to a webhook
 truthboard status          # is a board running for this repo?
 truthboard stop            # stop the detached board
 ```
@@ -126,8 +168,15 @@ where POs create and refine stories: click a card to edit its title, goal,
 acceptance, epic, and priority. **The promise is editable; the proof is
 not:** intent edits write the markdown spec files (a plain git diff, with
 an uncommitted-changes nudge on the page), while statuses stay computed
-with no route by which anything could set one. Single embedded HTML file
-via go:embed — still one binary.
+with no route by which anything could set one. The page ships as embedded
+static assets via go:embed — still one binary, no build step.
+
+With `--notify` (or `TRUTHBOARD_NOTIFY_URL`), the board also tells people
+when the truth changes for the worse: a story transitioning into
+`stalled` or `regressed` — or recovering back out — posts one
+Slack-compatible message carrying the audit's evidence line. First sight
+is baseline, steady state is silent, and the seen-state lives in `.git/`
+per clone.
 
 ### Multi-machine: a board that tracks the remote
 
@@ -156,6 +205,15 @@ truthboard ui --detach --fetch 60s --host 0.0.0.0 --no-open
 There is no auth story yet, so a board served beyond loopback is strictly
 read-only: it shows the truth; intent editing stays a same-machine (clone)
 privilege. `truthboard status` reports the fetch interval and shared host.
+
+For a board that updates the moment work lands instead of on the next
+poll, arm the push webhook: `--webhook-secret <secret>` (or
+`TRUTHBOARD_WEBHOOK_SECRET`) enables `POST /webhook` — point a GitHub
+(HMAC signature) or GitLab (`X-Gitlab-Token`) push webhook at it and a
+push triggers an immediate fetch + re-derive, with open browsers updating
+instantly over server-sent events. Bad or missing secrets are rejected in
+constant time and logged; the endpoint can only make the board fresher,
+never change what it says.
 
 ## Audit mode — works on any repo, no specs needed
 
@@ -226,8 +284,9 @@ MIT — see [LICENSE](LICENSE).
 
 ## Status
 
-`0.1.0-dev` — the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker built on
+`v0.5.0` — the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker built on
 the [CONCEPT-V2.md](CONCEPT-V2.md) audit engine. The inference logic was
 validated at 100% done-vs-not-done accuracy against GitHub PR state on real
-repos before being ported to Go (CONCEPT-V1 §11). The roadmap lives in
-`.truthboard/specs/` — run `truthboard audit` on this repo to see it.
+repos before being ported to Go (CONCEPT-V1 §11). Truthboard tracks its own
+roadmap in `.truthboard/specs/` — run `truthboard audit` on this repo to
+see the board this README describes, derived live.
