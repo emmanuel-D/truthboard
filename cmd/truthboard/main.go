@@ -182,6 +182,8 @@ func runUI(args []string) int {
 		"arm POST /webhook: a forge push webhook with this secret triggers an immediate fetch (env TRUTHBOARD_WEBHOOK_SECRET)")
 	notify := fs.String("notify", os.Getenv("TRUTHBOARD_NOTIFY_URL"),
 		"post stalled/regressed transitions to this webhook URL (Slack-compatible JSON; env TRUTHBOARD_NOTIFY_URL)")
+	editToken := fs.String("edit-token", os.Getenv("TRUTHBOARD_EDIT_TOKEN"),
+		"arm intent editing on a shared board: requests carrying this token may create/edit stories, and each edit is committed and pushed to origin (env TRUTHBOARD_EDIT_TOKEN)")
 	fs.Parse(args)
 
 	repo := "."
@@ -190,7 +192,7 @@ func runUI(args []string) int {
 	}
 	opts := web.Options{Port: *port, Host: *host, Forge: *useForge,
 		FetchEvery: *fetch, OpenBrowser: !*noOpen, Version: version,
-		WebhookSecret: *webhookSecret, NotifyURL: *notify}
+		WebhookSecret: *webhookSecret, NotifyURL: *notify, EditToken: *editToken}
 	if *detach {
 		state, err := lifecycle.Detach(repo, opts)
 		if err != nil {

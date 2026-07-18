@@ -316,20 +316,33 @@ func classify(repo, base, name string, tip branchTip, opts Options) Unit {
 
 // shadowWork returns non-merge commits landing directly on the integration
 // branch that don't look like a forge merge — work that bypassed any
-// branch/MR flow.
+// branch/MR flow. Commits touching only .truthboard/ are exempt: writing
+// a story is intent, not work — backlog grooming and shared-board edits
+// land directly on the integration branch by design.
 func shadowWork(repo, base string, days int) ([]Commit, error) {
 	out, err := gitrepo.Run(repo, "log", base, "--first-parent", "--no-merges",
-		fmt.Sprintf("--since=%d.days", days), "--format=%h|%cs|%an|%s")
+		fmt.Sprintf("--since=%d.days", days), "--format=%x1e%h|%cs|%an|%s", "--name-only")
 	if err != nil {
 		return nil, err
 	}
 	var commits []Commit
-	for _, line := range strings.Split(out, "\n") {
-		if line == "" {
+	for _, entry := range strings.Split(out, "\x1e") {
+		lines := strings.Split(strings.TrimSpace(entry), "\n")
+		if lines[0] == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "|", 4)
+		parts := strings.SplitN(lines[0], "|", 4)
 		if len(parts) != 4 || mrMergePattern.MatchString(parts[3]) {
+			continue
+		}
+		intentOnly := true
+		for _, f := range lines[1:] {
+			if f = strings.TrimSpace(f); f != "" && !strings.HasPrefix(f, ".truthboard/") {
+				intentOnly = false
+				break
+			}
+		}
+		if intentOnly {
 			continue
 		}
 		commits = append(commits, Commit{Hash: parts[0], Date: parts[1], Author: parts[2], Subject: parts[3]})

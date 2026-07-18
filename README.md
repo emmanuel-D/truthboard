@@ -229,9 +229,15 @@ To give the whole team one URL, bind beyond loopback:
 truthboard ui --detach --fetch 60s --host 0.0.0.0 --no-open
 ```
 
-There is no auth story yet, so a board served beyond loopback is strictly
-read-only: it shows the truth; intent editing stays a same-machine (clone)
-privilege. `truthboard status` reports the fetch interval and shared host.
+A board served beyond loopback is read-only by default: it shows the
+truth; intent editing stays a same-machine (clone) privilege. To write
+stories from anywhere — a phone on the road — arm an edit token
+(`--edit-token` / `TRUTHBOARD_EDIT_TOKEN`): writes carrying the token
+are committed to the server's clone and pushed to origin by the board
+itself, so `git pull && truthboard next` (or an agent's `next_spec`)
+picks them up at home. The token opens the promise, never the proof —
+statuses stay derived. `truthboard status` reports the fetch interval
+and shared host.
 
 For a board that updates the moment work lands instead of on the next
 poll, arm the push webhook: `--webhook-secret <secret>` (or
