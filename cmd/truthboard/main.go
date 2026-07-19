@@ -147,9 +147,7 @@ func runAudit(args []string) int {
 		return 1
 	}
 	if !*noForge {
-		if data, ok := forge.Fetch(repo); ok {
-			audit.EnrichWithForge(res, data, opts)
-		}
+		audit.EnrichWithForges(res, forge.Fetch, opts)
 	}
 
 	switch *format {

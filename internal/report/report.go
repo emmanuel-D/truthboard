@@ -16,6 +16,22 @@ var statusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Stalled
 // Regressed leads: a done that came undone is the loudest thing a board can say.
 var specStatusOrder = []audit.Status{audit.Regressed, audit.InReview, audit.InProgress, audit.Planned, audit.Stalled, audit.Done}
 
+// forgeLabel joins every forge that answered — the hub's and each enriched
+// spoke's. Per-spoke enrichment means claims can exist even when the hub
+// itself has no forge, so the claims sections key off this, not res.Forge.
+func forgeLabel(res *audit.Result) string {
+	var forges []string
+	if res.Forge != "" {
+		forges = append(forges, res.Forge)
+	}
+	for _, r := range res.Workspace {
+		if r.Forge != "" {
+			forges = append(forges, r.Forge)
+		}
+	}
+	return strings.Join(forges, ", ")
+}
+
 var ansi = map[audit.Status]string{
 	audit.Regressed:  "\033[31m",
 	audit.InReview:   "\033[35m",
@@ -149,6 +165,8 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 		for _, r := range res.Workspace {
 			if r.Err != "" {
 				fmt.Fprintf(w, "%s\n", c(ansiRed, "⚠ "+r.Name+": "+r.Err))
+			} else if r.ForgeNote != "" {
+				fmt.Fprintf(w, "%s\n", c(ansiYellow, "◦ "+r.Name+": "+r.ForgeNote))
 			}
 		}
 	}
@@ -263,8 +281,8 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
-	if res.Forge != "" {
-		fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("CLAIMS vs PROOF — tracker: %s", res.Forge)))
+	if forges := forgeLabel(res); forges != "" {
+		fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("CLAIMS vs PROOF — tracker: %s", forges)))
 		if len(res.Claims) == 0 {
 			fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — every tracker claim is backed by the repo"))
 		}
@@ -474,8 +492,8 @@ func Markdown(w io.Writer, res *audit.Result) error {
 		fmt.Fprintf(w, "%s\n\n", strings.Join(names, ", "))
 	}
 
-	if res.Forge != "" {
-		fmt.Fprintf(w, "### Claims vs proof — tracker: `%s`\n\n", res.Forge)
+	if forges := forgeLabel(res); forges != "" {
+		fmt.Fprintf(w, "### Claims vs proof — tracker: `%s`\n\n", forges)
 		if len(res.Claims) == 0 {
 			fmt.Fprintf(w, "✅ Clean — every tracker claim is backed by the repo.\n\n")
 		}

@@ -251,14 +251,17 @@ function drift(b) {
 }
 
 function claims(b) {
-  if (!b.forge) return "";
+  // Per-spoke enrichment means claims can exist even when the hub itself
+  // has no forge — the panel shows whenever any repo's forge answered.
+  const forges = [b.forge, ...(b.workspace || []).map(r => r.forge)].filter(Boolean);
+  if (!forges.length) return "";
   const out = [];
   for (const [kind, [ico, head]] of Object.entries(CLAIM_HEADS)) {
     for (const c of (b.claims || []).filter(x => x.kind === kind).slice(0, 8))
       out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">${ico}</span>
         <span class="what"><b>${esc(c.subject)}</b> ${esc(head)} — ${esc(c.detail)}</span></div>`);
   }
-  return `<section class="panel"><h2>Claims vs proof — ${esc(b.forge)}</h2>
+  return `<section class="panel"><h2>Claims vs proof — ${esc(forges.join(", "))}</h2>
     ${out.length ? out.join("") : `<span class="clean">every tracker claim is backed by the repo</span>`}</section>`;
 }
 
@@ -305,6 +308,8 @@ function render(b) {
     // A spoke the audit cannot see must be loud — a board silently missing
     // a repo would be a board lying about scope.
     if (r.error) html += `<div class="warn">⚠ workspace repo ${esc(r.name)}: ${esc(r.error)}</div>`;
+    // A spoke whose forge stayed dark is a quieter truth: git still speaks.
+    else if (r.forge_note) html += `<div class="warn">◦ workspace repo ${esc(r.name)}: ${esc(r.forge_note)}</div>`;
   }
   html += tiles(b) + kanban(b) + sprintsPanel(b);
   html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
