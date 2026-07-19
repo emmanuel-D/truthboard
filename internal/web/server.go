@@ -263,13 +263,14 @@ type specPayload struct {
 	Points   int      `json:"points"`
 	Type     string   `json:"type"`
 	Needs    []string `json:"needs"`
+	Repos    []string `json:"repos"`
 	Paths    []string `json:"paths"`
 	Body     string   `json:"body"`
 }
 
 func payload(s *spec.Spec) specPayload {
 	return specPayload{ID: s.ID, Title: s.Title, Owner: s.Owner, Branch: s.Branch,
-		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Paths: s.Paths, Body: s.Body}
+		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Repos: s.Repos, Paths: s.Paths, Body: s.Body}
 }
 
 // decodeIntent rejects unknown fields so a "status" in the payload fails
@@ -318,6 +319,7 @@ func specCreate(repo string, invalidate func(), land *committer) http.HandlerFun
 			Points   int      `json:"points"`
 			Type     string   `json:"type"`
 			Needs    []string `json:"needs"`
+			Repos    []string `json:"repos"`
 			Paths    []string `json:"paths"`
 			Body     string   `json:"body"`
 		}
@@ -338,6 +340,10 @@ func specCreate(repo string, invalidate func(), land *committer) http.HandlerFun
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if err := spec.ValidateRepos(repo, in.Repos); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		s, err := spec.New(repo, in.Title, in.Owner)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -346,7 +352,7 @@ func specCreate(repo string, invalidate func(), land *committer) http.HandlerFun
 		if in.Body != "" {
 			s.Body = in.Body
 		}
-		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Needs, in.Paths
+		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Repos, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Needs, in.Repos, in.Paths
 		if err := s.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -379,6 +385,7 @@ func specItem(repo string, invalidate func(), land *committer) http.HandlerFunc 
 			Points   *int      `json:"points"`
 			Type     *string   `json:"type"`
 			Needs    *[]string `json:"needs"`
+			Repos    *[]string `json:"repos"`
 			Paths    *[]string `json:"paths"`
 			Body     *string   `json:"body"`
 		}
@@ -415,6 +422,13 @@ func specItem(repo string, invalidate func(), land *committer) http.HandlerFunc 
 				return
 			}
 			s.Needs = *in.Needs
+		}
+		if in.Repos != nil {
+			if err := spec.ValidateRepos(repo, *in.Repos); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			s.Repos = *in.Repos
 		}
 		if in.Paths != nil {
 			s.Paths = *in.Paths

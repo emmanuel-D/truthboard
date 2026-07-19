@@ -146,7 +146,8 @@ function tiles(b) {
   const active = n("in-progress") + n("in-review");
   const d = b.drift || {};
   const drift = (d.stale_promises?.length||0) + (d.shadow_work?.length||0) +
-                (d.scope_creep?.length||0) + (b.claims?.length||0) + n("regressed");
+                (d.scope_creep?.length||0) + (d.unknown_repos?.length||0) +
+                (b.claims?.length||0) + n("regressed");
   const tile = (num, label, color) =>
     `<div class="tile"><div class="num">${num}</div>
       <div class="lbl"><span class="mark" style="background:${color}"></span>${label}</div></div>`;
@@ -230,13 +231,16 @@ function sprintsPanel(b) {
 function drift(b) {
   const d = b.drift || {};
   const out = [];
+  for (const ur of d.unknown_repos || [])
+    out.push(`<div class="finding"><span class="ico" style="color:var(--regressed, #e5534b)">✗</span>
+      <span class="what"><b>Unknown repo</b> — ${esc(ur)}</span></div>`);
   for (const sc of d.scope_creep || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⇢</span>
       <span class="what"><b>Scope creep</b> — <code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code>:
       ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff outside spec paths (mostly ${esc(sc.top_dirs)})</span></div>`);
   for (const u of d.stale_promises || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⏸</span>
-      <span class="what"><b>Stale promise</b> — <code>${esc(u.name)}</code>: ${esc(u.evidence)}</span></div>`);
+      <span class="what"><b>Stale promise</b> — <code>${esc(unitLabel(u))}</code>: ${esc(u.evidence)}</span></div>`);
   const sw = d.shadow_work || [];
   sw.slice(0, 6).forEach(c => out.push(
     `<div class="finding"><span class="ico" style="color:var(--muted)">∅</span>
@@ -468,6 +472,14 @@ function openDetail(full) {
     const st = dep ? dep.status : "missing";
     return `<code>${esc(id)}</code> <span style="color:${sv(st)}">${(STATUS[st]||{}).ico || "?"} ${esc(st)}</span>`;
   }).join(" · ")]);
+  if (onBoard.per_repo?.length) rows.push(["Repos", onBoard.per_repo.map(r => {
+    const good = r.state === "landed";
+    const bad = r.state === "not-in-workspace" || r.state === "unreadable";
+    const mark = good ? "✓" : bad ? "✗" : "…";
+    const col = good ? "var(--done)" : bad ? "var(--regressed, #e5534b)" : "var(--muted)";
+    const extra = r.sha ? ` <code>${esc(r.sha.slice(0,7))}</code>` : r.branch ? ` <code>${esc(r.branch)}</code>` : "";
+    return `<code>${esc(r.repo)}</code> <span style="color:${col}">${mark} ${esc(r.state)}</span>${extra}`;
+  }).join(" · ")]);
   document.getElementById("dt-truth").innerHTML = `<h4>Derived truth — computed, not editable</h4>` +
     rows.map(([k,v]) => `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");
   detailDlg.showModal();
@@ -555,6 +567,7 @@ function openEditor(spec) {
   document.getElementById("ed-pts").value = spec?.points || "";
   document.getElementById("ed-ty").value = (spec?.type === "story" ? "" : spec?.type) || "";
   document.getElementById("ed-nd").value = (spec?.needs || []).join(", ");
+  document.getElementById("ed-rp").value = (spec?.repos || []).join(", ");
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
   setTab(false);
@@ -586,6 +599,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
     type: document.getElementById("ed-ty").value,
     needs: document.getElementById("ed-nd").value.split(",").map(x => x.trim()).filter(Boolean),
+    repos: document.getElementById("ed-rp").value.split(",").map(x => x.trim()).filter(Boolean),
     body: document.getElementById("ed-b").value,
   };
   try {

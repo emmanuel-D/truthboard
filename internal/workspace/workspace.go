@@ -67,6 +67,9 @@ func Load(hub string) (*Workspace, error) {
 		if !namePattern.MatchString(name) {
 			return nil, fmt.Errorf("%s: repo name %q — names label branches as \"name:branch\", so lowercase letters, digits, . _ - only", File, name)
 		}
+		if name == "hub" {
+			return nil, fmt.Errorf("%s: %q is reserved — it names the repo carrying .truthboard/ in a spec's repos: list", File, name)
+		}
 		if r.Remote == "" && r.Path == "" {
 			return nil, fmt.Errorf("%s: repo %q needs a remote (for the board server to clone) or a path (a local checkout)", File, name)
 		}
