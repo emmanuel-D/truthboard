@@ -137,7 +137,22 @@ picks it up next repeats the loop in the web repo. Both stories flip to
 done purely from git; the epic's rollup shows combined progress the whole
 way. The PO never needed to know there were two repos involved.
 
-## Current limits
+## Forge enrichment per repo
 
-- Forge enrichment (PR states, claims-vs-proof, CI verdicts) applies to the
-  hub only for now; spoke landings are proven by git alone.
+With `--forge` (or without `--no-forge` on `audit`), every repo in the
+workspace is enriched by its *own* forge — gh/glab auto-detect from each
+repo's remote, so a GitHub hub can watch a GitLab spoke:
+
+- A spoke branch with an open PR derives **in-review**, evidence naming
+  the PR and the repo (`api:feature/… — PR #7 open`).
+- Claims-vs-proof runs per repo against that repo's tracker; claim
+  subjects carry the repo name (`api:#12`).
+- Red CI on a spoke landing flips the spec that landed there to
+  **regressed** — including the per-repo landings of `repos:` stories —
+  with the repo named in the evidence.
+- A spoke whose forge is unreachable or unauthenticated keeps its
+  git-only derivation and shows a visible note on the board and in the
+  workspace header — degraded, never silent, never an error.
+
+A spoke branch is only ever matched against its own repo's PRs; a hub PR
+that happens to share a branch name proves nothing about a spoke.

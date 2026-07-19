@@ -92,6 +92,8 @@ type RepoHealth struct {
 	Name        string `json:"name"`
 	Path        string `json:"path,omitempty"`
 	Integration string `json:"integration,omitempty"`
+	Forge       string `json:"forge,omitempty"`      // owner/name when forge data enriched this spoke
+	ForgeNote   string `json:"forge_note,omitempty"` // enrichment ran but this spoke stayed git-only — a note, not an error
 	Err         string `json:"error,omitempty"`
 }
 

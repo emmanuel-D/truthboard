@@ -7,6 +7,9 @@ paths:
     - internal/forge/**
     - internal/audit/**
     - internal/workspace/**
+    - internal/web/**
+    - internal/report/**
+    - cmd/**
     - docs/**
 epic: multi-repo
 priority: 2

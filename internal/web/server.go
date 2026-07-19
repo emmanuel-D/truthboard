@@ -70,9 +70,7 @@ func (c *boardCache) get() ([]byte, error) {
 		return nil, err
 	}
 	if c.useForge {
-		if data, ok := forge.Fetch(c.repo); ok {
-			audit.EnrichWithForge(res, data, audit.Options{})
-		}
+		audit.EnrichWithForges(res, forge.Fetch, audit.Options{})
 	}
 	body, err := json.Marshal(res)
 	if err != nil {
