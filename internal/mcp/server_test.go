@@ -236,3 +236,63 @@ func specFileByID(t *testing.T, repo, id string) string {
 	}
 	return matches[0]
 }
+
+// TestAgentDecomposesCrossRepoStory drives the tb-f515 flow end to end
+// over MCP: in a workspace, an agent splits a fat story into per-repo
+// children under one epic with needs: ordering — and next_spec never hands
+// out the blocked half. repos: validation guards the same path.
+func TestAgentDecomposesCrossRepoStory(t *testing.T) {
+	repo := fixtureRepo(t)
+	if err := os.MkdirAll(filepath.Join(repo, ".truthboard"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := "repos:\n  api:\n    remote: git@example.com:acme/api.git\n"
+	if err := os.WriteFile(filepath.Join(repo, ".truthboard", "workspace.yml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The agent narrows the original into the api half…
+	responses := drive(t, repo,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_spec","arguments":{"id":"tb-mcp1","title":"Reset flow — api half","repos":["api"],"epic":"reset-flow"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_spec","arguments":{"title":"Reset flow — hub half","epic":"reset-flow","needs":["tb-mcp1"],"repos":["hub"],"body":"## Goal\nHub half.\n\n## Acceptance\n\n- [ ] works"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_spec","arguments":{"title":"Bad child","repos":["mobile"]}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"next_spec","arguments":{}}}`,
+	)
+
+	if text, isErr := toolText(t, responses[0]); isErr || !strings.Contains(text, "intent updated") {
+		t.Fatalf("update_spec with repos failed: %.200s (err=%v)", text, isErr)
+	}
+	text, isErr := toolText(t, responses[1])
+	if isErr {
+		t.Fatalf("create_spec child failed: %.200s", text)
+	}
+	var child struct {
+		ID   string `json:"id"`
+		File string `json:"file"`
+	}
+	if err := json.Unmarshal([]byte(text), &child); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(child.File)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"epic: reset-flow", "tb-mcp1", "hub"} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("child spec missing %q:\n%s", want, raw)
+		}
+	}
+
+	// Unknown repo refused before any file exists.
+	if text, isErr := toolText(t, responses[2]); !isErr || !strings.Contains(text, "known repos: hub, api") {
+		t.Errorf("create_spec with unknown repo must fail listing known ones, got %.200s (err=%v)", text, isErr)
+	}
+	if matches, _ := filepath.Glob(filepath.Join(repo, ".truthboard", "specs", "*bad-child*")); len(matches) != 0 {
+		t.Errorf("failed create must not leave an orphan file: %v", matches)
+	}
+
+	// next_spec hands out the api half; the hub half waits on it.
+	if text, isErr := toolText(t, responses[3]); isErr || !strings.Contains(text, "Next up: tb-mcp1") || strings.Contains(text, child.ID+" —") {
+		t.Errorf("next_spec must hand out the unblocked half, got %.200s (err=%v)", text, isErr)
+	}
+}

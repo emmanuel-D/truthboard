@@ -227,3 +227,49 @@ func TestHookWarnsButNeverBlocks(t *testing.T) {
 		}
 	}
 }
+
+// TestAgreementCarriesWorkspaceGuidance: a hub with a workspace manifest
+// gets decomposition guidance in its working agreement; a plain repo never
+// sees it.
+func TestAgreementCarriesWorkspaceGuidance(t *testing.T) {
+	repo := t.TempDir()
+	if _, err := Agents(repo, false); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(repo, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "Multi-repo workspace") {
+		t.Fatal("plain repo must not get workspace guidance")
+	}
+
+	if err := os.MkdirAll(filepath.Join(repo, ".truthboard"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := "repos:\n  api:\n    remote: git@example.com:acme/api.git\n  web:\n    remote: git@example.com:acme/web.git\n"
+	if err := os.WriteFile(filepath.Join(repo, ".truthboard", "workspace.yml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log, err := Agents(repo, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(filepath.Join(repo, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	for _, want := range []string{"Multi-repo workspace", "`api`, `web`", "create_spec", "needs:", "repos: [api, web]", "orphan"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("agreement missing %q", want)
+		}
+	}
+	if strings.Count(got, "## Truthboard working agreement") != 1 {
+		t.Fatal("re-running adopt must replace the block, not duplicate it")
+	}
+	joined := strings.Join(log, "\n")
+	if !strings.Contains(joined, "decomposition guidance (2 workspace repos)") {
+		t.Errorf("adopt log should mention the guidance, got:\n%s", joined)
+	}
+}
