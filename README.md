@@ -350,9 +350,13 @@ MIT — see [LICENSE](LICENSE).
 
 ## Status
 
-`v0.5.0` — the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker built on
-the [CONCEPT-V2.md](CONCEPT-V2.md) audit engine. The inference logic was
-validated at 100% done-vs-not-done accuracy against GitHub PR state on real
-repos before being ported to Go (CONCEPT-V1 §11). Truthboard tracks its own
-roadmap in `.truthboard/specs/` — run `truthboard audit` on this repo to
-see the board this README describes, derived live.
+`v0.6.0` released (deployable shared board: Dockerfile, edit-token remote
+intent editing); multi-repo workspaces — one board over N repositories,
+with `repos:` cross-repo done semantics — landed on `main` and ship with
+the next tag. Built as the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven
+tracker on the [CONCEPT-V2.md](CONCEPT-V2.md) audit engine; the inference
+logic was validated at 100% done-vs-not-done accuracy against GitHub PR
+state on real repos before being ported to Go (CONCEPT-V1 §11).
+Truthboard tracks its own roadmap in `.truthboard/specs/` — run
+`truthboard audit` on this repo to see the board this README describes,
+derived live.
