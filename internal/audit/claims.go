@@ -46,6 +46,11 @@ func EnrichWithForge(res *Result, data *forge.Data, opts Options) {
 	unitHasTicket := map[string]bool{}
 	for i := range res.Units {
 		u := &res.Units[i]
+		// Forge data describes the hub repo only; matching a spoke branch
+		// against a hub PR of the same name would be a false claim.
+		if u.Repo != "" {
+			continue
+		}
 		pr, ok := prByHead[u.Name]
 		if !ok {
 			continue
@@ -103,7 +108,8 @@ func EnrichWithForge(res *Result, data *forge.Data, opts Options) {
 	if data.Checks != nil {
 		for i := range res.Specs {
 			ss := &res.Specs[i]
-			if ss.Status != Done || ss.Landed == "" {
+			// A landing in a spoke cannot be checked against the hub's CI.
+			if ss.Status != Done || ss.Landed == "" || ss.LandedRepo != "" {
 				continue
 			}
 			if state, ok := data.Checks(ss.Landed); ok && state == "failure" {
@@ -114,7 +120,7 @@ func EnrichWithForge(res *Result, data *forge.Data, opts Options) {
 	}
 
 	for _, u := range res.Units {
-		if u.Status == Done || u.SpecID != "" || unitHasTicket[u.Name] || evidence.unitRefs[u.Name] {
+		if u.Repo != "" || u.Status == Done || u.SpecID != "" || unitHasTicket[u.Name] || evidence.unitRefs[u.Name] {
 			continue
 		}
 		res.Claims = append(res.Claims, Claim{
@@ -157,7 +163,7 @@ func collectIssueEvidence(repo, base string, units []Unit, skip map[string]bool,
 	}
 
 	for _, u := range units {
-		if u.Status == Done || skip[u.Name] {
+		if u.Repo != "" || u.Status == Done || skip[u.Name] {
 			continue
 		}
 		out, ok := gitrepo.Try(repo, "log", "-n", "200", base+".."+u.Tip, "--format=%s %b%x00")

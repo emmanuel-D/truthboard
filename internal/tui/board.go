@@ -432,11 +432,11 @@ func (m model) viewDrift() string {
 	}
 	section("Stale promises — work that stopped without landing", len(d.StalePromises))
 	for _, u := range d.StalePromises {
-		fmt.Fprintf(&b, "  %s  %s\n", u.Name, dim.Render(u.Evidence))
+		fmt.Fprintf(&b, "  %s  %s\n", u.Label(), dim.Render(u.Evidence))
 	}
 	section("Landed but branch not deleted", len(d.LandedNotDeleted))
 	for _, u := range d.LandedNotDeleted {
-		fmt.Fprintf(&b, "  %s\n", u.Name)
+		fmt.Fprintf(&b, "  %s\n", u.Label())
 	}
 	section("Shadow work — commits outside any branch/MR flow", len(d.ShadowWork))
 	for i, c := range d.ShadowWork {

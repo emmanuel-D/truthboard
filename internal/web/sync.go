@@ -12,17 +12,28 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
 
 // syncer keeps origin fresh and reports exactly how fresh it managed to be.
 type syncer struct {
 	repo  string
 	every time.Duration
+
+	// Workspace spokes: name labels this repo in headers, remoteURL arms
+	// self-healing (a missing clone dir is mirror-cloned on the next step),
+	// and proofOnly skips the working-tree fast-forward — a mirror has no
+	// working tree, and a declared spoke checkout is someone else's; proof
+	// (refs) is all the board needs from either.
+	name      string
+	remoteURL string
+	proofOnly bool
 
 	mu       sync.Mutex
 	stepping sync.Mutex // held while a webhook-kicked step runs, to coalesce storms
@@ -50,13 +61,31 @@ func (s *syncer) kick() {
 }
 
 // step fetches, then fast-forwards the checkout only when that is provably
-// harmless: clean working tree, sitting on the integration branch.
+// harmless: clean working tree, sitting on the integration branch. A spoke
+// whose managed clone does not exist yet is cloned first — the sync loop is
+// the one place allowed to mutate, so this is where clones are born.
 func (s *syncer) step() {
+	if s.remoteURL != "" {
+		if _, statErr := os.Stat(s.repo); statErr != nil {
+			if err := os.MkdirAll(filepath.Dir(s.repo), 0o755); err != nil {
+				s.set(func() { s.err = oneLine(err.Error()) })
+				return
+			}
+			if _, err := gitMutate(filepath.Dir(s.repo), "clone", "--mirror", s.remoteURL, s.repo); err != nil {
+				s.set(func() { s.err = oneLine(err.Error()) })
+				return
+			}
+		}
+	}
 	if _, err := gitMutate(s.repo, "fetch", "--prune", "--quiet", "origin"); err != nil {
 		s.set(func() { s.err = oneLine(err.Error()) })
 		return
 	}
 	s.set(func() { s.at, s.err = time.Now(), "" })
+	if s.proofOnly {
+		s.set(func() { s.note = "" })
+		return
+	}
 	s.set(func() { s.note = s.fastForward() })
 }
 
@@ -104,6 +133,100 @@ func (s *syncer) headers(h http.Header) {
 	}
 	if s.note != "" {
 		h.Set("X-Truthboard-Sync-Note", s.note)
+	}
+}
+
+// syncGroup fans the sync loop out over a workspace: the hub plus one
+// syncer per declared spoke. With no manifest it is a group of one and
+// behaves exactly like the single syncer always has.
+type syncGroup struct {
+	members []*syncer
+}
+
+// newSyncGroup builds the hub syncer plus one per resolvable spoke. A spoke
+// with a live local checkout is fetched in place; one with only a remote
+// gets a managed mirror clone under the hub's git dir, created lazily by
+// its own sync step. Manifest errors are not swallowed here so much as
+// deferred: the audit reports them on the board itself.
+func newSyncGroup(hub string, every time.Duration) *syncGroup {
+	g := &syncGroup{members: []*syncer{{repo: hub, every: every}}}
+	ws, err := workspace.Load(hub)
+	if err != nil || ws == nil {
+		return g
+	}
+	for _, r := range ws.Repos {
+		s := &syncer{name: r.Name, every: every, proofOnly: true}
+		if path, err := ws.Resolve(r); err == nil && path != workspace.CloneDir(hub, r.Name) {
+			s.repo = path // declared checkout: fetch it, never touch its tree
+		} else {
+			if r.Remote == "" {
+				continue // path-only spoke that doesn't exist: audit reports it
+			}
+			s.repo, s.remoteURL = workspace.CloneDir(hub, r.Name), r.Remote
+		}
+		g.members = append(g.members, s)
+	}
+	return g
+}
+
+func (g *syncGroup) run() {
+	for _, m := range g.members {
+		go m.run()
+	}
+}
+
+func (g *syncGroup) kick() {
+	for _, m := range g.members {
+		m.kick()
+	}
+}
+
+// headers reports sync freshness for the whole workspace. The At header is
+// the OLDEST member fetch — and is omitted entirely while any member has
+// never fetched — so a stale or missing spoke can never hide behind a fresh
+// hub. Errors and notes carry the spoke's name.
+func (g *syncGroup) headers(h http.Header) {
+	if len(g.members) == 1 {
+		g.members[0].headers(h)
+		return
+	}
+	h.Set("X-Truthboard-Sync-Every", fmt.Sprint(int(g.members[0].every.Seconds())))
+	oldest := time.Time{}
+	allFetched := true
+	var errs, notes []string
+	for _, m := range g.members {
+		m.mu.Lock()
+		at, err, note := m.at, m.err, m.note
+		m.mu.Unlock()
+		label := func(s string) string {
+			if m.name == "" {
+				return s
+			}
+			return m.name + ": " + s
+		}
+		if at.IsZero() {
+			allFetched = false
+			if err == "" {
+				notes = append(notes, label("not fetched yet"))
+			}
+		} else if oldest.IsZero() || at.Before(oldest) {
+			oldest = at
+		}
+		if err != "" {
+			errs = append(errs, label(err))
+		}
+		if note != "" {
+			notes = append(notes, label(note))
+		}
+	}
+	if allFetched && !oldest.IsZero() {
+		h.Set("X-Truthboard-Sync-At", oldest.UTC().Format(time.RFC3339))
+	}
+	if len(errs) > 0 {
+		h.Set("X-Truthboard-Sync-Err", strings.Join(errs, "; "))
+	}
+	if len(notes) > 0 {
+		h.Set("X-Truthboard-Sync-Note", strings.Join(notes, "; "))
 	}
 }
 

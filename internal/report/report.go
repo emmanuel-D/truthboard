@@ -57,6 +57,15 @@ func backlogTag(s audit.SpecStatus) string {
 	return " · " + strings.Join(parts, " · ")
 }
 
+// commitTag renders "api: " in front of a commit that landed in a
+// workspace spoke; hub commits stay unprefixed.
+func commitTag(cm audit.Commit) string {
+	if cm.Repo == "" {
+		return ""
+	}
+	return cm.Repo + ": "
+}
+
 // sprintPoints renders " · 5/13 pts (2 unestimated)" when the sprint has
 // estimated stories; empty otherwise so point-free repos see no change.
 func sprintPoints(sp audit.SprintRollup) string {
@@ -127,6 +136,22 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	if res.ElectionNote != "" {
 		fmt.Fprintf(w, "%s\n", c(ansiYellow, "⚠ "+res.ElectionNote))
 	}
+	if len(res.Workspace) > 0 {
+		fmt.Fprintf(w, "workspace:")
+		for _, r := range res.Workspace {
+			if r.Err == "" {
+				fmt.Fprintf(w, " %s (%s)", c(ansiCyan, r.Name), r.Integration)
+			} else {
+				fmt.Fprintf(w, " %s", c(ansiRed, r.Name+" ✗"))
+			}
+		}
+		fmt.Fprintln(w)
+		for _, r := range res.Workspace {
+			if r.Err != "" {
+				fmt.Fprintf(w, "%s\n", c(ansiRed, "⚠ "+r.Name+": "+r.Err))
+			}
+		}
+	}
 
 	if len(res.Specs) > 0 {
 		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "SPEC BOARD (intent from .truthboard/specs — status derived, never typed)"))
@@ -166,8 +191,8 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	fmt.Fprintf(w, "\n%s\n", c(ansiBold, "DERIVED BOARD (no human ever set these statuses)"))
 	width := 10
 	for _, u := range res.Units {
-		if len(u.Name) > width {
-			width = len(u.Name)
+		if len(u.Label()) > width {
+			width = len(u.Label())
 		}
 	}
 	width += 2
@@ -180,7 +205,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			shown++
 			fmt.Fprintf(w, "  %s %-*s %s\n",
 				c(ansi[st], fmt.Sprintf("%-12s", strings.ToUpper(string(st)))),
-				width, u.Name, c(ansiDim, u.Evidence))
+				width, u.Label(), c(ansiDim, u.Evidence))
 			for _, f := range u.Flags {
 				fmt.Fprintf(w, "  %12s %-*s %s\n", "", width, "", c(ansiYellow, "⚠ "+f))
 			}
@@ -195,13 +220,13 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	if len(d.StalePromises) > 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Stale promises (%d): work that stopped without landing", len(d.StalePromises))))
 		for _, u := range d.StalePromises {
-			fmt.Fprintf(w, "    - %s: %s\n", u.Name, u.Evidence)
+			fmt.Fprintf(w, "    - %s: %s\n", u.Label(), u.Evidence)
 		}
 	}
 	if len(d.LandedNotDeleted) > 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiDim, fmt.Sprintf("  Landed but branch not deleted (%d):", len(d.LandedNotDeleted))))
 		for _, u := range d.LandedNotDeleted {
-			fmt.Fprintf(w, "    - %s\n", u.Name)
+			fmt.Fprintf(w, "    - %s\n", u.Label())
 		}
 	}
 	if len(d.ShadowWork) > 0 {
@@ -212,7 +237,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 				fmt.Fprintf(w, "      … and %d more\n", len(d.ShadowWork)-15)
 				break
 			}
-			fmt.Fprintf(w, "    - %s %s %s: %s\n", cm.Date, cm.Hash, cm.Author, truncate(cm.Subject, 70))
+			fmt.Fprintf(w, "    - %s%s %s %s: %s\n", commitTag(cm), cm.Date, cm.Hash, cm.Author, truncate(cm.Subject, 70))
 		}
 	}
 	if len(d.DependencyCycles) > 0 {
@@ -311,7 +336,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "  … and %d more\n", other-20)
 			break
 		}
-		fmt.Fprintf(w, "  %s %s\n", cm.Date, truncate(cm.Subject, 80))
+		fmt.Fprintf(w, "  %s %s%s\n", cm.Date, commitTag(cm), truncate(cm.Subject, 80))
 		shown++
 	}
 	if len(res.Digest) == 0 {
@@ -386,7 +411,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 				if len(u.Flags) > 0 {
 					evidence += " — ⚠ " + strings.Join(u.Flags, "; ")
 				}
-				fmt.Fprintf(w, "| %s | `%s` | %s |\n", u.Status, u.Name, evidence)
+				fmt.Fprintf(w, "| %s | `%s` | %s |\n", u.Status, u.Label(), evidence)
 			}
 		}
 		fmt.Fprintln(w)
@@ -415,7 +440,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 	if len(d.StalePromises) > 0 {
 		fmt.Fprintf(w, "**Stale promises (%d)** — work that stopped without landing:\n\n", len(d.StalePromises))
 		for _, u := range d.StalePromises {
-			fmt.Fprintf(w, "- `%s` — %s\n", u.Name, u.Evidence)
+			fmt.Fprintf(w, "- `%s` — %s\n", u.Label(), u.Evidence)
 		}
 		fmt.Fprintln(w)
 	}
@@ -423,7 +448,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 		fmt.Fprintf(w, "**Shadow work (%d)** — commits on `%s` outside any branch/MR flow (last %dd):\n\n",
 			len(d.ShadowWork), res.Integration, res.DigestDays)
 		for _, cm := range d.ShadowWork {
-			fmt.Fprintf(w, "- %s `%s` %s: %s\n", cm.Date, cm.Hash, cm.Author, cm.Subject)
+			fmt.Fprintf(w, "- %s%s `%s` %s: %s\n", commitTag(cm), cm.Date, cm.Hash, cm.Author, cm.Subject)
 		}
 		fmt.Fprintln(w)
 	}
@@ -431,7 +456,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 		fmt.Fprintf(w, "**Landed but branch not deleted (%d):** ", len(d.LandedNotDeleted))
 		names := make([]string, len(d.LandedNotDeleted))
 		for i, u := range d.LandedNotDeleted {
-			names[i] = "`" + u.Name + "`"
+			names[i] = "`" + u.Label() + "`"
 		}
 		fmt.Fprintf(w, "%s\n\n", strings.Join(names, ", "))
 	}

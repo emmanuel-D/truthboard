@@ -258,10 +258,14 @@ function claims(b) {
     ${out.length ? out.join("") : `<span class="clean">every tracker claim is backed by the repo</span>`}</section>`;
 }
 
+// unitLabel prefixes a branch with its workspace repo — api:feature/… —
+// the same label the audit uses in evidence strings.
+function unitLabel(u) { return u.repo ? `${u.repo}:${u.name}` : u.name; }
+
 function branches(b) {
   if (!b.units?.length) return "";
   const rows = UNIT_ORDER.map(st => b.units.filter(u => u.status === st).map(u =>
-    `<div class="r">${chip(u.status)}<code>${esc(u.name)}</code>
+    `<div class="r">${chip(u.status)}<code>${esc(unitLabel(u))}</code>
      <span class="ev2">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`
   ).join("")).join("");
   return `<section class="panel"><h2>Branches</h2><div class="rows">${rows}</div></section>`;
@@ -275,7 +279,7 @@ function digest(b) {
       <span style="color:var(--done)">✓</span>
       <span><b>${esc(s.title)}</b> ${typeTag(s.type)} <span style="color:var(--muted)"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
   const rest = (b.digest || []).filter(c => !c.spec).slice(0, 12).map(c =>
-    `<div class="r"><time>${esc(c.date)}</time><span class="ev2">${esc(c.subject)}</span></div>`).join("");
+    `<div class="r"><time>${esc(c.date)}</time><span class="ev2">${c.repo ? `<code>${esc(c.repo)}</code> ` : ""}${esc(c.subject)}</span></div>`).join("");
   const divider = shipped && rest ? `<div class="r"><span class="ev2" style="font-size:.7rem">also landed</span></div>` : "";
   return `<section class="panel digest"><h2>Landed in the last ${b.digest_days} days</h2>
     <div class="rows">${(shipped + divider + rest) || `<span class="ev2">nothing landed</span>`}</div></section>`;
@@ -284,11 +288,20 @@ function digest(b) {
 function render(b) {
   lastBoard = b;
   const repoLabel = b.forge || (b.repo || "").split("/").filter(Boolean).pop() || b.repo;
-  document.getElementById("meta").textContent =
-    `${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`;
+  let meta = `${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`;
+  if (b.workspace?.length) {
+    const spokes = b.workspace.map(r => r.error ? `${r.name} ✗` : r.name).join(", ");
+    meta += ` · workspace: ${spokes}`;
+  }
+  document.getElementById("meta").textContent = meta;
   syncFilterChips(b);
   let html = "";
   if (b.election_note) html += `<div class="warn">⚠ ${esc(b.election_note)}</div>`;
+  for (const r of b.workspace || []) {
+    // A spoke the audit cannot see must be loud — a board silently missing
+    // a repo would be a board lying about scope.
+    if (r.error) html += `<div class="warn">⚠ workspace repo ${esc(r.name)}: ${esc(r.error)}</div>`;
+  }
   html += tiles(b) + kanban(b) + sprintsPanel(b);
   html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
   html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
