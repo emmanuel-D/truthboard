@@ -154,6 +154,7 @@ func tools() []toolDef {
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; omit for unestimated"},
 				"type":     map[string]any{"type": "string", "description": "story | bug | task (default story)"},
 				"needs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Spec ids that must be done before this starts; readiness is derived"},
+				"repos":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Workspace repos this story must land in (\"hub\" or spoke names); done requires the trailer landed in every one"},
 				"repo":     repoProp,
 			}, "title"),
 		},
@@ -173,6 +174,7 @@ func tools() []toolDef {
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; 0 clears it"},
 				"type":     map[string]any{"type": "string", "description": "story | bug | task; empty string resets to story"},
 				"needs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Full replacement needs list; empty array clears it"},
+				"repos":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Full replacement repos list (\"hub\" or spoke names); empty array clears it"},
 				"repo":     repoProp,
 			}, "id"),
 		},
@@ -292,6 +294,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Points   int      `json:"points"`
 			Type     string   `json:"type"`
 			Needs    []string `json:"needs"`
+			Repos    []string `json:"repos"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -307,6 +310,9 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if err := spec.ValidateNeeds(orDefault(a.Repo, defaultRepo), a.Needs, ""); err != nil {
 			return "", err
 		}
+		if err := spec.ValidateRepos(orDefault(a.Repo, defaultRepo), a.Repos); err != nil {
+			return "", err
+		}
 		s, err := spec.New(orDefault(a.Repo, defaultRepo), a.Title, a.Owner)
 		if err != nil {
 			return "", err
@@ -314,7 +320,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if a.Body != "" {
 			s.Body = a.Body
 		}
-		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type, a.Needs
+		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Repos = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type, a.Needs, a.Repos
 		if err := s.Save(); err != nil {
 			return "", err
 		}
@@ -341,6 +347,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Points   *int      `json:"points"`
 			Type     *string   `json:"type"`
 			Needs    *[]string `json:"needs"`
+			Repos    *[]string `json:"repos"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -381,6 +388,12 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 				return "", err
 			}
 			s.Needs = *a.Needs
+		}
+		if a.Repos != nil {
+			if err := spec.ValidateRepos(repo, *a.Repos); err != nil {
+				return "", err
+			}
+			s.Repos = *a.Repos
 		}
 		if err := s.Save(); err != nil {
 			return "", err

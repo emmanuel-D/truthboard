@@ -82,6 +82,7 @@ type Drift struct {
 	ShadowWork       []Commit     `json:"shadow_work"`
 	ScopeCreep       []ScopeCreep `json:"scope_creep,omitempty"`
 	DependencyCycles []string     `json:"dependency_cycles,omitempty"` // intent that can never become ready
+	UnknownRepos     []string     `json:"unknown_repos,omitempty"`     // repos: intent naming repos the workspace doesn't declare
 }
 
 // RepoHealth is one workspace spoke as the audit saw it. A spoke that could

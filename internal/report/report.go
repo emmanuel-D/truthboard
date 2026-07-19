@@ -246,6 +246,12 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "    - %s\n", cy)
 		}
 	}
+	if len(d.UnknownRepos) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiRed, fmt.Sprintf("  Unknown repos (%d): repos: intent naming repos the workspace does not declare", len(d.UnknownRepos))))
+		for _, ur := range d.UnknownRepos {
+			fmt.Fprintf(w, "    - %s\n", ur)
+		}
+	}
 	if len(d.ScopeCreep) > 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Scope creep (%d): linked work drifting outside declared spec paths", len(d.ScopeCreep))))
 		for _, sc := range d.ScopeCreep {
@@ -253,7 +259,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 				sc.SpecID, sc.Branch, 100*sc.Outside/sc.Total, sc.Outside, sc.Total, sc.TopDirs)
 		}
 	}
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 {
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
@@ -419,13 +425,20 @@ func Markdown(w io.Writer, res *audit.Result) error {
 
 	d := res.Drift
 	fmt.Fprintf(w, "### Drift\n\n")
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 {
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 {
 		fmt.Fprintf(w, "✅ Clean — the board matches reality.\n\n")
 	}
 	if len(d.DependencyCycles) > 0 {
 		fmt.Fprintf(w, "**Dependency cycles (%d)** — intent that can never become ready:\n\n", len(d.DependencyCycles))
 		for _, cy := range d.DependencyCycles {
 			fmt.Fprintf(w, "- %s\n", cy)
+		}
+		fmt.Fprintln(w)
+	}
+	if len(d.UnknownRepos) > 0 {
+		fmt.Fprintf(w, "**Unknown repos (%d)** — repos: intent naming repos the workspace does not declare:\n\n", len(d.UnknownRepos))
+		for _, ur := range d.UnknownRepos {
+			fmt.Fprintf(w, "- %s\n", ur)
 		}
 		fmt.Fprintln(w)
 	}

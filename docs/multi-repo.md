@@ -69,10 +69,46 @@ agreement is the same one `truthboard adopt` writes: get the brief, work on a
 branch containing the spec id, end every commit with the `Spec:` trailer —
 in whichever repo the work belongs.
 
+## Stories that must land in several repos
+
+Git cannot prove the absence of work it never knew was intended: without
+declared intent, a story touching `api` and `web` looks done the moment its
+trailer lands in `api`. When a story genuinely must land in more than one
+repo, declare it:
+
+```yaml
+repos: [api, web]      # or include the hub itself: [hub, api]
+```
+
+`hub` is a reserved name for the repo carrying `.truthboard/`; spokes go by
+their manifest names. With `repos:` declared:
+
+- **Done requires all of them** — the trailer landed on the integration
+  branch of every declared repo.
+- **Evidence is per-repo chips**, so a partial landing says exactly what is
+  missing: `api ✓ landed · web — no branch yet`. A stalled or in-flight
+  branch in the missing repo shows as such, and active work anywhere still
+  outranks landings.
+- **A revert in any declared repo regresses the story**, evidence naming
+  the repo.
+- **Unknown names fail loudly**: every write path (CLI, MCP, web editor)
+  validates against the manifest, and a hand-edited spec naming an
+  undeclared repo becomes a drift finding (`Unknown repos`) — it can never
+  derive done.
+
+### Declare `repos:`, or split the story?
+
+`repos:` is the mechanism; per-repo decomposition is often the better
+practice. One spec per provable landing — `tb-1234` (api half) and
+`tb-77ab` (web half) under the same epic, ordered with `needs:` — keeps
+every status maximally honest and lets each half ship, review, and regress
+on its own. Reach for `repos:` when the story is genuinely one promise
+that is only true once every repo has it (a lockstep protocol change, a
+coordinated rename); reach for splitting when the halves have independent
+value or different owners. An agent picking up a fat cross-repo brief can
+do the splitting itself over MCP (`create_spec` + `needs:`).
+
 ## Current limits
 
 - Forge enrichment (PR states, claims-vs-proof, CI verdicts) applies to the
   hub only for now; spoke landings are proven by git alone.
-- A spec is done when its trailer lands in *any* repo of the workspace.
-  Declaring that a story must land in *several* repos (`repos:` intent with
-  per-repo evidence) is the next story on the board: `tb-c512`.

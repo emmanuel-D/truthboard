@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emmanuel-D/truthboard/internal/workspace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +30,7 @@ type Spec struct {
 	Points   int      `yaml:"points,omitempty" json:"points,omitempty"`     // estimate (story points); 0 = unestimated
 	Type     string   `yaml:"type,omitempty" json:"type,omitempty"`         // story | bug | task; empty means story
 	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`       // spec ids that must be done before this starts; readiness is derived
+	Repos    []string `yaml:"repos,omitempty" json:"repos,omitempty"`       // workspace repos this story must land in ("hub" or spoke names); done requires all of them
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter
 	File string `yaml:"-" json:"-"`
@@ -73,6 +75,45 @@ func ValidateNeeds(repo string, needs []string, self string) error {
 		if !known[need] {
 			return fmt.Errorf("needs %q: no such spec — known ids: %s", need, strings.Join(ids, ", "))
 		}
+	}
+	return nil
+}
+
+// HubRepo is the reserved name a spec's repos: list uses for the hub — the
+// repo carrying .truthboard/ itself. Spokes get their manifest names; the
+// hub is not in the manifest, so it needs this one word.
+const HubRepo = "hub"
+
+// ValidateRepos checks a spec's repos: list against the workspace manifest:
+// every entry must be "hub" or a declared spoke. Git cannot prove the
+// absence of work in a repo it has never heard of, so an unknown name here
+// would make the spec underivable — it fails loudly at write time instead.
+func ValidateRepos(repo string, repos []string) error {
+	if len(repos) == 0 {
+		return nil
+	}
+	ws, err := workspace.Load(repo)
+	if err != nil {
+		return err
+	}
+	if ws == nil {
+		return fmt.Errorf("repos: declared but this repo has no %s — declare the workspace first", workspace.File)
+	}
+	names := []string{HubRepo}
+	known := map[string]bool{HubRepo: true}
+	for _, r := range ws.Repos {
+		known[r.Name] = true
+		names = append(names, r.Name)
+	}
+	seen := map[string]bool{}
+	for _, r := range repos {
+		if !known[r] {
+			return fmt.Errorf("repos %q: not in the workspace — known repos: %s", r, strings.Join(names, ", "))
+		}
+		if seen[r] {
+			return fmt.Errorf("repos %q: listed twice", r)
+		}
+		seen[r] = true
 	}
 	return nil
 }

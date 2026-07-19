@@ -142,3 +142,186 @@ func TestWorkspaceScopeCreepRepoPrefix(t *testing.T) {
 		t.Fatal("https:// must not parse as a repo prefix")
 	}
 }
+
+func writeSpecRepos(t *testing.T, repo, id, title string, repos []string) {
+	t.Helper()
+	dir := filepath.Join(repo, ".truthboard", "specs")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nid: " + id + "\ntitle: " + title + "\nrepos:\n"
+	for _, r := range repos {
+		content += "    - " + r + "\n"
+	}
+	content += "---\n\n## Goal\nTest.\n"
+	if err := os.WriteFile(filepath.Join(dir, id+"-test.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDeclaredReposPartialLandingIsNeverDone: repos: [hub, api] with only
+// the hub landed derives in-progress with per-repo chips — git can now see
+// that the api half was promised and is missing.
+func TestDeclaredReposPartialLandingIsNeverDone(t *testing.T) {
+	now := time.Now()
+
+	spoke := newFixture(t)
+	spoke.commit("chore: init api", now.AddDate(0, 0, -10))
+
+	hub := newFixture(t)
+	hub.commit("chore: init hub", now.AddDate(0, 0, -10))
+	hub.git("checkout", "-b", "feature/tb-dddd-hub-half")
+	hub.commit("feat: hub half\n\nSpec: tb-dddd", now.AddDate(0, 0, -2))
+	hub.git("checkout", "main")
+	hub.gitAt(now.AddDate(0, 0, -2), "merge", "--no-ff",
+		"-m", "Merge branch 'feature/tb-dddd-hub-half'", "feature/tb-dddd-hub-half")
+	hub.git("branch", "-D", "feature/tb-dddd-hub-half")
+	writeSpecRepos(t, hub.dir, "tb-dddd", "Cross-repo story", []string{"hub", "api"})
+	writeWorkspace(t, hub.dir, "repos:\n  api:\n    path: "+spoke.dir+"\n    integration: main\n")
+
+	res, err := Audit(hub.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := specByID(t, res, "tb-dddd")
+	if s.Status != InProgress {
+		t.Fatalf("partial landing must derive in-progress, got %s (%s)", s.Status, s.Evidence)
+	}
+	if !strings.Contains(s.Evidence, "hub ✓ landed") || !strings.Contains(s.Evidence, "api — no branch yet") {
+		t.Fatalf("evidence must chip per repo, got %q", s.Evidence)
+	}
+	if len(s.PerRepo) != 2 || s.PerRepo[0].State != "landed" || s.PerRepo[1].State != "missing" {
+		t.Fatalf("per_repo wrong: %+v", s.PerRepo)
+	}
+	if s.LandedRepo != "" || s.Landed == "" {
+		t.Fatalf("hub landing must fill Landed with LandedRepo empty, got %q/%q", s.Landed, s.LandedRepo)
+	}
+
+	// Landing the api half flips it done.
+	spoke.git("checkout", "-b", "feature/tb-dddd-api-half")
+	spoke.commit("feat: api half\n\nSpec: tb-dddd", now.AddDate(0, 0, -1))
+	spoke.git("checkout", "main")
+	spoke.gitAt(now.AddDate(0, 0, -1), "merge", "--no-ff",
+		"-m", "Merge branch 'feature/tb-dddd-api-half'", "feature/tb-dddd-api-half")
+	spoke.git("branch", "-D", "feature/tb-dddd-api-half")
+
+	res, err = Audit(hub.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = specByID(t, res, "tb-dddd")
+	if s.Status != Done {
+		t.Fatalf("all declared repos landed must derive done, got %s (%s)", s.Status, s.Evidence)
+	}
+	if !strings.Contains(s.Evidence, "hub ✓ landed") || !strings.Contains(s.Evidence, "api ✓ landed") {
+		t.Fatalf("done evidence must show both chips, got %q", s.Evidence)
+	}
+}
+
+// TestDeclaredReposStalledBranchShows: the missing repo's branch state
+// drives the spec status when nothing is active.
+func TestDeclaredReposStalledBranchShows(t *testing.T) {
+	now := time.Now()
+
+	spoke := newFixture(t)
+	spoke.commit("chore: init api", now.AddDate(0, 0, -40))
+	spoke.git("checkout", "-b", "feature/tb-eeee-api")
+	spoke.commit("feat: went quiet", now.AddDate(0, 0, -30))
+	spoke.git("checkout", "main")
+
+	hub := newFixture(t)
+	hub.commit("chore: init hub", now.AddDate(0, 0, -10))
+	writeSpecRepos(t, hub.dir, "tb-eeee", "Story", []string{"api"})
+	writeWorkspace(t, hub.dir, "repos:\n  api:\n    path: "+spoke.dir+"\n    integration: main\n")
+
+	res, err := Audit(hub.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := specByID(t, res, "tb-eeee")
+	if s.Status != Stalled {
+		t.Fatalf("stalled branch in the declared repo must derive stalled, got %s (%s)", s.Status, s.Evidence)
+	}
+	if !strings.Contains(s.Evidence, "api — stalled (feature/tb-eeee-api)") {
+		t.Fatalf("evidence must name the stalled branch, got %q", s.Evidence)
+	}
+}
+
+// TestDeclaredReposUnknownRepoIsLoud: a repos: entry the workspace doesn't
+// declare is a drift finding and keeps the spec from deriving done even
+// when everything else landed.
+func TestDeclaredReposUnknownRepoIsLoud(t *testing.T) {
+	now := time.Now()
+
+	spoke := newFixture(t)
+	spoke.commit("chore: init api", now.AddDate(0, 0, -10))
+
+	hub := newFixture(t)
+	hub.commit("chore: init hub", now.AddDate(0, 0, -10))
+	hub.git("checkout", "-b", "feature/tb-ffff-hub")
+	hub.commit("feat: hub work\n\nSpec: tb-ffff", now.AddDate(0, 0, -2))
+	hub.git("checkout", "main")
+	hub.gitAt(now.AddDate(0, 0, -2), "merge", "--no-ff",
+		"-m", "Merge branch 'feature/tb-ffff-hub'", "feature/tb-ffff-hub")
+	hub.git("branch", "-D", "feature/tb-ffff-hub")
+	writeSpecRepos(t, hub.dir, "tb-ffff", "Story", []string{"hub", "mobile"})
+	writeWorkspace(t, hub.dir, "repos:\n  api:\n    path: "+spoke.dir+"\n    integration: main\n")
+
+	res, err := Audit(hub.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := specByID(t, res, "tb-ffff")
+	if s.Status == Done {
+		t.Fatalf("a spec requiring an unknown repo must never derive done, got %s", s.Status)
+	}
+	if !strings.Contains(s.Evidence, "mobile ✗ not in workspace") {
+		t.Fatalf("evidence must flag the unknown repo, got %q", s.Evidence)
+	}
+	if len(res.Drift.UnknownRepos) != 1 || !strings.Contains(res.Drift.UnknownRepos[0], "tb-ffff") {
+		t.Fatalf("unknown repo must be a drift finding, got %v", res.Drift.UnknownRepos)
+	}
+}
+
+// TestDeclaredReposRevertInSpokeRegresses: a revert in any declared repo
+// flips a done spec to regressed, evidence naming the repo.
+func TestDeclaredReposRevertInSpokeRegresses(t *testing.T) {
+	now := time.Now()
+
+	spoke := newFixture(t)
+	spoke.commit("chore: init api", now.AddDate(0, 0, -10))
+	spoke.git("checkout", "-b", "feature/tb-abab-api")
+	spoke.commit("feat: api work\n\nSpec: tb-abab", now.AddDate(0, 0, -3))
+	spoke.git("checkout", "main")
+	spoke.gitAt(now.AddDate(0, 0, -3), "merge", "--no-ff",
+		"-m", "Merge branch 'feature/tb-abab-api'", "feature/tb-abab-api")
+	spoke.git("branch", "-D", "feature/tb-abab-api")
+
+	hub := newFixture(t)
+	hub.commit("chore: init hub", now.AddDate(0, 0, -10))
+	writeSpecRepos(t, hub.dir, "tb-abab", "Story", []string{"api"})
+	writeWorkspace(t, hub.dir, "repos:\n  api:\n    path: "+spoke.dir+"\n    integration: main\n")
+
+	res, err := Audit(hub.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := specByID(t, res, "tb-abab"); s.Status != Done {
+		t.Fatalf("precondition: spec should be done, got %s (%s)", s.Status, s.Evidence)
+	}
+
+	sha := spoke.git("log", "--grep", "Spec: tb-abab", "--format=%H", "-n", "1", "main")
+	spoke.gitAt(now, "revert", "--no-edit", "-m", "1", sha)
+
+	res, err = Audit(hub.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := specByID(t, res, "tb-abab")
+	if s.Status != Regressed {
+		t.Fatalf("revert in the declared spoke must regress, got %s (%s)", s.Status, s.Evidence)
+	}
+	if !strings.HasPrefix(s.Evidence, "api: ") {
+		t.Fatalf("regression evidence must name the repo, got %q", s.Evidence)
+	}
+}

@@ -273,8 +273,13 @@ board server mirror-clones and fetch-syncs each spoke, branches render as
 `api:feature/tb-1234-…`, and a `Spec:` trailer landing on a spoke's
 integration branch flips the story to done exactly like a hub landing —
 while active work in *any* repo outranks a landing in another. A spoke
-the audit cannot see is a loud finding, never a silent omission. Details
-in [docs/multi-repo.md](docs/multi-repo.md).
+the audit cannot see is a loud finding, never a silent omission.
+
+A story that must land in several repos declares it — `repos: [api, web]`
+(`hub` names the hub itself) — and is done only when the trailer landed in
+every one, with per-repo evidence in the meantime: `api ✓ landed · web —
+no branch yet`. A revert in any declared repo regresses it. Details in
+[docs/multi-repo.md](docs/multi-repo.md).
 
 ## Audit mode — works on any repo, no specs needed
 

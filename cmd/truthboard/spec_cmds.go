@@ -66,6 +66,7 @@ func runSpec(args []string) int {
 	points := fs.Int("points", 0, "story-point estimate; 0 = unestimated")
 	typ := fs.String("type", "", "story | bug | task (default story)")
 	needsFlag := fs.String("needs", "", "comma-separated spec ids that must land first (e.g. tb-1a2b,tb-3c4d)")
+	reposFlag := fs.String("repos", "", "comma-separated workspace repos this story must land in (\"hub\" or spoke names); done requires all of them")
 	repo := fs.String("repo", ".", "repository path")
 	// stdlib flag stops at the first positional arg, so split the title
 	// (everything before the first flag) from the flags ourselves.
@@ -98,16 +99,27 @@ func runSpec(args []string) int {
 			return 2
 		}
 	}
+	var repos []string
+	if *reposFlag != "" {
+		for _, r := range strings.Split(*reposFlag, ",") {
+			repos = append(repos, strings.TrimSpace(r))
+		}
+		if err := spec.ValidateRepos(*repo, repos); err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 2
+		}
+	}
 	s, err := spec.New(*repo, title, *owner)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-	if *sprint != "" || *points > 0 || *typ != "" || len(needs) > 0 {
+	if *sprint != "" || *points > 0 || *typ != "" || len(needs) > 0 || len(repos) > 0 {
 		s.Sprint = *sprint
 		s.Points = *points
 		s.Type = *typ
 		s.Needs = needs
+		s.Repos = repos
 		if err := s.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 			return 1

@@ -20,27 +20,38 @@ const (
 // priority are carried through so agents and boards can order the backlog
 // without re-reading spec files.
 type SpecStatus struct {
-	ID         string   `json:"id"`
-	Title      string   `json:"title"`
-	Owner      string   `json:"owner,omitempty"`
-	Epic       string   `json:"epic,omitempty"`
-	Sprint     string   `json:"sprint,omitempty"`
-	Priority   int      `json:"priority,omitempty"`
-	Points     int      `json:"points,omitempty"`
-	Type       string   `json:"type,omitempty"`
-	Needs      []string `json:"needs,omitempty"`   // declared prerequisites (intent)
-	Waiting    []string `json:"waiting,omitempty"` // the subset of needs not yet done — derived
-	Status     Status   `json:"status"`
-	Evidence   string   `json:"evidence"`
-	Branches   []string `json:"branches,omitempty"`
-	Landed     string   `json:"landed,omitempty"`      // newest trailer commit reachable from the integration branch
-	LandedRepo string   `json:"landed_repo,omitempty"` // workspace repo the landing commit is in; empty means the hub
-	File       string   `json:"file"`
+	ID         string        `json:"id"`
+	Title      string        `json:"title"`
+	Owner      string        `json:"owner,omitempty"`
+	Epic       string        `json:"epic,omitempty"`
+	Sprint     string        `json:"sprint,omitempty"`
+	Priority   int           `json:"priority,omitempty"`
+	Points     int           `json:"points,omitempty"`
+	Type       string        `json:"type,omitempty"`
+	Needs      []string      `json:"needs,omitempty"`   // declared prerequisites (intent)
+	Waiting    []string      `json:"waiting,omitempty"` // the subset of needs not yet done — derived
+	Repos      []string      `json:"repos,omitempty"`   // declared required repos (intent, from frontmatter)
+	Status     Status        `json:"status"`
+	Evidence   string        `json:"evidence"`
+	Branches   []string      `json:"branches,omitempty"`
+	Landed     string        `json:"landed,omitempty"`      // newest trailer commit reachable from the integration branch
+	LandedRepo string        `json:"landed_repo,omitempty"` // workspace repo the landing commit is in; empty means the hub
+	PerRepo    []RepoLanding `json:"per_repo,omitempty"`    // derived state per declared repo, in declaration order
+	File       string        `json:"file"`
 
 	// Acceptance progress, counted from "- [ ]"/"- [x]" checkboxes in the
 	// spec body — intent-side detail for boards, no file read needed there.
 	AcceptanceDone  int `json:"acceptance_done,omitempty"`
 	AcceptanceTotal int `json:"acceptance_total,omitempty"`
+}
+
+// RepoLanding is one declared repo's derived state for a spec with repos:
+// intent — the board's per-repo evidence chip, structured.
+type RepoLanding struct {
+	Repo   string `json:"repo"`             // "hub" or a spoke name, as declared
+	State  string `json:"state"`            // landed | in-review | in-progress | stalled | missing | unreadable | not-in-workspace
+	SHA    string `json:"sha,omitempty"`    // landing commit when state is landed
+	Branch string `json:"branch,omitempty"` // strongest live branch otherwise
 }
 
 var checkboxPattern = regexp.MustCompile(`(?m)^\s*[-*] \[([ xX])\]`)
@@ -87,15 +98,20 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
 				}
 			}
 		}
-		landedLabel := ""
-		for _, ctx := range ctxs {
-			if sha := landingCommit(ctx.path, ctx.base, s); sha != "" {
-				ss.Landed, ss.LandedRepo = sha, ctx.name
-				landedLabel = ctx.label(ctx.base)
-				break
+		if len(s.Repos) > 0 {
+			ss.Repos = s.Repos
+			ss.Status, ss.Evidence = deriveDeclaredRepos(byName, s, &ss, linked, res)
+		} else {
+			landedLabel := ""
+			for _, ctx := range ctxs {
+				if sha := landingCommit(ctx.path, ctx.base, s); sha != "" {
+					ss.Landed, ss.LandedRepo = sha, ctx.name
+					landedLabel = ctx.label(ctx.base)
+					break
+				}
 			}
+			ss.Status, ss.Evidence = deriveSpecStatus(byName, linked, ss.Landed != "", landedLabel)
 		}
-		ss.Status, ss.Evidence = deriveSpecStatus(byName, linked, ss.Landed != "", landedLabel)
 
 		// A done spec must loudly regress when its landed work is reverted —
 		// in whichever repo it landed or was undone.
@@ -346,6 +362,126 @@ func regressionEvidence(repo string, s *spec.Spec, reverts []revertInfo) (string
 		}
 	}
 	return "", false
+}
+
+// deriveDeclaredRepos derives status for a spec that declares repos:
+// intent — done requires the trailer landed on the integration branch of
+// EVERY declared repo; git cannot prove the absence of work it never knew
+// was intended, so this is the one place multi-repo runs on declared
+// intent. Evidence is per-repo chips ("api ✓ landed · web — no branch
+// yet") — a partially landed story must say exactly what is missing, never
+// a mute in-progress. A declared repo the workspace doesn't know is a
+// drift finding and keeps the spec from ever deriving done.
+func deriveDeclaredRepos(byName map[string]repoCtx, s *spec.Spec, ss *SpecStatus, linked []*Unit, res *Result) (Status, string) {
+	unreadable := map[string]bool{}
+	for _, h := range res.Workspace {
+		if h.Err != "" {
+			unreadable[h.Name] = true
+		}
+	}
+	// Strongest live unit per repo: in-review > in-progress > stalled.
+	strength := map[Status]int{InReview: 3, InProgress: 2, Stalled: 1}
+	strongest := map[string]*Unit{}
+	for _, u := range linked {
+		if cur := strongest[u.Repo]; strength[u.Status] > 0 && (cur == nil || strength[u.Status] > strength[cur.Status]) {
+			strongest[u.Repo] = u
+		}
+	}
+
+	declared := map[string]bool{}
+	landedAll, landedAny := true, false
+	var chips []string
+	for _, name := range s.Repos {
+		key := name // internal ctx key: hub is ""
+		if name == spec.HubRepo {
+			key = ""
+		}
+		declared[key] = true
+		ctx, ok := byName[key]
+		if !ok {
+			landedAll = false
+			if unreadable[name] {
+				chips = append(chips, name+" ✗ unreadable")
+				ss.PerRepo = append(ss.PerRepo, RepoLanding{Repo: name, State: "unreadable"})
+			} else {
+				res.Drift.UnknownRepos = append(res.Drift.UnknownRepos,
+					fmt.Sprintf("%s declares repos: %q — not in the workspace manifest", s.ID, name))
+				chips = append(chips, name+" ✗ not in workspace")
+				ss.PerRepo = append(ss.PerRepo, RepoLanding{Repo: name, State: "not-in-workspace"})
+			}
+			continue
+		}
+		if sha := landingCommit(ctx.path, ctx.base, s); sha != "" {
+			landedAny = true
+			chips = append(chips, name+" ✓ landed")
+			ss.PerRepo = append(ss.PerRepo, RepoLanding{Repo: name, State: "landed", SHA: sha})
+			// Landed/LandedRepo keep single-landing consumers working (CI
+			// checks run only against a hub landing).
+			if name == spec.HubRepo {
+				ss.Landed, ss.LandedRepo = sha, ""
+			} else if ss.Landed == "" {
+				ss.Landed, ss.LandedRepo = sha, name
+			}
+			continue
+		}
+		landedAll = false
+		if u := strongest[key]; u != nil {
+			chips = append(chips, fmt.Sprintf("%s — %s (%s)", name, u.Status, u.Name))
+			ss.PerRepo = append(ss.PerRepo, RepoLanding{Repo: name, State: string(u.Status), Branch: u.Name})
+		} else {
+			chips = append(chips, name+" — no branch yet")
+			ss.PerRepo = append(ss.PerRepo, RepoLanding{Repo: name, State: "missing"})
+		}
+	}
+	evidence := strings.Join(chips, " · ")
+
+	// Live work anywhere — declared or not — still outranks landings; a
+	// branch moving in an undeclared repo is prefixed so the chips don't
+	// hide it.
+	var review, active, stalled *Unit
+	for _, u := range linked {
+		switch u.Status {
+		case InReview:
+			if review == nil {
+				review = u
+			}
+		case InProgress:
+			if active == nil {
+				active = u
+			}
+		case Stalled:
+			if stalled == nil {
+				stalled = u
+			}
+		}
+	}
+	prefix := ""
+	if lead := review; lead != nil || active != nil {
+		if lead == nil {
+			lead = active
+		}
+		if !declared[lead.Repo] {
+			prefix = fmt.Sprintf("%s — %s · ", lead.Label(), lead.Evidence)
+		}
+	}
+
+	switch {
+	case review != nil:
+		return InReview, prefix + evidence
+	case active != nil:
+		return InProgress, prefix + evidence
+	case landedAll:
+		if stalled != nil {
+			evidence += fmt.Sprintf(" — but %s still has unmerged commits", stalled.Label())
+		}
+		return Done, evidence
+	case stalled != nil:
+		return Stalled, evidence
+	case landedAny:
+		return InProgress, evidence
+	default:
+		return Planned, evidence
+	}
 }
 
 // deriveSpecStatus rolls linked-branch statuses up to the spec.

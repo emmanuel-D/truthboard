@@ -438,6 +438,10 @@ func (m model) viewDrift() string {
 	for _, u := range d.LandedNotDeleted {
 		fmt.Fprintf(&b, "  %s\n", u.Label())
 	}
+	section("Unknown repos — repos: intent the workspace does not declare", len(d.UnknownRepos))
+	for _, ur := range d.UnknownRepos {
+		fmt.Fprintf(&b, "  %s\n", ur)
+	}
 	section("Shadow work — commits outside any branch/MR flow", len(d.ShadowWork))
 	for i, c := range d.ShadowWork {
 		if i == 12 {
