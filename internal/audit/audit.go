@@ -13,6 +13,7 @@ import (
 
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"github.com/emmanuel-D/truthboard/internal/spec"
+	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
 
 type Status string
@@ -35,6 +36,7 @@ var mrMergePattern = regexp.MustCompile(`(?i)see merge request|merge branch|merg
 
 type Unit struct {
 	Name       string    `json:"name"`
+	Repo       string    `json:"repo,omitempty"` // workspace repo name; empty means the hub
 	Tip        string    `json:"tip"`
 	LastCommit time.Time `json:"last_commit"`
 	Status     Status    `json:"status"`
@@ -45,8 +47,18 @@ type Unit struct {
 	SpecID     string    `json:"spec,omitempty"` // set when linked to a .truthboard spec
 }
 
+// Label is the unit's display name: branch name, repo-prefixed when the
+// branch lives in a workspace spoke — `api:feature/tb-1234-…`.
+func (u Unit) Label() string {
+	if u.Repo == "" {
+		return u.Name
+	}
+	return u.Repo + ":" + u.Name
+}
+
 type Commit struct {
 	Hash    string `json:"hash"`
+	Repo    string `json:"repo,omitempty"` // workspace repo name; empty means the hub
 	Date    string `json:"date"`
 	Author  string `json:"author,omitempty"`
 	Subject string `json:"subject"`
@@ -72,11 +84,22 @@ type Drift struct {
 	DependencyCycles []string     `json:"dependency_cycles,omitempty"` // intent that can never become ready
 }
 
+// RepoHealth is one workspace spoke as the audit saw it. A spoke that could
+// not be read carries the reason — the board must say "I cannot see api",
+// never silently show a board that omits it.
+type RepoHealth struct {
+	Name        string `json:"name"`
+	Path        string `json:"path,omitempty"`
+	Integration string `json:"integration,omitempty"`
+	Err         string `json:"error,omitempty"`
+}
+
 type Result struct {
 	Repo         string         `json:"repo"`
 	Integration  string         `json:"integration_branch"`
 	ElectedVia   string         `json:"elected_via"`
 	ElectionNote string         `json:"election_note,omitempty"`
+	Workspace    []RepoHealth   `json:"workspace,omitempty"` // declared spokes, healthy or not
 	Units        []Unit         `json:"units"`
 	Drift        Drift          `json:"drift"`
 	Digest       []Commit       `json:"digest"`
@@ -114,7 +137,29 @@ func (o Options) normalized() Options {
 	return o
 }
 
-// Audit runs the full read-only analysis of repo.
+// repoCtx is one auditable repository: the hub (name "") or a resolved
+// workspace spoke. Everything proof-side takes a ctx, never a bare path,
+// so evidence always knows which repo it came from.
+type repoCtx struct {
+	name string // "" for the hub
+	path string
+	base string // integration ref within that repo
+}
+
+// label prefixes s with the repo name — "origin/main" stays itself in the
+// hub, becomes "api:main" in a spoke.
+func (c repoCtx) label(s string) string {
+	if c.name == "" {
+		return s
+	}
+	return c.name + ":" + strings.TrimPrefix(s, "origin/")
+}
+
+// Audit runs the full read-only analysis of repo. When repo carries a
+// workspace manifest it is the hub: intent (specs) is read here, proof is
+// additionally gathered from every resolvable spoke, and spokes that cannot
+// be read are reported loudly in Result.Workspace rather than skipped in
+// silence.
 func Audit(repo string, opts Options) (*Result, error) {
 	opts = opts.normalized()
 
@@ -126,13 +171,131 @@ func Audit(repo string, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	base := integrationRef(repo, elected)
+	hub := repoCtx{path: repo, base: integrationRef(repo, elected)}
+
+	res := &Result{
+		Repo:         repo,
+		Integration:  hub.base,
+		ElectedVia:   via,
+		ElectionNote: note,
+		StaleDays:    opts.StaleDays,
+		DigestDays:   opts.DigestDays,
+		GeneratedAt:  opts.Now,
+	}
+
+	ctxs := []repoCtx{hub}
+	ws, err := workspace.Load(repo)
+	if err != nil {
+		return nil, err
+	}
+	if ws != nil {
+		for _, r := range ws.Repos {
+			health := RepoHealth{Name: r.Name}
+			ctx, err := openSpoke(ws, r)
+			if err != nil {
+				health.Err = err.Error()
+			} else {
+				health.Path, health.Integration = ctx.path, ctx.base
+				ctxs = append(ctxs, ctx)
+			}
+			res.Workspace = append(res.Workspace, health)
+		}
+	}
+
+	for _, ctx := range ctxs {
+		units, err := repoUnits(ctx, elected, opts)
+		if err != nil {
+			return nil, err
+		}
+		res.Units = append(res.Units, units...)
+
+		shadow, err := shadowWork(ctx.path, ctx.base, opts.DigestDays)
+		if err != nil {
+			return nil, err
+		}
+		for i := range shadow {
+			shadow[i].Repo = ctx.name
+		}
+		res.Drift.ShadowWork = append(res.Drift.ShadowWork, shadow...)
+
+		dig, err := digest(ctx.path, ctx.base, opts.DigestDays)
+		if err != nil {
+			return nil, err
+		}
+		for i := range dig {
+			dig[i].Repo = ctx.name
+		}
+		res.Digest = append(res.Digest, dig...)
+	}
+
+	specs, err := spec.Load(repo)
+	if err != nil {
+		return nil, err
+	}
+	sprintIntents, err := spec.LoadSprints(repo)
+	if err != nil {
+		return nil, err
+	}
+
+	linkSpecs(ctxs, res, specs, opts)
+	deriveWaiting(res)
+	attributeDigest(res)
+	rollupSprints(res, sprintIntents, opts.Now)
+	for _, u := range res.Units {
+		switch u.Status {
+		case Stalled:
+			res.Drift.StalePromises = append(res.Drift.StalePromises, u)
+		case Done:
+			res.Drift.LandedNotDeleted = append(res.Drift.LandedNotDeleted, u)
+		}
+	}
+	return res, nil
+}
+
+// openSpoke resolves a declared spoke into an auditable context. The
+// manifest's integration field wins when set (a mirror clone has no
+// origin/HEAD to hint from); otherwise the same activity election as the
+// hub applies.
+func openSpoke(ws *workspace.Workspace, r workspace.Repo) (repoCtx, error) {
+	path, err := ws.Resolve(r)
+	if err != nil {
+		return repoCtx{}, err
+	}
+	if r.Integration != "" {
+		base := integrationRef(path, r.Integration)
+		if _, ok := gitrepo.Try(path, "rev-parse", "--verify", base); !ok {
+			return repoCtx{}, fmt.Errorf("declared integration branch %q not found", r.Integration)
+		}
+		return repoCtx{name: r.Name, path: path, base: base}, nil
+	}
+	branches, err := collectBranches(path)
+	if err != nil {
+		return repoCtx{}, err
+	}
+	elected, _, _, err := electIntegration(path, branches)
+	if err != nil {
+		return repoCtx{}, err
+	}
+	return repoCtx{name: r.Name, path: path, base: integrationRef(path, elected)}, nil
+}
+
+// repoUnits classifies every work branch of one repo. hubElected is only
+// consulted for the hub itself; a spoke filters on its own base name.
+func repoUnits(ctx repoCtx, hubElected string, opts Options) ([]Unit, error) {
+	branches, err := collectBranches(ctx.path)
+	if err != nil {
+		return nil, err
+	}
+	elected := hubElected
+	if ctx.name != "" {
+		elected = strings.TrimPrefix(ctx.base, "origin/")
+	}
 
 	// A branch whose tip IS the integration tip has no work of its own —
 	// it's a freshly cut branch, not a merged one, and must not read as
 	// done (nor as anything else: intent without commits is the spec's
 	// planned state, not the branch board's business).
-	baseSHA, _ := gitrepo.Try(repo, "rev-parse", base)
+	baseSHA, _ := gitrepo.Try(ctx.path, "rev-parse", ctx.base)
 
 	names := make([]string, 0, len(branches))
 	for name := range branches {
@@ -145,52 +308,11 @@ func Audit(repo string, opts Options) (*Result, error) {
 
 	units := make([]Unit, 0, len(names))
 	for _, name := range names {
-		units = append(units, classify(repo, base, name, branches[name], opts))
+		u := classify(ctx.path, ctx.base, name, branches[name], opts)
+		u.Repo = ctx.name
+		units = append(units, u)
 	}
-
-	specs, err := spec.Load(repo)
-	if err != nil {
-		return nil, err
-	}
-	sprintIntents, err := spec.LoadSprints(repo)
-	if err != nil {
-		return nil, err
-	}
-
-	shadow, err := shadowWork(repo, base, opts.DigestDays)
-	if err != nil {
-		return nil, err
-	}
-	dig, err := digest(repo, base, opts.DigestDays)
-	if err != nil {
-		return nil, err
-	}
-
-	res := &Result{
-		Repo:         repo,
-		Integration:  base,
-		ElectedVia:   via,
-		ElectionNote: note,
-		Units:        units,
-		Digest:       dig,
-		StaleDays:    opts.StaleDays,
-		DigestDays:   opts.DigestDays,
-		GeneratedAt:  opts.Now,
-	}
-	linkSpecs(repo, base, res, specs, opts)
-	deriveWaiting(res)
-	attributeDigest(res)
-	rollupSprints(res, sprintIntents, opts.Now)
-	for _, u := range res.Units {
-		switch u.Status {
-		case Stalled:
-			res.Drift.StalePromises = append(res.Drift.StalePromises, u)
-		case Done:
-			res.Drift.LandedNotDeleted = append(res.Drift.LandedNotDeleted, u)
-		}
-	}
-	res.Drift.ShadowWork = shadow
-	return res, nil
+	return units, nil
 }
 
 // collectBranches gathers local and origin branches, deduplicated by short

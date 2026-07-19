@@ -136,14 +136,14 @@ func Handler(repo string, o Options) http.Handler {
 	}
 	cache := &boardCache{repo: repo, useForge: o.Forge, interval: interval}
 
-	var remote *syncer
+	var remote *syncGroup
 	if o.FetchEvery > 0 {
-		remote = &syncer{repo: repo, every: o.FetchEvery}
+		remote = newSyncGroup(repo, o.FetchEvery)
 		go remote.run()
 	} else if o.WebhookSecret != "" {
-		// Webhook-only mode: the syncer exists so a push can fetch, but
+		// Webhook-only mode: the syncers exist so a push can fetch, but
 		// nothing polls — the webhook is the clock.
-		remote = &syncer{repo: repo}
+		remote = newSyncGroup(repo, 0)
 	}
 
 	live := newBroadcaster()

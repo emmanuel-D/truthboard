@@ -20,21 +20,22 @@ const (
 // priority are carried through so agents and boards can order the backlog
 // without re-reading spec files.
 type SpecStatus struct {
-	ID       string   `json:"id"`
-	Title    string   `json:"title"`
-	Owner    string   `json:"owner,omitempty"`
-	Epic     string   `json:"epic,omitempty"`
-	Sprint   string   `json:"sprint,omitempty"`
-	Priority int      `json:"priority,omitempty"`
-	Points   int      `json:"points,omitempty"`
-	Type     string   `json:"type,omitempty"`
-	Needs    []string `json:"needs,omitempty"`   // declared prerequisites (intent)
-	Waiting  []string `json:"waiting,omitempty"` // the subset of needs not yet done — derived
-	Status   Status   `json:"status"`
-	Evidence string   `json:"evidence"`
-	Branches []string `json:"branches,omitempty"`
-	Landed   string   `json:"landed,omitempty"` // newest trailer commit reachable from the integration branch
-	File     string   `json:"file"`
+	ID         string   `json:"id"`
+	Title      string   `json:"title"`
+	Owner      string   `json:"owner,omitempty"`
+	Epic       string   `json:"epic,omitempty"`
+	Sprint     string   `json:"sprint,omitempty"`
+	Priority   int      `json:"priority,omitempty"`
+	Points     int      `json:"points,omitempty"`
+	Type       string   `json:"type,omitempty"`
+	Needs      []string `json:"needs,omitempty"`   // declared prerequisites (intent)
+	Waiting    []string `json:"waiting,omitempty"` // the subset of needs not yet done — derived
+	Status     Status   `json:"status"`
+	Evidence   string   `json:"evidence"`
+	Branches   []string `json:"branches,omitempty"`
+	Landed     string   `json:"landed,omitempty"`      // newest trailer commit reachable from the integration branch
+	LandedRepo string   `json:"landed_repo,omitempty"` // workspace repo the landing commit is in; empty means the hub
+	File       string   `json:"file"`
 
 	// Acceptance progress, counted from "- [ ]"/"- [x]" checkboxes in the
 	// spec body — intent-side detail for boards, no file read needed there.
@@ -54,13 +55,18 @@ func acceptanceProgress(body string) (done, total int) {
 	return done, total
 }
 
-// linkSpecs matches every spec against repo reality and appends derived
-// spec statuses to the result. Linking signals, strongest first: a
-// "Spec: <id>" commit trailer, the id appearing in a branch name, the
-// spec's branch glob.
-func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) {
-	var reverts []revertInfo
-	revertsLoaded := false
+// linkSpecs matches every spec against repo reality — the hub and every
+// resolvable spoke — and appends derived spec statuses to the result.
+// Linking signals, strongest first: a "Spec: <id>" commit trailer, the id
+// appearing in a branch name, the spec's branch glob. The id namespace is
+// global because intent is central, so the same signals work unchanged in
+// every repo.
+func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
+	byName := map[string]repoCtx{}
+	for _, ctx := range ctxs {
+		byName[ctx.name] = ctx
+	}
+	reverts := map[string][]revertInfo{}
 
 	for i := range specs {
 		s := &specs[i]
@@ -71,25 +77,40 @@ func linkSpecs(repo, base string, res *Result, specs []spec.Spec, opts Options) 
 		var linked []*Unit
 		for j := range res.Units {
 			u := &res.Units[j]
-			if unitMatchesSpec(repo, base, s, u) {
+			ctx := byName[u.Repo]
+			if unitMatchesSpec(ctx.path, ctx.base, s, u) {
 				u.SpecID = s.ID
 				linked = append(linked, u)
-				ss.Branches = append(ss.Branches, u.Name)
-				if creep, hit := detectScopeCreep(repo, base, s, u); hit {
+				ss.Branches = append(ss.Branches, u.Label())
+				if creep, hit := detectScopeCreep(ctx, s, u); hit {
 					res.Drift.ScopeCreep = append(res.Drift.ScopeCreep, creep)
 				}
 			}
 		}
-		ss.Landed = landingCommit(repo, base, s)
-		ss.Status, ss.Evidence = deriveSpecStatus(linked, ss.Landed != "", base)
-
-		// A done spec must loudly regress when its landed work is reverted.
-		if ss.Status == Done {
-			if !revertsLoaded {
-				reverts, revertsLoaded = collectReverts(repo, base, opts.DigestDays), true
+		landedLabel := ""
+		for _, ctx := range ctxs {
+			if sha := landingCommit(ctx.path, ctx.base, s); sha != "" {
+				ss.Landed, ss.LandedRepo = sha, ctx.name
+				landedLabel = ctx.label(ctx.base)
+				break
 			}
-			if ev, hit := regressionEvidence(repo, s, reverts); hit {
-				ss.Status, ss.Evidence = Regressed, ev
+		}
+		ss.Status, ss.Evidence = deriveSpecStatus(byName, linked, ss.Landed != "", landedLabel)
+
+		// A done spec must loudly regress when its landed work is reverted —
+		// in whichever repo it landed or was undone.
+		if ss.Status == Done {
+			for _, ctx := range ctxs {
+				if _, ok := reverts[ctx.name]; !ok {
+					reverts[ctx.name] = collectReverts(ctx.path, ctx.base, opts.DigestDays)
+				}
+				if ev, hit := regressionEvidence(ctx.path, s, reverts[ctx.name]); hit {
+					if ctx.name != "" {
+						ev = ctx.name + ": " + ev
+					}
+					ss.Status, ss.Evidence = Regressed, ev
+					break
+				}
 			}
 		}
 		res.Specs = append(res.Specs, ss)
@@ -152,12 +173,15 @@ type ScopeCreep struct {
 
 // detectScopeCreep flags a linked branch when more than half of its changed
 // files fall outside the spec's paths. Specs without paths are never
-// flagged — scope declaration is opt-in.
-func detectScopeCreep(repo, base string, s *spec.Spec, u *Unit) (ScopeCreep, bool) {
-	if len(s.Paths) == 0 || u.Status == Done {
+// flagged — scope declaration is opt-in, per repo: an `api:` prefix scopes
+// a pattern to that spoke, an unprefixed pattern to the hub. A branch in a
+// repo the spec declares no paths for is never flagged either.
+func detectScopeCreep(ctx repoCtx, s *spec.Spec, u *Unit) (ScopeCreep, bool) {
+	paths := pathsFor(ctx.name, s.Paths)
+	if len(paths) == 0 || u.Status == Done {
 		return ScopeCreep{}, false
 	}
-	out, ok := gitrepo.Try(repo, "diff", "--name-only", base+"..."+u.Tip)
+	out, ok := gitrepo.Try(ctx.path, "diff", "--name-only", ctx.base+"..."+u.Tip)
 	if !ok || out == "" {
 		return ScopeCreep{}, false
 	}
@@ -167,7 +191,7 @@ func detectScopeCreep(repo, base string, s *spec.Spec, u *Unit) (ScopeCreep, boo
 			continue // spec edits are intent, never creep
 		}
 		files = append(files, f)
-		if !inScope(s.Paths, f) {
+		if !inScope(paths, f) {
 			outside = append(outside, f)
 		}
 	}
@@ -176,11 +200,43 @@ func detectScopeCreep(repo, base string, s *spec.Spec, u *Unit) (ScopeCreep, boo
 	}
 	return ScopeCreep{
 		SpecID:  s.ID,
-		Branch:  u.Name,
+		Branch:  u.Label(),
 		Outside: len(outside),
 		Total:   len(files),
 		TopDirs: topDirs(outside, 3),
 	}, true
+}
+
+// pathsFor selects the spec path patterns that apply to one repo: a
+// "name:" prefix (matching the workspace name grammar) binds a pattern to
+// that spoke; everything else belongs to the hub.
+func pathsFor(repoName string, patterns []string) []string {
+	var out []string
+	for _, p := range patterns {
+		name, rest, prefixed := splitRepoPrefix(p)
+		switch {
+		case prefixed && name == repoName:
+			out = append(out, rest)
+		case !prefixed && repoName == "":
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+var repoPrefixPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
+
+func splitRepoPrefix(p string) (name, rest string, ok bool) {
+	i := strings.Index(p, ":")
+	if i <= 0 || i == len(p)-1 || !repoPrefixPattern.MatchString(p[:i]) {
+		return "", "", false
+	}
+	// Git paths are repo-relative: a "/" after the colon means this is an
+	// URL ("https://…"), not a repo-scoped pattern.
+	if strings.HasPrefix(p[i+1:], "/") {
+		return "", "", false
+	}
+	return p[:i], p[i+1:], true
 }
 
 func inScope(patterns []string, file string) bool {
@@ -294,8 +350,11 @@ func regressionEvidence(repo string, s *spec.Spec, reverts []revertInfo) (string
 
 // deriveSpecStatus rolls linked-branch statuses up to the spec.
 // Active-work states outrank done: landing part of the work while a linked
-// branch still moves means the spec is not finished.
-func deriveSpecStatus(linked []*Unit, trailerMerged bool, base string) (Status, string) {
+// branch still moves — in any repo of the workspace — means the spec is not
+// finished. landedLabel names where the trailer landed ("origin/main",
+// "api:main"); when only merged branches prove the landing, the label comes
+// from the first such branch's repo.
+func deriveSpecStatus(byName map[string]repoCtx, linked []*Unit, trailerMerged bool, landedLabel string) (Status, string) {
 	var inReview, inProgress, stalled, done []*Unit
 	for _, u := range linked {
 		switch u.Status {
@@ -311,17 +370,21 @@ func deriveSpecStatus(linked []*Unit, trailerMerged bool, base string) (Status, 
 	}
 	switch {
 	case len(inReview) > 0:
-		return InReview, fmt.Sprintf("%s — %s", inReview[0].Name, inReview[0].Evidence)
+		return InReview, fmt.Sprintf("%s — %s", inReview[0].Label(), inReview[0].Evidence)
 	case len(inProgress) > 0:
-		return InProgress, fmt.Sprintf("%s — %s", inProgress[0].Name, inProgress[0].Evidence)
+		return InProgress, fmt.Sprintf("%s — %s", inProgress[0].Label(), inProgress[0].Evidence)
 	case trailerMerged || len(done) > 0:
-		evidence := fmt.Sprintf("work landed on %s", base)
+		if landedLabel == "" {
+			ctx := byName[done[0].Repo]
+			landedLabel = ctx.label(ctx.base)
+		}
+		evidence := fmt.Sprintf("work landed on %s", landedLabel)
 		if len(stalled) > 0 {
-			evidence += fmt.Sprintf(" — but %s still has unmerged commits", stalled[0].Name)
+			evidence += fmt.Sprintf(" — but %s still has unmerged commits", stalled[0].Label())
 		}
 		return Done, evidence
 	case len(stalled) > 0:
-		return Stalled, fmt.Sprintf("%s — %s", stalled[0].Name, stalled[0].Evidence)
+		return Stalled, fmt.Sprintf("%s — %s", stalled[0].Label(), stalled[0].Evidence)
 	default:
 		return Planned, "no matching branch or commit yet"
 	}
