@@ -102,3 +102,88 @@ func TestDriftAndDigestViews(t *testing.T) {
 		t.Errorf("drift view incomplete:\n%s", v)
 	}
 }
+
+// workspaceModel is fakeModel plus a two-spoke workspace: one story landed
+// in the api spoke, one declared for web via repos:, one hub-only.
+func workspaceModel() model {
+	res := &audit.Result{
+		Integration: "main",
+		DigestDays:  14,
+		Workspace: []audit.RepoHealth{
+			{Name: "api", Path: "/tmp/api", Integration: "main"},
+			{Name: "web", Path: "/tmp/web", Integration: "main"},
+		},
+		Specs: []audit.SpecStatus{
+			{ID: "tb-0001", Title: "Api story", Status: audit.Done, Landed: "abc1234", LandedRepo: "api", Evidence: "work landed on api:main"},
+			{ID: "tb-0002", Title: "Web story", Status: audit.Planned, Repos: []string{"web"},
+				PerRepo: []audit.RepoLanding{{Repo: "web", State: "missing"}}, Evidence: "web — no branch yet"},
+			{ID: "tb-0003", Title: "Hub story", Status: audit.InProgress, Branches: []string{"feature/tb-0003-x"}, Evidence: "active"},
+		},
+	}
+	m := model{repo: "/tmp/x", res: res, epics: cycle{idx: -1}, sprints: cycle{idx: -1}, owners: cycle{idx: -1}, repos: cycle{idx: -1}}
+	m.width, m.height = 120, 40
+	m.rebuild()
+	return m
+}
+
+func TestRepoCycleNarrowsWorkspaceBoard(t *testing.T) {
+	m := workspaceModel()
+	if !strings.Contains(m.footer(), "r repo") {
+		t.Error("workspace footer should offer the r key")
+	}
+
+	m = key(m, "r") // hub
+	if v, on := m.repos.current(); !on || v != "hub" {
+		t.Fatalf("repo filter = %q on=%v, want hub first", v, on)
+	}
+	if total := cardCount(m); total != 1 {
+		t.Errorf("hub filter left %d cards, want 1 (the hub-branch story)", total)
+	}
+	if !strings.Contains(m.header(), "repo=hub") {
+		t.Errorf("header should show the repo filter, got %q", m.header())
+	}
+
+	m = key(m, "r") // api: the landed story
+	if ids := visibleIDs(m); len(ids) != 1 || ids[0] != "tb-0001" {
+		t.Errorf("api filter should show exactly tb-0001, got %v", ids)
+	}
+
+	m = key(m, "r") // web: the repos: story
+	if ids := visibleIDs(m); len(ids) != 1 || ids[0] != "tb-0002" {
+		t.Errorf("web filter should show exactly the repos: story, got %v", ids)
+	}
+
+	m = key(m, "r") // wraps to off
+	if _, on := m.repos.current(); on {
+		t.Error("fourth press should cycle the repo filter off")
+	}
+}
+
+func TestSingleRepoBoardHasNoRepoDimension(t *testing.T) {
+	m := fakeModel()
+	if strings.Contains(m.footer(), "r repo") {
+		t.Error("single-repo footer must not mention the repo key")
+	}
+	before := cardCount(m)
+	m = key(m, "r")
+	if _, on := m.repos.current(); on {
+		t.Error("r must be inert without a workspace")
+	}
+	if cardCount(m) != before {
+		t.Error("r changed the board on a single-repo project")
+	}
+}
+
+func cardCount(m model) int {
+	return len(visibleIDs(m))
+}
+
+func visibleIDs(m model) []string {
+	var ids []string
+	for _, col := range m.cols {
+		for _, s := range col {
+			ids = append(ids, s.ID)
+		}
+	}
+	return ids
+}
