@@ -33,12 +33,28 @@ The promise is editable; the proof is not.
 
 ## Install
 
-Grab a binary from [Releases](https://github.com/emmanuel-D/truthboard/releases)
-and put it on your PATH, or build from source:
+```sh
+curl -fsSL https://raw.githubusercontent.com/emmanuel-D/truthboard/main/install.sh | sh
+```
+
+The script picks the right build for your platform (macOS/Linux,
+amd64/arm64), verifies it against the release checksums, and installs to
+`/usr/local/bin` or `~/.local/bin` — no sudo. Homebrew works too:
+
+```sh
+brew install emmanuel-D/truthboard/truthboard
+```
+
+Or grab a tarball from
+[Releases](https://github.com/emmanuel-D/truthboard/releases) yourself
+(Windows lives there), or build from source:
 
 ```sh
 go install github.com/emmanuel-D/truthboard/cmd/truthboard@latest
 ```
+
+> While this repo is still private, the unauthenticated paths above 404 —
+> use `gh release download` or the `go install` line until the flip.
 
 Single static binary; the only runtime dependency is `git`. Optional:
 `gh`/`glab` for tracker claims, `npm` for package scripts.

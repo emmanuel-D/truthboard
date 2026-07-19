@@ -41,3 +41,26 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" dist/*.tar.gz dist/checksums.txt \
             --title "Truthboard ${GITHUB_REF_NAME}" --generate-notes
+
+      # Keeps the tap (emmanuel-D/homebrew-truthboard) current on every tag.
+      # Needs a repo-scoped PAT in the HOMEBREW_TAP_TOKEN secret; until the
+      # tap repo and secret exist, the step says so and succeeds — a release
+      # must never fail over brew ergonomics.
+      - name: Bump homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_TOKEN}" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set — skipped. Create emmanuel-D/homebrew-truthboard," \
+                 "add a repo-scoped PAT as that secret, and the next tag bumps the formula."
+            exit 0
+          fi
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/emmanuel-D/homebrew-truthboard.git" tap
+          mkdir -p tap/Formula
+          ./.github/scripts/brew-formula.sh "${GITHUB_REF_NAME}" dist/checksums.txt > tap/Formula/truthboard.rb
+          cd tap
+          git add Formula/truthboard.rb
+          git -c user.name="truthboard-release" -c user.email="noreply@github.com" \
+            commit -m "truthboard ${GITHUB_REF_NAME}" || { echo "formula unchanged"; exit 0; }
+          git push origin HEAD
