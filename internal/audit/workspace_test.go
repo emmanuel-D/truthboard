@@ -325,3 +325,96 @@ func TestDeclaredReposRevertInSpokeRegresses(t *testing.T) {
 		t.Fatalf("regression evidence must name the repo, got %q", s.Evidence)
 	}
 }
+
+// TestBriefSurfacesWorkspace: in a workspace, the brief carries the repo
+// list plus the split-or-declare instruction (undeclared) or the per-repo
+// landing contract (declared).
+func TestBriefSurfacesWorkspace(t *testing.T) {
+	now := time.Now()
+	spoke := newFixture(t)
+	spoke.commit("chore: init api", now.AddDate(0, 0, -10))
+
+	hub := newFixture(t)
+	hub.commit("chore: init hub", now.AddDate(0, 0, -10))
+	writeSpec(t, hub.dir, "tb-1a1a", "Undeclared story", "")
+	writeSpecRepos(t, hub.dir, "tb-2b2b", "Declared story", []string{"hub", "api"})
+	writeWorkspace(t, hub.dir, "repos:\n  api:\n    path: "+spoke.dir+"\n    integration: main\n")
+
+	brief, err := Brief(hub.dir, "tb-1a1a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Workspace: this hub gathers proof from api", "split before coding", "declare repos:"} {
+		if !strings.Contains(brief, want) {
+			t.Errorf("undeclared brief missing %q in:\n%s", want, brief)
+		}
+	}
+
+	brief, err = Brief(hub.dir, "tb-2b2b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(brief, "declares repos: hub, api") || !strings.Contains(brief, "every one") {
+		t.Errorf("declared brief missing the per-repo landing contract:\n%s", brief)
+	}
+	if strings.Contains(brief, "split before coding") {
+		t.Errorf("declared brief must not also tell the agent to split:\n%s", brief)
+	}
+
+	// No workspace: no workspace talk at all.
+	plain := newFixture(t)
+	plain.commit("chore: init", now.AddDate(0, 0, -10))
+	writeSpec(t, plain.dir, "tb-3c3c", "Plain story", "")
+	brief, err = Brief(plain.dir, "tb-3c3c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(brief, "Workspace:") {
+		t.Errorf("plain repo brief must not mention workspaces:\n%s", brief)
+	}
+}
+
+// TestNextRespectsCrossRepoNeeds: a story needing an api-half that has not
+// landed in the api spoke is never handed out; the moment the spoke landing
+// happens, it becomes the next story.
+func TestNextRespectsCrossRepoNeeds(t *testing.T) {
+	now := time.Now()
+	spoke := newFixture(t)
+	spoke.commit("chore: init api", now.AddDate(0, 0, -10))
+
+	hub := newFixture(t)
+	hub.commit("chore: init hub", now.AddDate(0, 0, -10))
+	writeSpecRepos(t, hub.dir, "tb-aaa1", "API half", []string{"api"})
+	writeWorkspace(t, hub.dir, "repos:\n  api:\n    path: "+spoke.dir+"\n    integration: main\n")
+	dir := filepath.Join(hub.dir, ".truthboard", "specs")
+	web := "---\nid: tb-bbb2\ntitle: Web half\nneeds:\n    - tb-aaa1\n---\n\n## Goal\nTest.\n"
+	if err := os.WriteFile(filepath.Join(dir, "tb-bbb2-test.md"), []byte(web), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	next, _, waiting, err := Next(hub.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next == nil || next.ID != "tb-aaa1" {
+		t.Fatalf("next should be the api half, got %+v", next)
+	}
+	if len(waiting) != 1 || waiting[0].ID != "tb-bbb2" {
+		t.Fatalf("web half should be waiting on the api landing, got %+v", waiting)
+	}
+
+	spoke.git("checkout", "-b", "feature/tb-aaa1-api")
+	spoke.commit("feat: api half\n\nSpec: tb-aaa1", now.AddDate(0, 0, -1))
+	spoke.git("checkout", "main")
+	spoke.gitAt(now.AddDate(0, 0, -1), "merge", "--no-ff",
+		"-m", "Merge branch 'feature/tb-aaa1-api'", "feature/tb-aaa1-api")
+	spoke.git("branch", "-D", "feature/tb-aaa1-api")
+
+	next, _, waiting, err = Next(hub.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next == nil || next.ID != "tb-bbb2" {
+		t.Fatalf("after the spoke landing the web half must be next, got %+v (waiting %+v)", next, waiting)
+	}
+}

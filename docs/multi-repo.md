@@ -108,6 +108,35 @@ coordinated rename); reach for splitting when the halves have independent
 value or different owners. An agent picking up a fat cross-repo brief can
 do the splitting itself over MCP (`create_spec` + `needs:`).
 
+### A worked example: one phone story, two provable landings
+
+A PO on the road creates a story from the shared board (edit-token flow):
+
+> **tb-9f3e — Password reset flow** · p1
+> Users can request a reset link and set a new password.
+
+The workspace watches `api` and `web`. An agent at home runs `next_spec`,
+and the brief tells it this hub gathers proof from `api, web` and to split
+before coding. It does, over MCP:
+
+1. `update_spec` — narrow the original into the first half:
+   `{"id": "tb-9f3e", "title": "Password reset — api", "repos": ["api"], "epic": "password-reset"}`
+2. `create_spec` — the second half, blocked on the first:
+   `{"title": "Password reset — web", "repos": ["web"], "epic": "password-reset", "needs": ["tb-9f3e"], "body": "## Goal\n…"}`
+
+No orphan remains — the original *became* the api half, so no card sits
+planned forever waiting for a branch that will never come. The board now
+shows two stories under the `password-reset` epic; `next_spec` hands out
+only the api half (the web half is *waiting on tb-9f3e*, and the readiness
+rule works across repos because ids are global).
+
+The agent works the api repo on `feature/tb-9f3e-reset-api`, trailer
+`Spec: tb-9f3e`, merges — the api story derives done from the spoke
+landing, the web story becomes startable, and whoever (or whatever)
+picks it up next repeats the loop in the web repo. Both stories flip to
+done purely from git; the epic's rollup shows combined progress the whole
+way. The PO never needed to know there were two repos involved.
+
 ## Current limits
 
 - Forge enrichment (PR states, claims-vs-proof, CI verdicts) applies to the

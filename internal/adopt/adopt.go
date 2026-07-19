@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
 
 const (
@@ -44,7 +46,46 @@ Before any coding task:
 Story *intent* (title, goal, acceptance, epic, priority, scope) is always
 editable — ` + "`update_spec`" + ` over MCP, the CLI, or editing
 ` + "`.truthboard/specs/*.md`" + ` directly. Commit intent changes like code.
-` + endMark + "\n"
+`
+
+// workspaceGuidance is appended inside the agreement block when the repo
+// carries a workspace manifest: decomposition is the practice that keeps
+// multi-repo statuses honest, and the agent picking up a fat story is the
+// one who should do the splitting — never the PO on a phone.
+const workspaceGuidance = `
+### Multi-repo workspace
+
+This hub gathers proof from the repos declared in
+` + "`.truthboard/workspace.yml`" + `: %s. When a brief's acceptance clearly
+spans more than one of them, don't carry one fat story — one provable
+landing per spec keeps every status honest:
+
+- **Split it**: narrow this story to a single repo's half
+  (` + "`update_spec`" + ` — retitle, adjust acceptance), then ` + "`create_spec`" + ` a
+  sibling per remaining repo under the same epic, ordered with ` + "`needs:`" + `.
+  Never leave an orphan story that no branch will ever match.
+- **Or declare it**: when the story is genuinely one promise that is only
+  true once every repo has it, set ` + "`repos: [api, web]`" + ` (` + "`hub`" + ` names
+  this repo) — done then requires the trailer landed in every one, with
+  per-repo evidence in the meantime.
+
+The id namespace and the ` + "`Spec:`" + ` trailer work identically in every
+repo of the workspace.
+`
+
+// agreementText renders the working agreement, appending workspace
+// guidance when a manifest declares spokes. upsertBlock replaces the whole
+// marker block, so adding a workspace later just means re-running adopt.
+func agreementText(ws *workspace.Workspace) string {
+	if ws == nil || len(ws.Repos) == 0 {
+		return agreement + endMark + "\n"
+	}
+	names := make([]string, len(ws.Repos))
+	for i, r := range ws.Repos {
+		names[i] = "`" + r.Name + "`"
+	}
+	return agreement + fmt.Sprintf(workspaceGuidance, strings.Join(names, ", ")) + endMark + "\n"
+}
 
 // claudePointer must import AGENTS.md rather than merely mention it:
 // Claude Code loads CLAUDE.md into context but never AGENTS.md, so a
@@ -106,11 +147,18 @@ func Agents(repo string, hooks bool) ([]string, error) {
 		}
 	}
 
+	// A malformed manifest must not block adoption; the audit already
+	// reports it loudly, so the agreement simply omits the guidance.
+	ws, _ := workspace.Load(repo)
+
 	agentsPath := filepath.Join(repo, "AGENTS.md")
-	if changed, err = upsertBlock(agentsPath, agreement, true); err != nil {
+	if changed, err = upsertBlock(agentsPath, agreementText(ws), true); err != nil {
 		return nil, err
 	}
 	step("AGENTS.md: working agreement %s", writtenWord(changed))
+	if ws != nil && len(ws.Repos) > 0 {
+		step("AGENTS.md: includes multi-repo decomposition guidance (%d workspace repos)", len(ws.Repos))
+	}
 
 	claudePath := filepath.Join(repo, "CLAUDE.md")
 	if changed, err = upsertBlock(claudePath, claudePointer, true); err != nil {
