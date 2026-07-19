@@ -45,17 +45,40 @@ document.getElementById("theme").addEventListener("click", () => {
 });
 
 /* ---------- filters ---------- */
-const F = { text: "", epics: new Set(), sprints: new Set(), owners: new Set(), types: new Set(), older: false };
-const filterActive = () => F.text !== "" || F.epics.size > 0 || F.sprints.size > 0 || F.owners.size > 0 || F.types.size > 0;
+const F = { text: "", epics: new Set(), sprints: new Set(), owners: new Set(), types: new Set(), repos: new Set(), older: false };
+const filterActive = () => F.text !== "" || F.epics.size > 0 || F.sprints.size > 0 || F.owners.size > 0 || F.types.size > 0 || F.repos.size > 0;
+
+/* Repo dimension: a branch label's prefix is its repo ("api:feature/…"),
+   unprefixed means the hub. Branch names cannot contain ":", so the split
+   is safe. */
+const branchRepo = label => { const i = label.indexOf(":"); return i > 0 ? label.slice(0, i) : "hub"; };
+/* A story belongs to a repo through declared repos: intent, a per-repo
+   landing entry, a linked branch living there, or the landing itself. */
+function specRepos(s) {
+  const out = new Set(s.repos || []);
+  for (const pr of s.per_repo || []) out.add(pr.repo);
+  for (const br of s.branches || []) out.add(branchRepo(br));
+  if (s.landed) out.add(s.landed_repo || "hub");
+  return out;
+}
+const unitRepo = u => u.repo || "hub";
+const repoOn = r => !F.repos.size || F.repos.has(r);
+
 function specMatches(s) {
   if (F.text && !(s.title + " " + s.id).toLowerCase().includes(F.text)) return false;
   if (F.epics.size && !F.epics.has(s.epic || "")) return false;
   if (F.sprints.size && !F.sprints.has(s.sprint || "")) return false;
   if (F.owners.size && !F.owners.has(s.owner || "")) return false;
   if (F.types.size && !F.types.has(s.type || "story")) return false;
+  if (F.repos.size && ![...specRepos(s)].some(r => F.repos.has(r))) return false;
   return true;
 }
 function syncFilterChips(b) {
+  // Repo chips exist only when a workspace does — single-repo boards see
+  // no new UI at all.
+  const repos = b.workspace?.length ? ["hub", ...b.workspace.map(r => r.name)] : [];
+  document.getElementById("f-repos").innerHTML = repos.map(r =>
+    `<button class="fchip${F.repos.has(r) ? " on" : ""}" data-repo="${esc(r)}">${r === "hub" ? "⌂ " : ""}${esc(r)}</button>`).join("");
   const epics = [...new Set((b.specs || []).map(s => s.epic).filter(Boolean))].sort();
   const epicPts = {};
   for (const s of b.specs || []) if (s.epic && s.points) epicPts[s.epic] = (epicPts[s.epic] || 0) + s.points;
@@ -87,11 +110,12 @@ document.querySelector(".filters").addEventListener("click", e => {
   else if (chip.dataset.sprint !== undefined) toggle(F.sprints, chip.dataset.sprint);
   else if (chip.dataset.owner !== undefined) toggle(F.owners, chip.dataset.owner);
   else if (chip.dataset.type !== undefined) toggle(F.types, chip.dataset.type);
+  else if (chip.dataset.repo !== undefined) toggle(F.repos, chip.dataset.repo);
   else return;
   rerender();
 });
 document.getElementById("f-clear").addEventListener("click", () => {
-  F.text = ""; F.epics.clear(); F.sprints.clear(); F.owners.clear(); F.types.clear();
+  F.text = ""; F.epics.clear(); F.sprints.clear(); F.owners.clear(); F.types.clear(); F.repos.clear();
   document.getElementById("f-text").value = "";
   rerender();
 });
@@ -231,17 +255,18 @@ function sprintsPanel(b) {
 function drift(b) {
   const d = b.drift || {};
   const out = [];
+  // Unknown repos belong to no chip by definition — always shown.
   for (const ur of d.unknown_repos || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--regressed, #e5534b)">✗</span>
       <span class="what"><b>Unknown repo</b> — ${esc(ur)}</span></div>`);
-  for (const sc of d.scope_creep || [])
+  for (const sc of (d.scope_creep || []).filter(sc => repoOn(branchRepo(sc.branch))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⇢</span>
       <span class="what"><b>Scope creep</b> — <code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code>:
       ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff outside spec paths (mostly ${esc(sc.top_dirs)})</span></div>`);
-  for (const u of d.stale_promises || [])
+  for (const u of (d.stale_promises || []).filter(u => repoOn(unitRepo(u))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⏸</span>
       <span class="what"><b>Stale promise</b> — <code>${esc(unitLabel(u))}</code>: ${esc(u.evidence)}</span></div>`);
-  const sw = d.shadow_work || [];
+  const sw = (d.shadow_work || []).filter(c => repoOn(c.repo || "hub"));
   sw.slice(0, 6).forEach(c => out.push(
     `<div class="finding"><span class="ico" style="color:var(--muted)">∅</span>
       <span class="what"><b>Shadow work</b> — ${esc(c.subject)} <code>${esc(c.hash)}</code></span></div>`));
@@ -271,7 +296,8 @@ function unitLabel(u) { return u.repo ? `${u.repo}:${u.name}` : u.name; }
 
 function branches(b) {
   if (!b.units?.length) return "";
-  const rows = UNIT_ORDER.map(st => b.units.filter(u => u.status === st).map(u =>
+  const units = b.units.filter(u => repoOn(unitRepo(u)));
+  const rows = UNIT_ORDER.map(st => units.filter(u => u.status === st).map(u =>
     `<div class="r">${chip(u.status)}<code>${esc(unitLabel(u))}</code>
      <span class="ev2">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`
   ).join("")).join("");
@@ -280,12 +306,17 @@ function branches(b) {
 
 function digest(b) {
   const torder = { story: 0, bug: 1, task: 2 };
-  const byType = [...(b.shipped || [])].sort((a, c) => (torder[a.type || "story"] || 0) - (torder[c.type || "story"] || 0));
+  // Shipped entries are spec-level: a repo filter keeps the ones whose
+  // story touches that repo (same membership rule as the cards).
+  const byId = new Map((b.specs || []).map(s => [s.id, s]));
+  const byType = [...(b.shipped || [])]
+    .filter(s => { const sp = byId.get(s.id); return !sp || [...specRepos(sp)].some(repoOn); })
+    .sort((a, c) => (torder[a.type || "story"] || 0) - (torder[c.type || "story"] || 0));
   const shipped = byType.map(s =>
     `<div class="r"><time>${esc(s.date)}</time>
       <span style="color:var(--done)">✓</span>
       <span><b>${esc(s.title)}</b> ${typeTag(s.type)} <span style="color:var(--muted)"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
-  const rest = (b.digest || []).filter(c => !c.spec).slice(0, 12).map(c =>
+  const rest = (b.digest || []).filter(c => !c.spec && repoOn(c.repo || "hub")).slice(0, 12).map(c =>
     `<div class="r"><time>${esc(c.date)}</time><span class="ev2">${c.repo ? `<code>${esc(c.repo)}</code> ` : ""}${esc(c.subject)}</span></div>`).join("");
   const divider = shipped && rest ? `<div class="r"><span class="ev2" style="font-size:.7rem">also landed</span></div>` : "";
   return `<section class="panel digest"><h2>Landed in the last ${b.digest_days} days</h2>
@@ -295,12 +326,15 @@ function digest(b) {
 function render(b) {
   lastBoard = b;
   const repoLabel = b.forge || (b.repo || "").split("/").filter(Boolean).pop() || b.repo;
-  let meta = `${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`;
+  let meta = esc(`${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`);
   if (b.workspace?.length) {
-    const spokes = b.workspace.map(r => r.error ? `${r.name} ✗` : r.name).join(", ");
+    // The workspace list doubles as a filter: clicking a repo name toggles
+    // its chip. Single-repo boards render the same plain text as ever.
+    const spokes = b.workspace.map(r =>
+      `<span class="rlink${F.repos.has(r.name) ? " on" : ""}" data-repo="${esc(r.name)}">${esc(r.name)}${r.error ? " ✗" : ""}</span>`).join(", ");
     meta += ` · workspace: ${spokes}`;
   }
-  document.getElementById("meta").textContent = meta;
+  document.getElementById("meta").innerHTML = meta;
   syncFilterChips(b);
   let html = "";
   if (b.election_note) html += `<div class="warn">⚠ ${esc(b.election_note)}</div>`;
@@ -326,6 +360,12 @@ function rerender() {
 }
 document.getElementById("app").addEventListener("click", e => {
   if (e.target.id === "show-older") { F.older = !F.older; rerender(); }
+});
+document.getElementById("meta").addEventListener("click", e => {
+  const l = e.target.closest(".rlink");
+  if (!l) return;
+  F.repos.has(l.dataset.repo) ? F.repos.delete(l.dataset.repo) : F.repos.add(l.dataset.repo);
+  rerender();
 });
 
 let syncAt = "";

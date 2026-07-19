@@ -85,6 +85,7 @@ type model struct {
 	epics   cycle
 	sprints cycle
 	owners  cycle
+	repos   cycle // workspace boards only; empty values otherwise
 
 	detailBody string // spec markdown body, loaded when the detail pane opens
 }
@@ -95,7 +96,7 @@ func Run(repo string) error {
 	if err != nil {
 		return err
 	}
-	m := model{repo: repo, res: res, epics: cycle{idx: -1}, sprints: cycle{idx: -1}, owners: cycle{idx: -1}}
+	m := model{repo: repo, res: res, epics: cycle{idx: -1}, sprints: cycle{idx: -1}, owners: cycle{idx: -1}, repos: cycle{idx: -1}}
 	m.rebuild()
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
 	return err
@@ -122,6 +123,15 @@ func (m *model) rebuild() {
 	m.epics.values = distinct(m.res.Specs, func(s audit.SpecStatus) string { return s.Epic })
 	m.sprints.values = distinct(m.res.Specs, func(s audit.SpecStatus) string { return s.Sprint })
 	m.owners.values = distinct(m.res.Specs, func(s audit.SpecStatus) string { return s.Owner })
+	// The repo dimension exists only when a workspace does — single-repo
+	// boards keep an empty cycle and the key does nothing.
+	m.repos.values = nil
+	if len(m.res.Workspace) > 0 {
+		m.repos.values = []string{spec.HubRepo}
+		for _, r := range m.res.Workspace {
+			m.repos.values = append(m.repos.values, r.Name)
+		}
+	}
 
 	m.cols, m.labels = nil, nil
 	for _, st := range columnOrder {
@@ -153,7 +163,47 @@ func (m *model) matches(s audit.SpecStatus) bool {
 	if v, on := m.owners.current(); on && s.Owner != v {
 		return false
 	}
+	if v, on := m.repos.current(); on && !specInRepo(s, v) {
+		return false
+	}
 	return true
+}
+
+// specInRepo reports whether a story belongs to one repo's slice of the
+// board: declared repos: intent, a per-repo landing entry, a linked branch
+// living there, or the landing itself — the same membership rule the web
+// board's repo chips use.
+func specInRepo(s audit.SpecStatus, repo string) bool {
+	for _, r := range s.Repos {
+		if r == repo {
+			return true
+		}
+	}
+	for _, pr := range s.PerRepo {
+		if pr.Repo == repo {
+			return true
+		}
+	}
+	for _, b := range s.Branches {
+		if branchRepo(b) == repo {
+			return true
+		}
+	}
+	if s.Landed != "" {
+		if lr := s.LandedRepo; lr == repo || (lr == "" && repo == spec.HubRepo) {
+			return true
+		}
+	}
+	return false
+}
+
+// branchRepo extracts the repo from a branch label — "api:feature/x" is
+// api's, unprefixed is the hub's. Branch names cannot contain ":".
+func branchRepo(label string) string {
+	if i := strings.Index(label, ":"); i > 0 {
+		return label[:i]
+	}
+	return spec.HubRepo
 }
 
 func (m *model) clampRow() {
@@ -256,6 +306,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.owners.next()
 			m.rebuild()
+		case "r":
+			m.repos.next()
+			m.rebuild()
 		}
 	}
 	return m, nil
@@ -299,6 +352,9 @@ func (m model) header() string {
 	if v, on := m.owners.current(); on {
 		filters = append(filters, "owner="+v)
 	}
+	if v, on := m.repos.current(); on {
+		filters = append(filters, "repo="+v)
+	}
 	if len(filters) > 0 {
 		title += "  " + lipgloss.NewStyle().Foreground(statusColor[audit.InProgress]).Render("⧩ "+strings.Join(filters, " "))
 	}
@@ -306,7 +362,13 @@ func (m model) header() string {
 }
 
 func (m model) footer() string {
-	help := "←→/hl columns · ↑↓/jk cards · enter detail · e epic · s sprint · a owner · b board · d drift · g digest · q quit"
+	help := "←→/hl columns · ↑↓/jk cards · enter detail · e epic · s sprint · a owner · "
+	// The repo key only exists where a workspace does — single-repo boards
+	// see the exact footer they always did.
+	if len(m.repos.values) > 0 {
+		help += "r repo · "
+	}
+	help += "b board · d drift · g digest · q quit"
 	return dim.Padding(0, 1).Render(help)
 }
 

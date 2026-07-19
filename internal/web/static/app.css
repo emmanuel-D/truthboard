@@ -90,6 +90,8 @@
   .btn.primary { background: var(--ink); color: var(--page); border-color: var(--ink); }
   #theme { margin-left: auto; }
   .meta { width: 100%; color: var(--muted); font-size: .78rem; }
+  .meta .rlink { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+  .meta .rlink.on { color: var(--ink); font-weight: 600; }
   .banner { color: var(--muted); font-size: .78rem; margin: .25rem 0 1rem; }
   .banner b { color: var(--ink-2); font-weight: 600; }
   .warn, .dirty {
