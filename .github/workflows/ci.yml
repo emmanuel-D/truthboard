@@ -31,3 +31,10 @@ jobs:
 
       - name: test
         run: go test ./...
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck the shipped shell
+        run: shellcheck install.sh .github/scripts/brew-formula.sh docker/entrypoint.sh
