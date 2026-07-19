@@ -26,15 +26,20 @@ Whatever the shape, the server needs exactly three things:
 Install the binary and clone the repo:
 
 ```sh
-# releases ship tarballs named truthboard_<tag>_<os>_<arch>.tar.gz
-curl -fsSL https://github.com/emmanuel-D/truthboard/releases/latest/download/truthboard_v0.5.0_linux_amd64.tar.gz \
+# releases ship tarballs named truthboard_<tag>_<os>_<arch>.tar.gz;
+# resolve the current tag so this line never goes stale
+TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+  https://github.com/emmanuel-D/truthboard/releases/latest | sed 's#.*/##')
+curl -fsSL "https://github.com/emmanuel-D/truthboard/releases/download/${TAG}/truthboard_${TAG}_linux_amd64.tar.gz" \
   | tar -xz -C /usr/local/bin truthboard
 
 git clone https://github.com/you/your-project /srv/your-project
 ```
 
-(Check [Releases](https://github.com/emmanuel-D/truthboard/releases) for
-the current tag; `truthboard update` keeps it current afterwards.)
+(While the truthboard repo is private, unauthenticated downloads 404 —
+use `gh release download --repo emmanuel-D/truthboard --pattern
+'truthboard_*_linux_amd64.tar.gz'` instead. `truthboard update` keeps
+the binary current afterwards either way.)
 
 For a private repo, clone over SSH with a read-only deploy key, or over
 HTTPS with a fine-grained token in the remote URL — the board only ever
