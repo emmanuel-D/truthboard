@@ -38,6 +38,19 @@ type Workspace struct {
 // branch labels, evidence, and scope paths, so no colons, slashes, or globs.
 var namePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
+// ValidName explains why name cannot label a spoke, or nil. One rule for
+// the loader and every writer (scaffold, future editors) — a name that
+// scaffolds must be a name that loads.
+func ValidName(name string) error {
+	if !namePattern.MatchString(name) {
+		return fmt.Errorf("repo name %q — names label branches as \"name:branch\", so lowercase letters, digits, . _ - only", name)
+	}
+	if name == "hub" {
+		return fmt.Errorf("%q is reserved — it names the repo carrying .truthboard/ in a spec's repos: list", name)
+	}
+	return nil
+}
+
 // Load parses the hub's workspace manifest. A missing manifest returns
 // (nil, nil) — that is the single-repo case, not an error. A malformed one
 // fails loudly: a silently ignored manifest would be a board lying about
@@ -64,11 +77,8 @@ func Load(hub string) (*Workspace, error) {
 	ws := &Workspace{Hub: hub}
 	for name, r := range doc.Repos {
 		r.Name = name
-		if !namePattern.MatchString(name) {
-			return nil, fmt.Errorf("%s: repo name %q — names label branches as \"name:branch\", so lowercase letters, digits, . _ - only", File, name)
-		}
-		if name == "hub" {
-			return nil, fmt.Errorf("%s: %q is reserved — it names the repo carrying .truthboard/ in a spec's repos: list", File, name)
+		if err := ValidName(name); err != nil {
+			return nil, fmt.Errorf("%s: %w", File, err)
 		}
 		if r.Remote == "" && r.Path == "" {
 			return nil, fmt.Errorf("%s: repo %q needs a remote (for the board server to clone) or a path (a local checkout)", File, name)
