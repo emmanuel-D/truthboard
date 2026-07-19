@@ -14,6 +14,27 @@ handles this with a **hub-and-spokes** model:
 
 A repo without a manifest is simply a workspace of one: nothing changes.
 
+## Quick start
+
+Scaffold a hub in one command, from the repo that should carry intent:
+
+```sh
+truthboard init --workspace api=git@github.com:acme/api.git web=git@github.com:acme/web.git
+```
+
+This writes a validated `.truthboard/workspace.yml`, creates
+`.truthboard/specs/`, and runs the same agent wiring as `init --agents` —
+which, because the manifest now exists, already includes the multi-repo
+decomposition guidance. Add `--path name=../checkout` for spokes with local
+checkouts (alone or alongside a `name=remote` pair). Re-running with new
+pairs merges them into the existing manifest; an existing entry is never
+rewritten — change one by editing the file, like any intent.
+
+Until a spoke has a local copy — a declared `path:` or the clone the board
+server makes (`truthboard ui --detach`) — `truthboard audit` reports that
+spoke as unreadable, by name. That is the board being honest about what it
+can see, not broken.
+
 ## The manifest
 
 Declare spokes in `.truthboard/workspace.yml` in the hub — the repo list is

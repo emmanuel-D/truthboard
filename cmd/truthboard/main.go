@@ -29,6 +29,11 @@ Usage:
   truthboard init [--agents [--hooks]] [repo]
                                             opt in to spec mode; --agents wires MCP +
                                             AGENTS.md so AI tools track work here by default
+  truthboard init --workspace api=git@host:acme/api.git [web=…] [--path infra=../infra]
+                                            scaffold a multi-repo hub: validated manifest,
+                                            specs dir, and agent wiring (with multi-repo
+                                            guidance) in one command; re-runs merge new
+                                            spokes, never rewrite existing ones
   truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard next [repo]                    the highest-priority planned story, as a brief —

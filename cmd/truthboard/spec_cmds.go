@@ -9,16 +9,65 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/spec"
+	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
+
+// repeatedFlag collects a flag given multiple times (--path a=x --path b=y).
+type repeatedFlag []string
+
+func (r *repeatedFlag) String() string { return strings.Join(*r, ", ") }
+func (r *repeatedFlag) Set(v string) error {
+	*r = append(*r, v)
+	return nil
+}
 
 func runInit(args []string) int {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	agents := fs.Bool("agents", false, "wire the repo for AI agents: MCP registration + AGENTS.md working agreement")
 	hooks := fs.Bool("hooks", false, "with --agents: install a commit-msg hook that warns (never blocks) on missing Spec trailers")
-	fs.Parse(args)
+	wsFlag := fs.Bool("workspace", false, "scaffold a multi-repo hub: name=remote pairs become .truthboard/workspace.yml (implies --agents)")
+	var pathFlags repeatedFlag
+	fs.Var(&pathFlags, "path", "with --workspace: name=dir declares a local checkout (repeatable; alone or alongside a name=remote pair)")
+
+	// stdlib flag stops at the first positional (the name=remote pairs),
+	// so lift flag tokens out first; only --path takes a value.
+	var flagArgs, pos []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if !strings.HasPrefix(a, "-") {
+			pos = append(pos, a)
+			continue
+		}
+		flagArgs = append(flagArgs, a)
+		if (a == "--path" || a == "-path") && i+1 < len(args) {
+			i++
+			flagArgs = append(flagArgs, args[i])
+		}
+	}
+	fs.Parse(flagArgs)
+
 	repo := "."
-	if fs.NArg() > 0 {
-		repo = fs.Arg(0)
+	var pairs []string
+	for _, p := range pos {
+		if strings.Contains(p, "=") {
+			pairs = append(pairs, p)
+			continue
+		}
+		repo = p
+	}
+	if (len(pairs) > 0 || len(pathFlags) > 0) && !*wsFlag {
+		fmt.Fprintln(os.Stderr, "truthboard: name=remote pairs and --path need --workspace")
+		return 2
+	}
+	spokes, err := parseSpokes(pairs, pathFlags)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 2
+	}
+	if *wsFlag {
+		// A workspace hub is an agent hub: the wiring below then includes
+		// the multi-repo decomposition guidance because the manifest exists.
+		*agents = true
 	}
 
 	dir := spec.Dir(repo)
@@ -27,6 +76,21 @@ func runInit(args []string) int {
 		return 1
 	}
 	fmt.Printf("initialized %s\n", dir)
+
+	if *wsFlag {
+		log, err := workspace.Declare(repo, spokes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 2
+		}
+		fmt.Printf("workspace manifest: %s\n", workspace.File)
+		for _, line := range log {
+			fmt.Println("  " + line)
+		}
+		fmt.Println("  note: the audit reads spokes from declared paths or the board server's")
+		fmt.Println("  clones — until one exists, each spoke shows on the board as a loud")
+		fmt.Println("  unreadable finding (expected, not broken). truthboard ui --detach clones them.")
+	}
 
 	// Ecosystem detection: npm projects get the lifecycle as npm scripts.
 	npmLog, err := adopt.NpmScripts(repo)
@@ -53,6 +117,41 @@ func runInit(args []string) int {
 	fmt.Println(`  truthboard spec new "Your first unit of work"   write intent once`)
 	fmt.Println("  truthboard audit                                 everything else is derived")
 	return 0
+}
+
+// parseSpokes turns name=remote pairs and --path name=dir flags into spoke
+// declarations. A --path may annotate a declared pair (a local checkout for
+// a remote) or stand alone (a path-only spoke).
+func parseSpokes(pairs, paths []string) ([]workspace.Repo, error) {
+	var spokes []workspace.Repo
+	idx := map[string]int{}
+	for _, p := range pairs {
+		name, remote, _ := strings.Cut(p, "=")
+		if name == "" || remote == "" {
+			return nil, fmt.Errorf("%q — want name=remote", p)
+		}
+		if _, dup := idx[name]; dup {
+			return nil, fmt.Errorf("repo %q declared twice", name)
+		}
+		idx[name] = len(spokes)
+		spokes = append(spokes, workspace.Repo{Name: name, Remote: remote})
+	}
+	for _, p := range paths {
+		name, dir, ok := strings.Cut(p, "=")
+		if !ok || name == "" || dir == "" {
+			return nil, fmt.Errorf("--path %q — want name=dir", p)
+		}
+		if i, ok := idx[name]; ok {
+			if spokes[i].Path != "" {
+				return nil, fmt.Errorf("--path for %q given twice", name)
+			}
+			spokes[i].Path = dir
+			continue
+		}
+		idx[name] = len(spokes)
+		spokes = append(spokes, workspace.Repo{Name: name, Path: dir})
+	}
+	return spokes, nil
 }
 
 func runSpec(args []string) int {
