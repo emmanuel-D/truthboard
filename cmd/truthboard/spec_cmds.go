@@ -113,7 +113,17 @@ func runInit(args []string) int {
 		}
 	}
 
+	// The git check comes last: the wiring above is correct on disk either
+	// way, but nothing it writes derives a status until a repository exists.
+	needsRepo := adopt.RepoWarning(repo)
+	for _, line := range needsRepo {
+		fmt.Println("  " + line)
+	}
+
 	fmt.Println("\nNext:")
+	if needsRepo != nil {
+		fmt.Println("  git init                                       truthboard reads git, so start there")
+	}
 	fmt.Println(`  truthboard spec new "Your first unit of work"   write intent once`)
 	fmt.Println("  truthboard audit                                 everything else is derived")
 	return 0
