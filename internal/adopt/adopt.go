@@ -21,6 +21,9 @@ const (
 	beginMark = "<!-- truthboard:begin -->"
 	endMark   = "<!-- truthboard:end -->"
 	hookMark  = "# truthboard trailer nudge"
+	// hookEndMark closes the nudge so any later version can find its own
+	// block and replace exactly that, leaving the rest of the hook untouched.
+	hookEndMark = hookMark + " end"
 )
 
 const agreement = beginMark + `
@@ -128,9 +131,53 @@ case "$tb_msg" in
       echo "truthboard: no 'Spec: <id>' trailer — this commit will show up as shadow work (truthboard audit)" >&2
     fi ;;
 esac
-`
+` + hookEndMark + "\n"
 
 const hookScript = "#!/bin/sh\n" + hookNudge + "exit 0\n"
+
+// legacyNudges are the nudge texts shipped before hookEndMark existed, newest
+// first. Without a closing marker an installed nudge cannot be bounded, so an
+// upgrade has to match one of these exactly — proof that truthboard wrote it.
+// A nudge matching none of them is left alone: silently rewriting a hook we
+// cannot prove we authored risks destroying someone else's script.
+var legacyNudges = []string{
+	// v0.8.2 (tb-3d43): taught the nudge to stay quiet on intent-only commits.
+	hookMark + ` — warns when a commit has no Spec trailer; NEVER blocks.
+tb_msg=$(cat "$1")
+# Intent commits (specs, agreement, MCP registration) are exempt from shadow
+# work in the audit, so warning about them here would only teach you to
+# ignore the hook. Same governed fileset as audit.governedFile.
+# Staying silent is the exception: an unreadable or empty staged list falls
+# through to the warning, never past it.
+tb_state=empty
+for tb_f in $(git diff --cached --name-only 2>/dev/null); do
+  case "$tb_f" in
+    .truthboard/*|.mcp.json|AGENTS.md|CLAUDE.md) tb_state=governed ;;
+    *) tb_state=code; break ;;
+  esac
+done
+tb_governed=0
+[ "$tb_state" = governed ] && tb_governed=1
+case "$tb_msg" in
+  Merge*|Revert*|fixup!*|squash!*) : ;;
+  *)
+    if [ "$tb_governed" = 0 ] && ! printf '%s\n' "$tb_msg" | grep -qE '^Spec: tb-'; then
+      echo "truthboard: no 'Spec: <id>' trailer — this commit will show up as shadow work (truthboard audit)" >&2
+    fi ;;
+esac
+`,
+	// tb-22b8, the original: warned on every trailerless commit.
+	hookMark + ` — warns when a commit has no Spec trailer; NEVER blocks.
+tb_msg=$(cat "$1")
+case "$tb_msg" in
+  Merge*|Revert*|fixup!*|squash!*) : ;;
+  *)
+    if ! printf '%s\n' "$tb_msg" | grep -qE '^Spec: tb-'; then
+      echo "truthboard: no 'Spec: <id>' trailer — this commit will show up as shadow work (truthboard audit)" >&2
+    fi ;;
+esac
+`,
+}
 
 // Agents performs the wiring and returns a human-readable action log.
 func Agents(repo string, hooks bool) ([]string, error) {
@@ -314,17 +361,49 @@ func installHook(repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if strings.Contains(string(raw), hookMark) {
-		return "already installed", nil
+	content := string(raw)
+	if begin := strings.Index(content, hookMark); begin >= 0 {
+		return upgradeNudge(path, content, begin)
 	}
 	// Existing hook belongs to someone else: insert the exit-code-neutral
 	// nudge right after its shebang so the hook's own logic still decides
 	// the outcome — we only ever print.
-	content := string(raw)
 	if nl := strings.Index(content, "\n"); strings.HasPrefix(content, "#!") && nl > 0 {
 		content = content[:nl+1] + "\n" + hookNudge + "\n" + content[nl+1:]
 	} else {
 		content = hookNudge + "\n" + content
 	}
 	return "inserted into your existing commit-msg hook (warn-only)", os.WriteFile(path, []byte(content), 0o755)
+}
+
+// upgradeNudge replaces an already-installed nudge with the current one,
+// touching nothing else in the hook. A nudge bounded by hookEndMark is swapped
+// directly; an older unbounded one has to match legacyNudges exactly before it
+// can be replaced. Anything else is reported and left exactly as it is —
+// truthboard does not rewrite a block it cannot prove it wrote.
+func upgradeNudge(path, content string, begin int) (string, error) {
+	if end := strings.Index(content[begin:], hookEndMark); end >= 0 {
+		stop := begin + end + len(hookEndMark)
+		return swapNudge(path, content, begin, stop)
+	}
+	for _, old := range legacyNudges {
+		if i := strings.Index(content, old); i >= 0 {
+			return swapNudge(path, content, i, i+len(old))
+		}
+	}
+	return "left alone — the nudge here is not one truthboard wrote, so it is outdated" +
+		" but safe: to refresh it, delete the block by hand (or the whole hook if it is" +
+		" only truthboard's) and re-run", nil
+}
+
+// swapNudge writes the current nudge over content[begin:stop], preserving the
+// hook's own lines on either side and reporting an identical nudge as a no-op
+// so a re-run never rewrites the file.
+func swapNudge(path, content string, begin, stop int) (string, error) {
+	nudge := strings.TrimSuffix(hookNudge, "\n")
+	if content[begin:stop] == nudge {
+		return "already up to date", nil
+	}
+	updated := content[:begin] + nudge + content[stop:]
+	return "upgraded to the current nudge", os.WriteFile(path, []byte(updated), 0o755)
 }

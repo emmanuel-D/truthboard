@@ -305,9 +305,9 @@ func TestAdoptionCommitIsNotShadowWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, body := range map[string]string{
-		".mcp.json": `{"mcpServers":{}}`,
-		"AGENTS.md": "# agreement\n",
-		"CLAUDE.md": "@AGENTS.md\n",
+		".mcp.json":                          `{"mcpServers":{}}`,
+		"AGENTS.md":                          "# agreement\n",
+		"CLAUDE.md":                          "@AGENTS.md\n",
 		".truthboard/specs/tb-cccc-first.md": "---\nid: tb-cccc\ntitle: x\n---\n\n## Goal\n",
 	} {
 		if err := os.WriteFile(filepath.Join(f.dir, name), []byte(body), 0o644); err != nil {

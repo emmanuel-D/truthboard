@@ -110,7 +110,8 @@ func TestAgentsIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(log, "\n")
-	for _, want := range []string{"already registered", "already up to date", "already installed"} {
+	// The hook reports a no-op the same way the other idempotent writers do.
+	for _, want := range []string{"already registered", "already up to date"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("second run should be a no-op, log:\n%s", joined)
 		}
@@ -304,5 +305,108 @@ func TestAgentsWiresNonRepoAnyway(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
 			t.Errorf("%s not written: %v", f, err)
 		}
+	}
+}
+
+// hookPath is where the nudge lives in a fixture repo.
+func hookPath(repo string) string {
+	return filepath.Join(repo, ".git", "hooks", "commit-msg")
+}
+
+// An adopter carrying any nudge truthboard has ever shipped must end up on
+// the current one — that is the whole point of tb-d146.
+func TestInstallHookUpgradesEveryLegacyNudge(t *testing.T) {
+	for i, old := range legacyNudges {
+		repo := gitRepo(t)
+		if err := os.WriteFile(hookPath(repo), []byte("#!/bin/sh\n"+old+"exit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		msg, err := installHook(repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(msg, "upgraded") {
+			t.Errorf("legacyNudges[%d]: msg = %q, want an upgrade", i, msg)
+		}
+		got, _ := os.ReadFile(hookPath(repo))
+		if !strings.Contains(string(got), hookEndMark) {
+			t.Errorf("legacyNudges[%d]: upgraded hook has no end marker:\n%s", i, got)
+		}
+		// The upgrade replaces the block rather than appending a second one.
+		// Counting markers is the honest check: the newest legacy nudge is a
+		// prefix of the current one, so "old text is gone" cannot be asserted.
+		if n := strings.Count(string(got), hookEndMark); n != 1 {
+			t.Errorf("legacyNudges[%d]: %d end markers, want exactly 1:\n%s", i, n, got)
+		}
+		if n := strings.Count(string(got), hookMark); n != 2 {
+			t.Errorf("legacyNudges[%d]: %d markers, want the begin/end pair only:\n%s", i, n, got)
+		}
+		if !strings.Contains(string(got), "exit 0") {
+			t.Errorf("legacyNudges[%d]: upgrade dropped the rest of the hook:\n%s", i, got)
+		}
+	}
+}
+
+// The nudge may sit inside a hook someone else owns. Their lines are not ours
+// to touch — destroying them would be far worse than a stale nudge.
+func TestInstallHookUpgradePreservesForeignLines(t *testing.T) {
+	repo := gitRepo(t)
+	before := "#!/bin/sh\necho \"my own check\"\n\n"
+	after := "\nexec /usr/local/bin/lint-commit \"$1\"\n"
+	if err := os.WriteFile(hookPath(repo), []byte(before+legacyNudges[len(legacyNudges)-1]+after), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := installHook(repo); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(hookPath(repo))
+	if !strings.HasPrefix(string(got), before) {
+		t.Errorf("lines before the nudge were altered:\n%s", got)
+	}
+	if !strings.HasSuffix(string(got), after) {
+		t.Errorf("lines after the nudge were altered:\n%s", got)
+	}
+}
+
+// A block truthboard cannot prove it wrote is reported, never rewritten.
+func TestInstallHookLeavesUnrecognisedNudgeAlone(t *testing.T) {
+	repo := gitRepo(t)
+	foreign := "#!/bin/sh\n" + hookMark + " — hand-edited by the team\nexit 0\n"
+	if err := os.WriteFile(hookPath(repo), []byte(foreign), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	msg, err := installHook(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg, "left alone") {
+		t.Errorf("msg = %q, want it reported as left alone", msg)
+	}
+	got, _ := os.ReadFile(hookPath(repo))
+	if string(got) != foreign {
+		t.Errorf("an unrecognised nudge was rewritten:\ngot:\n%s\nwant:\n%s", got, foreign)
+	}
+}
+
+// A current nudge must not be rewritten — a no-op leaves the file untouched.
+func TestInstallHookCurrentNudgeIsANoOp(t *testing.T) {
+	repo := gitRepo(t)
+	if _, err := installHook(repo); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := os.ReadFile(hookPath(repo))
+	msg, err := installHook(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg, "already up to date") {
+		t.Errorf("msg = %q, want a no-op", msg)
+	}
+	second, _ := os.ReadFile(hookPath(repo))
+	if string(first) != string(second) {
+		t.Error("a current hook was rewritten on re-run")
+	}
+	if n := strings.Count(string(second), hookMark); n != 2 {
+		t.Errorf("hook has %d markers, want exactly the begin/end pair", n)
 	}
 }
