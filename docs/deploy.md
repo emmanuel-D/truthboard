@@ -15,6 +15,15 @@ the proof side. To open intent editing on a shared board — write a story
 from your phone, have your agent pick it up at home — arm an
 [edit token](#editing-from-anywhere-the-edit-token).
 
+**Read access is a separate question, and the board does not answer it.**
+Read-only constrains what a visitor can *change*, never who may look:
+there is no read authentication of any kind. Anyone who reaches the URL
+sees every branch name, commit subject, author and drift finding the
+board derives — for a private repo, that is your repository's activity
+published at whatever address you point at it. Put authentication in
+front of the board — your proxy's basic auth, an IP allowlist, or a
+private network — **before** attaching a public domain.
+
 Whatever the shape, the server needs exactly three things:
 
 1. **the `truthboard` binary** (or the Docker image, which contains it),
@@ -121,6 +130,9 @@ For a private repo with `REPO_URL`, embed a read-only token
 (`https://x-access-token:<token>@github.com/you/your-project`) — or
 prefer the mounted-clone form and keep credentials out of the container.
 The clone (mounted or not) must be writable: fetching updates `.git`.
+A **multi-repo hub needs more than this**, because its spokes are cloned
+from the manifest rather than from `REPO_URL` — see
+[private repositories, and multi-repo hubs](#private-repositories-and-multi-repo-hubs).
 
 ## Option C — Coolify
 
@@ -143,6 +155,53 @@ Note that `REPO_URL` is cloned into the container's filesystem, so a
 redeploy re-clones from scratch. That is fine (the clone is disposable —
 all state derives from origin); attach a persistent volume at `/repo`
 only if you want faster restarts on a big repo.
+
+## Private repositories, and multi-repo hubs
+
+A single private repo is covered by `REPO_URL` alone — embed a read-only
+token:
+
+```sh
+-e REPO_URL=https://oauth2:<token>@gitlab.com/you/project.git
+# GitHub: https://x-access-token:<token>@github.com/you/project.git
+```
+
+**A multi-repo hub is not.** The hub clone only declares which spokes
+exist; the board clones each spoke separately from the remote written in
+`.truthboard/workspace.yml` — and that file is committed, so it must
+never carry a credential. Deploy a hub with private spokes and nothing
+else configured and the hub clones fine while every spoke fails:
+
+```
+workspace: connect ✗
+⚠ connect: no local copy — start the board server (it clones spokes) …
+```
+
+Hand git the credential out of band instead, using its own
+config-from-environment. Nothing lands on disk and the manifest stays
+clean:
+
+| Variable | Value |
+| --- | --- |
+| `GIT_CONFIG_COUNT` | `1` |
+| `GIT_CONFIG_KEY_0` | `url.https://oauth2:<token>@gitlab.com/.insteadOf` |
+| `GIT_CONFIG_VALUE_0` | `https://gitlab.com/` |
+
+GitHub is the same shape with `x-access-token` and `https://github.com/`.
+A hub whose spokes span both forges adds a second pair — set
+`GIT_CONFIG_COUNT=2` and add `GIT_CONFIG_KEY_1` / `GIT_CONFIG_VALUE_1`.
+The rewrite applies to `REPO_URL` too, so the hub URL can stay
+credential-free once this is set.
+
+Scope the token to reading repositories and nothing else — GitLab
+`read_repository`, or a GitHub fine-grained token with Contents: read.
+The board never writes to a spoke; cloning and fetching proof is all it
+does.
+
+**First boot looks broken for a minute.** Spokes are mirror-cloned by the
+sync loop as it runs, so until each finishes the board reports it as
+unreadable (`no branches found in …`). It resolves itself — give a hub
+with several large spokes a minute before concluding the deploy failed.
 
 ## Keeping the board fresh: poll or push
 
@@ -230,3 +289,8 @@ Cannot (without a token): create or edit stories — writes get a `403`
 explaining that intent editing needs a clone. And with or without one:
 statuses could never be written from anywhere; there is no route by
 which one could be set.
+
+Cannot, ever: keep a visitor out. The board authenticates writes, never
+reads, so everything under "Can" above is visible to anyone who reaches
+the URL. Restricting *who* can see the board is your proxy's job, not the
+board's — see the note at the top.
