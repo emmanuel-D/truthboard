@@ -37,4 +37,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck the shipped shell
-        run: shellcheck install.sh .github/scripts/brew-formula.sh docker/entrypoint.sh
+        run: |
+          shellcheck install.sh .github/scripts/brew-formula.sh \
+            docker/entrypoint.sh .github/scripts/docker-smoke.sh
+
+  docker:
+    # The Dockerfile and its entrypoint were written without a Docker engine
+    # on the author's machine; this job is where "the image works" stops
+    # being an assumption. Runners ship Docker, so no setup is needed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build and exercise the image
+        run: .github/scripts/docker-smoke.sh truthboard:ci
