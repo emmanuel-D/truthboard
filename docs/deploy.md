@@ -78,6 +78,16 @@ The repo ships a `Dockerfile`. Build once:
 docker build -t truthboard .
 ```
 
+CI builds this image on every push and exercises it against a fixture
+repository — both start-up forms, the `PORT` and `FETCH` knobs, reads
+answering `200`, writes refused with `403`, sync headers present, and the
+no-repository case failing with its message. Reproduce that run anywhere
+Docker exists:
+
+```sh
+.github/scripts/docker-smoke.sh
+```
+
 Run it either by letting the container clone your repo:
 
 ```sh
