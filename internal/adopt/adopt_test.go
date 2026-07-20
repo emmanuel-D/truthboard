@@ -273,3 +273,36 @@ func TestAgreementCarriesWorkspaceGuidance(t *testing.T) {
 		t.Errorf("adopt log should mention the guidance, got:\n%s", joined)
 	}
 }
+
+func TestRepoWarningFiresOutsideAGitRepo(t *testing.T) {
+	warn := RepoWarning(t.TempDir())
+	if warn == nil {
+		t.Fatal("RepoWarning() = nil for a plain directory, want the git-init guidance")
+	}
+	joined := strings.Join(warn, "\n")
+	for _, want := range []string{"not a git repository", "git init"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("warning missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+func TestRepoWarningQuietInsideAGitRepo(t *testing.T) {
+	if warn := RepoWarning(gitRepo(t)); warn != nil {
+		t.Errorf("RepoWarning() = %v for a git repo, want nil", warn)
+	}
+}
+
+// A hub scaffolded before git init must still get every file: the warning
+// reports the gap, it never aborts the wiring.
+func TestAgentsWiresNonRepoAnyway(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Agents(dir, false); err != nil {
+		t.Fatalf("Agents() in a non-repo: %v", err)
+	}
+	for _, f := range []string{".mcp.json", "AGENTS.md", "CLAUDE.md"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			t.Errorf("%s not written: %v", f, err)
+		}
+	}
+}

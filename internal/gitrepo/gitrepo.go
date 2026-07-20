@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -18,9 +19,27 @@ func Run(repo string, args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(stderr.String()))
+		msg := strings.TrimSpace(stderr.String())
+		if strings.Contains(msg, "not a git repository") {
+			return "", notARepoError(repo)
+		}
+		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), msg)
 	}
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+// notARepoError replaces git's plumbing complaint with the one thing the
+// reader can act on. This is the first error a fresh hub hits — a directory
+// scaffolded by hand and never `git init`ed — and naming the internal
+// for-each-ref invocation there tells them nothing.
+func notARepoError(repo string) error {
+	abs, err := filepath.Abs(repo)
+	if err != nil {
+		abs = repo
+	}
+	return fmt.Errorf("%s is not a git repository — truthboard derives every "+
+		"status from branches, merges and commit trailers, so there is nothing "+
+		"to read yet; run \"git init\" there first", abs)
 }
 
 // Try executes a git command where a non-zero exit is an expected answer

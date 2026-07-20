@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
 
@@ -181,6 +182,24 @@ func writtenWord(changed bool) string {
 		return "written"
 	}
 	return "already up to date"
+}
+
+// RepoWarning tells the adopter when the directory being wired is not a git
+// repository. Every truthboard status is derived from branches, merges and
+// commit trailers, so the files init writes are inert until one exists — and
+// a multi-repo hub, the one repo people create as an empty directory by hand,
+// is exactly where that bites. Warn-only like spawnWarning: the wiring is
+// still correct on disk, and `git init` is the adopter's call to make.
+func RepoWarning(repo string) []string {
+	if _, err := gitrepo.Run(repo, "rev-parse", "--is-inside-work-tree"); err == nil {
+		return nil
+	}
+	return []string{
+		"⚠ this is not a git repository yet — truthboard derives every status from",
+		"  git history, so the board stays empty and `truthboard audit` fails until",
+		"  one exists. The specs written here are intent: commit them like code. Fix:",
+		"    git init && git add -A && git commit -m \"Track work with truthboard\"",
+	}
 }
 
 // systemPathDirs are the locations executables stay resolvable from even
