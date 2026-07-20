@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/forge"
@@ -19,8 +21,49 @@ import (
 )
 
 // version is stamped by the release workflow via
-// -ldflags "-X main.version=v0.x.y"; dev builds show the fallback.
+// -ldflags "-X main.version=v0.x.y". The literal initialiser matters: -X only
+// rewrites a variable initialised to a constant string, so this must never
+// become a function call.
 var version = "dev"
+
+// init lets a `go install pkg@vX.Y.Z` build name its release. The toolchain
+// applies no ldflags there, so without this the most likely install path for
+// Go developers produces a binary calling itself a source build — and
+// selfupdate refuses to replace those, quietly opting them out of updates.
+func init() {
+	mod, fromCheckout := "", false
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		mod = bi.Main.Version
+		for _, s := range bi.Settings {
+			// Only a build from a working copy records its revision; a module
+			// fetched from the proxy has no VCS settings at all.
+			if s.Key == "vcs.revision" {
+				fromCheckout = true
+				break
+			}
+		}
+	}
+	version = resolveVersion(version, mod, fromCheckout)
+}
+
+// resolveVersion picks the version this binary reports. A release stamp always
+// wins. Otherwise the module version the toolchain recorded stands in — but
+// never for a build made from a checkout: `go build` in a clone stamps a
+// VCS-derived pseudo-version like v0.8.4-0.2026…-439a3a04fae7+dirty, which
+// looks like a release and is not one. Those stay "dev", which is what keeps
+// selfupdate from overwriting a working copy someone is developing against.
+func resolveVersion(stamped, module string, fromCheckout bool) string {
+	if stamped != "dev" {
+		return stamped
+	}
+	if fromCheckout {
+		return stamped
+	}
+	if strings.HasPrefix(module, "v") {
+		return module
+	}
+	return stamped
+}
 
 const usage = `truthboard — your repo already knows the status
 
