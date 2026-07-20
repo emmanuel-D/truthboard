@@ -10,7 +10,7 @@ priority: 1
 
 ## Goal
 
-Installing truthboard on the LetTalk hub for real surfaced a first-impression
+Installing truthboard on a real multi-repo hub surfaced a first-impression
 bug: the commit that adopts truthboard is reported as **drift on the very
 board it creates**. The hub's `Track work with truthboard` commit — manifest,
 `.mcp.json`, `AGENTS.md`, `CLAUDE.md` — landed in the shadow-work section of
@@ -38,5 +38,5 @@ what the finding should catch.
 - [ ] A commit touching only governed files (`.truthboard/**`, `.mcp.json`,
       `AGENTS.md`, `CLAUDE.md`) is never reported as shadow work
 - [ ] A commit mixing governed files with product code stays shadow work
-- [ ] The LetTalk hub's own adoption commit no longer appears in its audit,
-      and the genuine spoke findings are untouched
+- [ ] A real hub's own adoption commit no longer appears in its audit, and
+      the genuine spoke findings are untouched

@@ -53,9 +53,6 @@ Or grab a tarball from
 go install github.com/emmanuel-D/truthboard/cmd/truthboard@latest
 ```
 
-> While this repo is still private, the unauthenticated paths above 404 —
-> use `gh release download` or the `go install` line until the flip.
-
 Single static binary; the only runtime dependency is `git`. Optional:
 `gh`/`glab` for tracker claims, `npm` for package scripts.
 

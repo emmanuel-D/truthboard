@@ -20,11 +20,11 @@ reports it with full confidence.
 That is the one failure mode this product exists to prevent. Every other
 wrong answer in truthboard is loud (`unreadable` spokes, drift findings,
 the "no local copy" error); this one is silent and looks exactly like
-truth. It is also more likely than it sounds: the LetTalk workspace
-carries `lettalk-web`, `lettalk-web-v2` and `lettalk-connect-web` side by
-side, and the correct `web` spoke is the *second* of those pointing at the
-*third*'s remote. `--path web=../lettalk-web` would have been accepted in
-silence.
+truth. It is also more likely than it sounds. A real workspace this was
+tested against carries three similarly-named checkouts side by side —
+`<app>-web`, `<app>-web-v2` and `<app>-connect-web` — where the correct
+`web` spoke is the *second* of those pointing at the *third*'s remote. A
+`--path web=../<app>-web` typo would have been accepted in silence.
 
 Fix: when a spoke declares both `remote:` and `path:`, compare the
 checkout's `origin` to the declared remote and refuse the mismatch loudly,

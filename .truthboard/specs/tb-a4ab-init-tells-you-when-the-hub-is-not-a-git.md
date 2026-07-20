@@ -10,7 +10,7 @@ priority: 1
 
 ## Goal
 
-A clean-room run of the LetTalk hub setup — released v0.8.0 binary, no dev
+A clean-room run of a real hub setup — released v0.8.0 binary, no dev
 build — found the one onboarding hole `truthboard init` still has. Single
 repos are already git repos when you adopt them, so nobody hit this; a
 **multi-repo hub is the one repo people create as an empty directory by
