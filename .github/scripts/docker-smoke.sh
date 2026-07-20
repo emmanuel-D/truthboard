@@ -113,7 +113,7 @@ expect_status http://127.0.0.1:1337/api/specs 403 "write refused" \
 
 version=$(curl -s -D - -o /dev/null http://127.0.0.1:1337/api/board | tr -d '\r' |
     sed -n 's/^[Xx]-[Tt]ruthboard-[Vv]ersion: //p')
-[ "$version" = "smoke" ] || fail "version header = '$version', want the VERSION build arg 'smoke'"
+[ "$version" = "deliberately-wrong" ] || fail "version header = '$version', want the VERSION build arg 'smoke'"
 ok "version header carries the build arg"
 
 # The sync loop reports freshness once it has fetched; poll rather than assume
