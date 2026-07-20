@@ -439,11 +439,25 @@ func classify(repo, base, name string, tip branchTip, opts Options) Unit {
 	return u
 }
 
+// governedFiles are the paths truthboard itself writes and owns. A commit
+// confined to them changes how work is tracked, never the product — so it is
+// intent, not shadow work. The adoption commit is the motivating case: it
+// lands directly on the integration branch by definition (there is no board
+// to open an MR against yet), and flagging it made every new adopter's first
+// board accuse their own setup of drift.
+func governedFile(f string) bool {
+	switch f {
+	case ".mcp.json", "AGENTS.md", "CLAUDE.md":
+		return true
+	}
+	return strings.HasPrefix(f, ".truthboard/")
+}
+
 // shadowWork returns non-merge commits landing directly on the integration
 // branch that don't look like a forge merge — work that bypassed any
-// branch/MR flow. Commits touching only .truthboard/ are exempt: writing
-// a story is intent, not work — backlog grooming and shared-board edits
-// land directly on the integration branch by design.
+// branch/MR flow. Commits touching only governed files are exempt: writing
+// a story is intent, not work — backlog grooming, adoption and shared-board
+// edits land directly on the integration branch by design.
 func shadowWork(repo, base string, days int) ([]Commit, error) {
 	out, err := gitrepo.Run(repo, "log", base, "--first-parent", "--no-merges",
 		fmt.Sprintf("--since=%d.days", days), "--format=%x1e%h|%cs|%an|%s", "--name-only")
@@ -462,7 +476,7 @@ func shadowWork(repo, base string, days int) ([]Commit, error) {
 		}
 		intentOnly := true
 		for _, f := range lines[1:] {
-			if f = strings.TrimSpace(f); f != "" && !strings.HasPrefix(f, ".truthboard/") {
+			if f = strings.TrimSpace(f); f != "" && !governedFile(f) {
 				intentOnly = false
 				break
 			}
