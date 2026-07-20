@@ -124,10 +124,34 @@ func (o Options) ReadOnly() bool {
 // Handler returns the board handler; exposed for tests. The repo path is
 // resolved to absolute so the page never labels the board "." — the audit
 // result carries the path the viewer should recognize.
-func Handler(repo string, o Options) http.Handler {
+// Board serves the web board and owns the background work it starts. A
+// webhook's refresh runs on its own goroutine — it has to, since a forge
+// waits on the response — so anyone tearing down the repository underneath
+// it needs a way to let that work finish first. Wait is that way.
+type Board struct {
+	http.Handler
+	tasks sync.WaitGroup
+}
+
+// Wait blocks until background work started by this board has finished.
+// Tests call it before their fixture repo is removed; without it, a refresh
+// still running git raced t.TempDir() cleanup and failed at random.
+func (b *Board) Wait() { b.tasks.Wait() }
+
+// spawn runs fn in the background, tracked by Wait.
+func (b *Board) spawn(fn func()) {
+	b.tasks.Add(1)
+	go func() {
+		defer b.tasks.Done()
+		fn()
+	}()
+}
+
+func Handler(repo string, o Options) *Board {
 	if abs, err := filepath.Abs(repo); err == nil {
 		repo = abs
 	}
+	board := &Board{}
 	interval := 2 * time.Second
 	if o.Forge {
 		interval = 15 * time.Second // forge APIs are slow and rate-limited
@@ -193,7 +217,7 @@ func Handler(repo string, o Options) http.Handler {
 	}
 	mux.HandleFunc("/api/events", events(live))
 	if o.WebhookSecret != "" {
-		mux.HandleFunc("/webhook", webhook(o.WebhookSecret, func() {
+		mux.HandleFunc("/webhook", webhook(o.WebhookSecret, board.spawn, func() {
 			remote.kick()
 			cache.invalidate()
 			live.notify()
@@ -206,7 +230,7 @@ func Handler(repo string, o Options) http.Handler {
 	// The write guard sits in front of routing: the promise (spec intent,
 	// under /api/specs) is editable; the proof (everything else) is not.
 	// A status has no route by which it could be written.
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	board.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The webhook is the exception to both guards: it carries its own
 		// auth (the shared secret) and can only make the board fresher —
 		// that is exactly what a shared read-only board wants from a push.
@@ -236,6 +260,7 @@ func Handler(repo string, o Options) http.Handler {
 		w.Header().Set("X-Truthboard-Version", o.Version)
 		mux.ServeHTTP(w, r)
 	})
+	return board
 }
 
 // dirtySpecs counts uncommitted changes under .truthboard/specs so the page
