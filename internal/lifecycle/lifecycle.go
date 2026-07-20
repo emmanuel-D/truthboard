@@ -258,7 +258,9 @@ func logTail(repo string, n int) string {
 }
 
 // Status describes the recorded board in one line, cleaning stale state.
-func Status(repo string) (string, error) {
+// version is the build asking — a board serving anything else is stale, and
+// says so with the fix.
+func Status(repo, version string) (string, error) {
 	s, err := Load(repo)
 	if err != nil {
 		return "", err
@@ -270,7 +272,23 @@ func Status(repo string) (string, error) {
 		Remove(repo)
 		return fmt.Sprintf("stale state cleaned up (pid %d is gone) — start again with `truthboard ui --detach`", s.PID), nil
 	}
-	line := fmt.Sprintf("running · %s · pid %d · up %s",
+	// A detached board keeps the binary it started with, so an install or a
+	// `brew upgrade` leaves it serving old code with nothing to show for it —
+	// the old binary may not even exist on disk any more. Comparing what it
+	// serves against what is running here is the only reliable signal.
+	served, reachable := servedVersion(s.URL)
+	stale := reachable && served != "" && served != version
+
+	line := "running"
+	switch {
+	case !reachable:
+		line += " · version unreadable (the board did not answer)"
+	case served == "":
+		line += " · version unreported (board predates this check)"
+	default:
+		line += " · " + served
+	}
+	line += fmt.Sprintf(" · %s · pid %d · up %s",
 		s.URL, s.PID, time.Since(s.Started).Round(time.Second))
 	if s.Fetch != "" {
 		line += " · fetching origin every " + s.Fetch
@@ -282,7 +300,31 @@ func Status(repo string) (string, error) {
 			line += fmt.Sprintf(" · shared on %s (read-only)", s.Host)
 		}
 	}
+	if stale {
+		// Phrased without a direction: the board is as often newer than the
+		// caller (a dev build asking about a release board) as older.
+		line += fmt.Sprintf(
+			"\n  ⚠ this board serves %s; you are running %s. A detached board keeps"+
+				"\n    the binary it started with — restart it to serve yours:"+
+				"\n      truthboard stop && truthboard ui --detach", served, version)
+	}
 	return line, nil
+}
+
+// servedVersion asks a running board which build it serves. Every response
+// carries the version header, so this asks for the page — embedded static,
+// no audit — rather than /api/board, which on a --forge board gathers proof
+// from every spoke and can take minutes. The timeout is short and a failure
+// is never fatal: a board that will not answer is worth reporting, not worth
+// blocking `status` over.
+func servedVersion(rawURL string) (string, bool) {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	return resp.Header.Get("X-Truthboard-Version"), true
 }
 
 // Stop terminates the detached board and clears state.
