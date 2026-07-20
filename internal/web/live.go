@@ -87,7 +87,11 @@ func events(b *broadcaster) http.HandlerFunc {
 // can only set a URL) compared in constant time, or GitHub's HMAC-SHA256
 // body signature (X-Hub-Signature-256). Anything else is rejected and
 // logged — a webhook endpoint on a shared host must fail loudly.
-func webhook(secret string, trigger func()) http.HandlerFunc {
+// webhook answers a forge push. The refresh runs in the background — a forge
+// times out long before a fetch across every spoke finishes — so spawn hands
+// it to the board, which can then be waited on. The 202 and the body say so
+// rather than implying the work is already done.
+func webhook(secret string, spawn func(func()), trigger func()) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "webhooks POST", http.StatusMethodNotAllowed)
@@ -103,9 +107,9 @@ func webhook(secret string, trigger func()) http.HandlerFunc {
 			http.Error(w, "bad or missing webhook secret", http.StatusForbidden)
 			return
 		}
-		go trigger()
+		spawn(trigger)
 		w.WriteHeader(http.StatusAccepted)
-		io.WriteString(w, "fetching\n")
+		io.WriteString(w, "accepted — refreshing in the background; this response does not wait for it\n")
 	}
 }
 
