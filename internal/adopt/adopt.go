@@ -107,10 +107,24 @@ are derived from git).
 // without ever changing what that hook decides.
 const hookNudge = hookMark + ` — warns when a commit has no Spec trailer; NEVER blocks.
 tb_msg=$(cat "$1")
+# Intent commits (specs, agreement, MCP registration) are exempt from shadow
+# work in the audit, so warning about them here would only teach you to
+# ignore the hook. Same governed fileset as audit.governedFile.
+# Staying silent is the exception: an unreadable or empty staged list falls
+# through to the warning, never past it.
+tb_state=empty
+for tb_f in $(git diff --cached --name-only 2>/dev/null); do
+  case "$tb_f" in
+    .truthboard/*|.mcp.json|AGENTS.md|CLAUDE.md) tb_state=governed ;;
+    *) tb_state=code; break ;;
+  esac
+done
+tb_governed=0
+[ "$tb_state" = governed ] && tb_governed=1
 case "$tb_msg" in
   Merge*|Revert*|fixup!*|squash!*) : ;;
   *)
-    if ! printf '%s\n' "$tb_msg" | grep -qE '^Spec: tb-'; then
+    if [ "$tb_governed" = 0 ] && ! printf '%s\n' "$tb_msg" | grep -qE '^Spec: tb-'; then
       echo "truthboard: no 'Spec: <id>' trailer — this commit will show up as shadow work (truthboard audit)" >&2
     fi ;;
 esac
