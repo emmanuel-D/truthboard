@@ -291,3 +291,39 @@ func TestRemoteOnlyBranchesAreSeen(t *testing.T) {
 		t.Errorf("units = %d, want 4 (remote-only branches must still be audited)", len(res.Units))
 	}
 }
+
+// The adoption commit writes the whole governed fileset at once and lands
+// directly on the integration branch — there is no board to open an MR
+// against yet. Flagging it made every adopter's first board accuse their
+// own setup of drift.
+func TestAdoptionCommitIsNotShadowWork(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("Initial commit", now.AddDate(0, 0, -3))
+
+	if err := os.MkdirAll(filepath.Join(f.dir, ".truthboard", "specs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		".mcp.json": `{"mcpServers":{}}`,
+		"AGENTS.md": "# agreement\n",
+		"CLAUDE.md": "@AGENTS.md\n",
+		".truthboard/specs/tb-cccc-first.md": "---\nid: tb-cccc\ntitle: x\n---\n\n## Goal\n",
+	} {
+		if err := os.WriteFile(filepath.Join(f.dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.git("add", "-A")
+	f.gitAt(now.AddDate(0, 0, -1), "commit", "-m", "Track work with truthboard")
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range res.Drift.ShadowWork {
+		if strings.Contains(c.Subject, "Track work with truthboard") {
+			t.Errorf("the adoption commit must not be shadow work, got: %s", c.Subject)
+		}
+	}
+}
