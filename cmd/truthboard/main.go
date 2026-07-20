@@ -145,7 +145,9 @@ func main() {
 	case "ui":
 		os.Exit(runUI(os.Args[2:]))
 	case "status":
-		os.Exit(runLifecycle("status", lifecycle.Status, os.Args[2:]))
+		os.Exit(runLifecycle("status", func(repo string) (string, error) {
+			return lifecycle.Status(repo, version)
+		}, os.Args[2:]))
 	case "stop":
 		os.Exit(runLifecycle("stop", lifecycle.Stop, os.Args[2:]))
 	case "update":
