@@ -20,7 +20,12 @@ RUN apk add --no-cache git ca-certificates \
     && adduser -D board \
     && mkdir /repo && chown board /repo \
     # A mounted clone is usually owned by the host user, not `board`.
-    && git config --system safe.directory '*'
+    # GIT_CONFIG_COUNT=0 because deploy platforms turn every configured
+    # environment variable into a build ARG: a hub's runtime credential
+    # (GIT_CONFIG_KEY_n/VALUE_n) is present here, and git validates the
+    # whole set on every invocation. Without this, one missing VALUE_n
+    # fails the image build instead of the clone it belongs to.
+    && GIT_CONFIG_COUNT=0 git config --system safe.directory '*'
 COPY --from=build /out/truthboard /usr/local/bin/truthboard
 COPY docker/entrypoint.sh /usr/local/bin/board-entrypoint
 USER board

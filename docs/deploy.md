@@ -198,6 +198,22 @@ Scope the token to reading repositories and nothing else — GitLab
 The board never writes to a spoke; cloning and fetching proof is all it
 does.
 
+**Every variable is a build arg on some platforms.** Coolify and others
+inject the whole environment into the image build as `ARG`s, so a token
+set for the runtime is also baked into image metadata and readable with
+`docker history`. Mark these as runtime-only wherever the platform
+offers the choice. Note also that a mistyped `GIT_CONFIG_VALUE_n` then
+surfaces at build time rather than at clone time — git validates the
+whole `GIT_CONFIG_COUNT` set on every invocation:
+
+```
+error: missing config value GIT_CONFIG_VALUE_1
+fatal: unable to parse command-line config
+```
+
+Count the pairs before redeploying: `GIT_CONFIG_COUNT` must match the
+number of `KEY`/`VALUE` pairs exactly, and every index needs both halves.
+
 **First boot looks broken for a minute.** Spokes are mirror-cloned by the
 sync loop as it runs, so until each finishes the board reports it as
 unreadable (`no branches found in …`). It resolves itself — give a hub
