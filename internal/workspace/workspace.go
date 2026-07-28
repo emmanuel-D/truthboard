@@ -153,8 +153,11 @@ func verifyIdentity(path string, r Repo) error {
 	if sameRemote(origin, r.Remote) {
 		return nil
 	}
+	// Both remotes are redacted: origin comes straight from `git remote
+	// get-url`, and a clone made the way the deploy docs describe carries a
+	// token there. This error reaches the board, which serves it to anyone.
 	return fmt.Errorf("declared path %s is a checkout of %s, not %s — fix path: or remote: in %s",
-		r.Path, origin, r.Remote, File)
+		r.Path, gitrepo.Redact(origin), gitrepo.Redact(r.Remote), File)
 }
 
 // sameRemote reports whether two remote URLs name the same repository across
