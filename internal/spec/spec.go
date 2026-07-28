@@ -252,3 +252,19 @@ func slugify(title string) string {
 	}
 	return slug
 }
+
+// Delete removes a spec's intent file. Retiring a story is deleting the
+// promise, and since the file is versioned that is an ordinary commit —
+// which is also the undo: `git revert` brings it back with its history.
+// There is deliberately no "archived" flag, because a flag someone sets to
+// say where a story stands is a status, and statuses are derived.
+func Delete(repo, id string) (*Spec, error) {
+	s, err := Find(repo, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Remove(s.File); err != nil {
+		return nil, err
+	}
+	return s, nil
+}

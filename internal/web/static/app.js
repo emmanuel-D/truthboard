@@ -390,6 +390,7 @@ function setMode(mode) {
   RO = mode === "ro";
   document.getElementById("new-story").hidden = RO;
   document.getElementById("dt-edit").hidden = RO;
+  document.getElementById("dt-delete").hidden = RO;
   document.getElementById("dt-assign-wrap").hidden = RO;
   const unlock = document.getElementById("unlock");
   unlock.hidden = mode !== "token";
@@ -563,6 +564,39 @@ document.getElementById("dt-assign").addEventListener("change", async e => {
 
 document.getElementById("dt-close").addEventListener("click", () => detailDlg.close());
 document.getElementById("dt-edit").addEventListener("click", () => { detailDlg.close(); openEditor(detailSpec); });
+
+// Retiring a story. The server refuses while git still points at the
+// story, and says what points at it — so the second confirm quotes the
+// server's own reason rather than a guess made here.
+document.getElementById("dt-delete").addEventListener("click", async () => {
+  if (!detailSpec) return;
+  const err = document.getElementById("dt-err");
+  err.textContent = "";
+  if (!confirm(`Delete ${detailSpec.id}?\n\n"${detailSpec.title}"\n\nThe deletion is a commit — recover it with git revert.`)) return;
+
+  const btn = document.getElementById("dt-delete");
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "deleting…";
+  try {
+    let r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id), { method: "DELETE" });
+    if (r.status === 409) {
+      // Proof exists. Say exactly what, and make the override deliberate.
+      const why = (await r.text()).trim();
+      if (!confirm(`${why}\n\nRetire it anyway?`)) return;
+      r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id) + "?force=1", { method: "DELETE" });
+    }
+    if (!r.ok) throw new Error(await r.text());
+    surfacePush(await r.json());
+    detailDlg.close();
+    last = ""; // force re-render on next poll
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+});
 
 // Sign-off: clicking the nth checkbox flips the nth [ ]/[x] in the body
 // and saves — an intent edit like any other, visible as a git diff.
