@@ -28,26 +28,6 @@ import (
 // rather than a different suggestion per error.
 const deployDocs = "docs/deploy.md — \"private repositories, and multi-repo hubs\""
 
-// Redact removes the credential from a remote URL. Deploy platforms archive
-// their logs, and the documented way to reach a private repo is to embed a
-// token in the URL — so anything that prints one redacts it first.
-func Redact(raw string) string {
-	i := strings.Index(raw, "://")
-	if i < 0 {
-		return raw // scp-style (git@host:path) carries no secret
-	}
-	rest := raw[i+3:]
-	at := strings.Index(rest, "@")
-	if at < 0 {
-		return raw
-	}
-	// An @ past the first slash belongs to the path, not to a credential.
-	if slash := strings.Index(rest, "/"); slash >= 0 && slash < at {
-		return raw
-	}
-	return raw[:i+3] + "***@" + rest[at+1:]
-}
-
 // Preflight runs the checks that must pass before a clone is attempted:
 // that git's config-from-environment is coherent, and that the remote
 // answers. It is the pre-clone half, so it takes a URL rather than a repo —
@@ -124,7 +104,7 @@ func checkGitConfigEnv(lookup func(string) (string, bool)) error {
 		case !hasKey:
 			missing = append(missing, fmt.Sprintf("  %d: GIT_CONFIG_KEY_%d is unset", i, i))
 		case !hasValue:
-			missing = append(missing, fmt.Sprintf("  %d: GIT_CONFIG_VALUE_%d is unset (its key is %s)", i, i, Redact(key)))
+			missing = append(missing, fmt.Sprintf("  %d: GIT_CONFIG_VALUE_%d is unset (its key is %s)", i, i, gitrepo.Redact(key)))
 		}
 	}
 	if len(missing) > 0 {
@@ -180,7 +160,11 @@ func checkPushable(repo string) error {
 // "I supplied nothing" from "what I supplied is wrong" — and those have
 // opposite fixes.
 func explainRemote(remote, out string) error {
-	safe := Redact(remote)
+	safe := gitrepo.Redact(remote)
+	// git sanitizes most of its own output, and "most" is not a property
+	// worth betting a token on — everything derived from out is redacted
+	// before it is quoted back.
+	out = gitrepo.Redact(out)
 	low := strings.ToLower(out)
 	switch {
 	case containsAny(low, "authentication failed", "access denied", "403 forbidden", "401 unauthorized",
@@ -228,7 +212,7 @@ func permissionLine(out string) string {
 // resolution — so it only distinguishes "nothing is configured anywhere"
 // from "something is, and was refused".
 func hasCredential(remote string) bool {
-	if Redact(remote) != remote {
+	if gitrepo.Redact(remote) != remote {
 		return true // the URL carries one itself
 	}
 	raw := os.Getenv("GIT_CONFIG_COUNT")

@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,8 +91,8 @@ func TestRedactStripsCredentials(t *testing.T) {
 		"https://gitlab.com/w/h.git":                     "https://gitlab.com/w/h.git",
 		"git@github.com:o/r.git":                         "git@github.com:o/r.git",
 	} {
-		if got := Redact(in); got != want {
-			t.Errorf("Redact(%q) = %q, want %q", in, got, want)
+		if got := gitrepo.Redact(in); got != want {
+			t.Errorf("gitrepo.Redact(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -200,4 +201,36 @@ func TestPreflightRepoNamesUnreachableSpokes(t *testing.T) {
 	if strings.Contains(got, "good:") {
 		t.Errorf("a reachable spoke must not be reported, got: %q", got)
 	}
+}
+
+// TestSyncErrorsNeverCarryACredential covers the path that made this
+// worth doing: a spoke whose clone fails puts the error in the sync
+// header, which the page prints as "⚠ remote sync failing: …". The clone
+// takes its URL as an argument, so before redaction a manifest carrying a
+// token published it to every viewer of a shared board.
+func TestSyncErrorsNeverCarryACredential(t *testing.T) {
+	const secret = "glpat-NEVER-PRINT-THIS"
+	_, reader := remoteFixture(t)
+
+	s := &syncer{
+		repo:      filepath.Join(t.TempDir(), "spoke-clone"),
+		remoteURL: "https://oauth2:" + secret + "@127.0.0.1:9/acme/spoke.git",
+		name:      "spoke",
+		proofOnly: true,
+	}
+	s.step()
+
+	s.mu.Lock()
+	got := s.err
+	s.mu.Unlock()
+	if got == "" {
+		t.Fatal("the clone was expected to fail and record an error")
+	}
+	if strings.Contains(got, secret) {
+		t.Errorf("the sync error carries a credential, and the board serves it in a header:\n%s", got)
+	}
+	if !strings.Contains(got, "***@") {
+		t.Errorf("expected a redaction marker in:\n%s", got)
+	}
+	_ = reader
 }

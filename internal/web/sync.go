@@ -245,7 +245,11 @@ func gitMutate(repo string, args ...string) (string, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), msg)
+		// Redacted for the same reason gitrepo.Run is, and it matters more
+		// here: this is the mutating path, so it is the one that takes a
+		// spoke's clone URL as an argument — and its errors are served to
+		// every viewer of a shared board in the sync header.
+		return "", fmt.Errorf("git %s: %s", gitrepo.Redact(strings.Join(args, " ")), gitrepo.Redact(msg))
 	}
 	return strings.TrimSpace(string(out)), nil
 }
