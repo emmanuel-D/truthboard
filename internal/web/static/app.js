@@ -647,6 +647,16 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     repos: document.getElementById("ed-rp").value.split(",").map(x => x.trim()).filter(Boolean),
     body: document.getElementById("ed-b").value,
   };
+  // On a shared board a save is a commit and a push to the forge, so it
+  // takes as long as the network does. Silence for that whole time reads
+  // as a hang and gets the button pressed again — say it is working, and
+  // refuse the second press.
+  // By id, not e.submitter: submitting with Enter leaves that null.
+  const save = document.getElementById("ed-save");
+  const saveLabel = save.textContent;
+  save.disabled = true;
+  save.textContent = "saving…";
+  document.getElementById("ed-err").textContent = "";
   try {
     const r = await intentFetch(editingId ? "/api/specs/" + encodeURIComponent(editingId) : "/api/specs", {
       method: editingId ? "PUT" : "POST",
@@ -659,6 +669,9 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     last = ""; // force re-render on next poll
   } catch (err) {
     document.getElementById("ed-err").textContent = err.message;
+  } finally {
+    save.disabled = false;
+    save.textContent = saveLabel;
   }
 });
 
