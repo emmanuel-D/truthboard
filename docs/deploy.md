@@ -219,6 +219,11 @@ sync loop as it runs, so until each finishes the board reports it as
 unreadable (`no branches found in …`). It resolves itself — give a hub
 with several large spokes a minute before concluding the deploy failed.
 
+Deploying a private hub *with editing armed* adds a second credential and
+a second rewrite rule; that combination is written out end to end in
+[the worked
+example](#worked-example-a-private-hub-with-private-spokes-editing-armed).
+
 ## Preflight: find out before the deploy does
 
 Credential problems are the ones that waste an afternoon, because a
@@ -243,6 +248,111 @@ It exits non-zero on a failure it is sure about and prints nothing at all
 when everything is reachable. The Docker image runs it before cloning, and
 `truthboard ui` runs the repo half at startup, so a deploy that is going
 to fail says why on the first boot rather than the ninth.
+
+## Worked example: a private hub with private spokes, editing armed
+
+The three features above compose in one way that is not obvious until it
+bites, so here is the whole thing end to end. The setup: a hub and three
+spokes, all private on GitLab under one group, deployed on Coolify, with
+intent editing on so stories can be written from a phone.
+
+**Arming the edit token is what forces a second credential.** The board
+only ever reads a spoke, but it *writes* the hub — every story you save
+is committed there and pushed. So the hub needs push access and the
+spokes must not have it, which turns one rewrite rule into two.
+
+### Two tokens
+
+| token | scope | permissions |
+| --- | --- | --- |
+| spokes | the whole group | `Code: Download` |
+| hub | the hub project only | `Code: Download` **and** `Code: Push` |
+
+GitLab's fine-grained permissions are a multi-select: ticking `Push`
+does not imply `Download`, and a token with only `Push` fails the clone
+with `[Code: Download]`. On GitHub the equivalents are Contents: read,
+and Contents: read and write for the hub. A group **deploy token** with
+`write_repository` is a simpler alternative for the hub — one scope
+covering both, and not tied to a person who might leave.
+
+Prove each one before it goes anywhere near the platform:
+
+```sh
+GIT_TERMINAL_PROMPT=0 git ls-remote https://oauth2:<spoke-token>@gitlab.com/acme/api.git
+GIT_TERMINAL_PROMPT=0 git ls-remote https://oauth2:<hub-token>@gitlab.com/acme/hub.git
+```
+
+Refs printed means the clone will work. This one command is the
+difference between a five-minute deploy and five redeploys.
+
+### The environment, complete
+
+| Variable | Value |
+| --- | --- |
+| `REPO_URL` | `https://gitlab.com/acme/hub.git` |
+| `GIT_CONFIG_COUNT` | `2` |
+| `GIT_CONFIG_KEY_0` | `url.https://oauth2:<spoke-token>@gitlab.com/.insteadOf` |
+| `GIT_CONFIG_VALUE_0` | `https://gitlab.com/` |
+| `GIT_CONFIG_KEY_1` | `url.https://oauth2:<hub-token>@gitlab.com/acme/hub.git.insteadOf` |
+| `GIT_CONFIG_VALUE_1` | `https://gitlab.com/acme/hub.git` |
+| `TRUTHBOARD_EDIT_TOKEN` | `openssl rand -hex 24` |
+| `FETCH` | `60s` |
+
+Port `1337` in Coolify's *Ports Exposes*, and the domain attached.
+
+**Rule 1 wins for the hub because git resolves `insteadOf` by longest
+matching prefix.** The group-wide read-only rule covers every spoke; the
+hub-specific rule is longer, so it overrides for the one repo that also
+needs push.
+
+Prefix, not equality — which cuts both ways, and both ways are quiet:
+
+- **Too broad** and the push token leaks to repos that should never have
+  it. `https://gitlab.com/acme/` matches every project in the group, so
+  all three spokes would be cloned with a push-capable credential.
+- **Too narrow, or mistyped**, and nothing matches. The hub falls back to
+  rule 0, the deploy looks perfect, and the first save fails at the push.
+
+Give rule 1 the full hub URL and it can only ever mean the hub. The
+`.git` suffix is optional — `…/acme/hub` rewrites `…/acme/hub.git` fine,
+since only the prefix is replaced — but including it costs nothing and
+removes the question.
+
+Check the resolution rather than trusting it. `git ls-remote --get-url`
+applies the rewrite rules and prints the result without contacting
+anything:
+
+```sh
+git ls-remote --get-url https://gitlab.com/acme/hub.git   # must show the hub token
+git ls-remote --get-url https://gitlab.com/acme/api.git   # must show the spoke token
+```
+
+### Then close the door
+
+A shared board authenticates writes, never reads. The edit token gates
+saving a story; it does not gate seeing one. Deployed as above and left
+alone, anyone who finds the URL reads every branch name, commit subject
+and staleness figure across all four private repos.
+
+Turn on your platform's basic auth — in Coolify, **General → HTTP Basic
+Authentication**, then **Redeploy**, since it is a proxy label and a
+restart will not apply it. One consequence worth knowing: basic auth
+sits in front of every route including `/webhook`, so a forge push
+webhook will need a path exclusion.
+
+### When it goes wrong
+
+Run `truthboard preflight --remote "$REPO_URL" /repo` first — it names
+most of these directly. Otherwise:
+
+| What you see | What it means |
+| --- | --- |
+| `HTTP Basic: Access denied` | No credential reached git at all — or the URL names a repo that does not exist. A forge answers both identically. Check `GIT_CONFIG_COUNT` is set and counted correctly before suspecting the token |
+| `Access denied … [Code: Download]` | The token authenticated and lacks exactly the permission named. Fine-grained permissions do not imply one another |
+| `error: missing config value GIT_CONFIG_VALUE_1` | `GIT_CONFIG_COUNT` does not match the pairs present. On platforms that turn env vars into build args this fails the **image build**, pointing at whatever git ran next |
+| Board loads, first save returns 500 `pushing to origin failed` | The hub credential is read-only: rule 1 is missing, its prefix does not match, or its token has no `Push`. `git ls-remote --get-url <hub url>` shows which credential actually resolves |
+| `workspace: <spoke> ✗` · `no branches found` | That spoke is unreachable — or is still being mirror-cloned on first boot. Give it a minute before concluding it failed |
+| Board opens with no password | Reads are unauthenticated by design. That is your proxy's job |
 
 ## Keeping the board fresh: poll or push
 
@@ -311,7 +421,11 @@ Two deployment notes:
 
 - The server clone now needs **push** access: a read-write deploy key,
   or a token with write scope in `REPO_URL`
-  (`https://x-access-token:<token>@github.com/you/your-project`).
+  (`https://x-access-token:<token>@github.com/you/your-project`). On a
+  multi-repo hub this is the one thing that makes the credential setup
+  non-obvious — the hub needs push while the spokes must not have it —
+  so follow [the worked
+  example](#worked-example-a-private-hub-with-private-spokes-editing-armed).
 - Statuses are still derived. The token opens the promise (spec files),
   never the proof — there remains no route by which a status could be
   written, from anywhere.
