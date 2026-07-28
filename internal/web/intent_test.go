@@ -34,6 +34,11 @@ func originAndClone(t *testing.T) (origin, clone string) {
 
 	clone = filepath.Join(root, "board-clone")
 	git(t, root, "clone", "--quiet", origin, clone)
+	// The clone is committed into by tests, so it needs the same identity
+	// the seed has. A machine with a usable global git identity hides the
+	// omission; a CI runner, which has none and cannot derive one, does not.
+	git(t, clone, "config", "user.email", "t@t.co")
+	git(t, clone, "config", "user.name", "T")
 	git(t, clone, "config", "commit.gpgsign", "false")
 	return origin, clone
 }
