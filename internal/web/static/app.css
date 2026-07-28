@@ -269,6 +269,11 @@
   }
   .ed input:focus, .ed select:focus, .ed textarea:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
   .ed textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.55; min-height: 14rem; resize: vertical; }
+  /* A multi-select renders as a list box, so it needs room to breathe and
+     its own padding — the single-line padding above squashes the rows. */
+  .ed select[multiple] { padding: .2rem; height: auto; }
+  .ed select[multiple] option { padding: .22rem .4rem; border-radius: 5px; }
+  .ed .note { padding: .25rem 0 0; display: block; }
   .ed .row3 { display: grid; grid-template-columns: 1fr 1fr 7rem; gap: .6rem; }
   .ed .row3 .wide { grid-column: 1 / -1; }
   .tabs { display: flex; gap: .2rem; margin: .7rem 0 .3rem; border-bottom: 1px solid var(--hairline); }

@@ -635,6 +635,31 @@ const dlg = document.getElementById("editor");
 let editingId = null;
 const TEMPLATE = "## Goal\n\n(what outcome, and why)\n\n## Acceptance\n\n- [ ] (observable criterion)\n";
 
+// fillRepos builds the Repos options from the workspace manifest, so the
+// field offers repos that exist instead of trusting whatever was typed —
+// a typo used to become a story that could never be done, since done means
+// the trailer landed in every declared repo.
+//
+// Two cases the options must survive. A repo the spec already declares but
+// the manifest no longer has (renamed, removed) stays selectable and
+// selected: dropping it here would quietly rewrite intent the board is
+// still reporting as drift. And a single-repo board has nothing to choose
+// between, so the field is hidden unless a stale declaration needs
+// clearing.
+function fillRepos(selected) {
+  const sel = document.getElementById("ed-rp");
+  const known = lastBoard?.workspace?.length ? ["hub", ...lastBoard.workspace.map(r => r.name)] : [];
+  const extra = selected.filter(r => !known.includes(r));
+  document.getElementById("ed-rp-wrap").hidden = !known.length && !extra.length;
+
+  sel.innerHTML = [...known, ...extra].map(r => {
+    const gone = !known.includes(r);
+    const label = (r === "hub" ? "⌂ " : "") + r + (gone ? " — not in workspace" : "");
+    return `<option value="${esc(r)}"${selected.includes(r) ? " selected" : ""}>${esc(label)}</option>`;
+  }).join("");
+  sel.size = Math.min(Math.max(known.length + extra.length, 2), 6);
+}
+
 function openEditor(spec) {
   editingId = spec ? spec.id : null;
   document.getElementById("ed-title").textContent = spec ? `Edit ${spec.id} — intent only` : "New story";
@@ -646,7 +671,7 @@ function openEditor(spec) {
   document.getElementById("ed-pts").value = spec?.points || "";
   document.getElementById("ed-ty").value = (spec?.type === "story" ? "" : spec?.type) || "";
   document.getElementById("ed-nd").value = (spec?.needs || []).join(", ");
-  document.getElementById("ed-rp").value = (spec?.repos || []).join(", ");
+  fillRepos(spec?.repos || []);
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
   setTab(false);
@@ -678,7 +703,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
     type: document.getElementById("ed-ty").value,
     needs: document.getElementById("ed-nd").value.split(",").map(x => x.trim()).filter(Boolean),
-    repos: document.getElementById("ed-rp").value.split(",").map(x => x.trim()).filter(Boolean),
+    repos: [...document.getElementById("ed-rp").selectedOptions].map(o => o.value),
     body: document.getElementById("ed-b").value,
   };
   // On a shared board a save is a commit and a push to the forge, so it
