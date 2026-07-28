@@ -8,7 +8,13 @@ set -e
 REPO_DIR="${REPO_DIR:-/repo}"
 
 if [ ! -e "$REPO_DIR/.git" ] && [ -n "$REPO_URL" ]; then
-    echo "cloning $REPO_URL into $REPO_DIR"
+    # Prove the credential works before cloning with it. A platform that
+    # restarts crashed containers turns a bad token into the same git error
+    # printed once per restart; this turns it into one diagnosis instead.
+    truthboard preflight --remote "$REPO_URL" || exit 1
+    # Deploy platforms archive their logs and the documented way to reach a
+    # private repo is a token in the URL, so strip it before printing.
+    echo "cloning $(printf '%s' "$REPO_URL" | sed -E 's#://[^@/]*@#://***@#') into $REPO_DIR"
     git clone "$REPO_URL" "$REPO_DIR"
 fi
 

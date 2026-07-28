@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -490,6 +491,9 @@ func Serve(repo string, o Options) error {
 	if o.FetchEvery > 0 {
 		fmt.Printf("fetching origin every %s so the board tracks the remote\n", o.FetchEvery)
 	}
+	// Say what is unreachable now, while someone is still reading the boot
+	// output — not one spoke at a time as the sync loop trips over each.
+	PreflightRepo(os.Stderr, repo, o)
 	if o.OpenBrowser {
 		browse(url)
 	}

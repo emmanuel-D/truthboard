@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 
@@ -95,6 +96,10 @@ Usage:
                 --host 0.0.0.0              share the board beyond this machine (read-only)
                 --notify <url>              post stalled/regressed transitions to a webhook
                                             (Slack-compatible; recoveries are news too)
+  truthboard preflight [--remote URL] [repo]
+                                            prove a deploy can reach what it derives from:
+                                            git's environment, the remote, every spoke, and
+                                            push access when editing is armed
   truthboard status [repo]                  is a detached board running for this repo?
   truthboard stop [repo]                    stop the detached board
   truthboard update [--check]               update this binary to the latest release
@@ -144,6 +149,8 @@ func main() {
 		os.Exit(runReview(os.Args[2:]))
 	case "ui":
 		os.Exit(runUI(os.Args[2:]))
+	case "preflight":
+		os.Exit(runPreflight(os.Args[2:]))
 	case "status":
 		os.Exit(runLifecycle("status", func(repo string) (string, error) {
 			return lifecycle.Status(repo, version)
@@ -257,6 +264,33 @@ func runUI(args []string) int {
 	if err := web.Serve(repo, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
+	}
+	return 0
+}
+
+// runPreflight is what a container runs before it clones anything: it
+// proves git's environment is coherent and the remote answers, so a deploy
+// that is going to fail says why once, in the operator's terms, instead of
+// failing later as raw git output on every restart.
+func runPreflight(args []string) int {
+	fs := flag.NewFlagSet("preflight", flag.ExitOnError)
+	remote := fs.String("remote", os.Getenv("REPO_URL"),
+		"check this remote is readable (env REPO_URL); omit to check only git's environment")
+	fs.Parse(args)
+
+	if err := web.Preflight(*remote); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard preflight: %v\n", err)
+		return 1
+	}
+	// The repo half only applies where there is one; a pre-clone run has
+	// nothing on disk yet and skips straight to a silent pass.
+	repo := "."
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".git")); err == nil {
+		web.PreflightRepo(os.Stderr, repo, web.Options{
+			Host: os.Getenv("HOST"), EditToken: os.Getenv("TRUTHBOARD_EDIT_TOKEN")})
 	}
 	return 0
 }
