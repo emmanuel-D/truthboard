@@ -211,8 +211,18 @@ func Handler(repo string, o Options) *Board {
 		}
 		w.Write(body)
 	})
-	mux.HandleFunc("/api/specs", specCreate(repo, cache.invalidate, land))
-	mux.HandleFunc("/api/specs/", specItem(repo, cache.invalidate, land))
+	// A new or edited story is precisely the news the live channel exists to
+	// carry, and it was the one change that never used it: the broadcaster
+	// fired on webhook pushes only, so a story written on one phone waited
+	// out every other viewer's poll before appearing. Notified before the
+	// push, deliberately — the story is on disk and derivable the moment it
+	// is written, and reaching origin is durability, not visibility.
+	changed := func() {
+		cache.invalidate()
+		live.notify()
+	}
+	mux.HandleFunc("/api/specs", specCreate(repo, changed, land))
+	mux.HandleFunc("/api/specs/", specItem(repo, changed, land))
 	if sub, err := fs.Sub(staticFiles, "static"); err == nil {
 		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
 	}

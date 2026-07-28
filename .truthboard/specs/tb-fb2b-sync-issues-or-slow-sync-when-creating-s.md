@@ -5,56 +5,61 @@ owner: emmanuel
 branch: '*/tb-fb2b-*'
 paths:
     - internal/web/**
+    - internal/audit/**
 priority: 2
 type: bug
 ---
 
 ## Goal
 
-Saving a story on a shared board takes seconds, and a story someone
-else creates takes seconds more to appear. Neither is mysterious once
-the path is traced, and only part of it is actually a bug.
+Saving a story on a shared board takes seconds, and the board itself
+intermittently refuses to refresh. Measurement found three causes, and
+only one of them was the one originally guessed.
 
-**Saving blocks on two network round-trips.** `respondIntent` answers
-only after `committer.land` has run `add`, `commit`, `pull --rebase`
-and `push` against origin — so a save from a phone waits out a rebase
-and a push to the forge before the dialog closes. That is deliberate:
-the push error has to reach the person who made the edit, not just a
-server log. But nothing tells them it is working, so it reads as a
-hang. `land` also holds a mutex, so two people saving at once queue.
+**Linking asked git a question per (spec × branch) pair.** `linkSpecs`
+ran `git log --grep <trailer>` once for every spec against every branch,
+so this repo — 68 specs, 17 refs — spawned 940 git processes for one
+audit and took fifteen seconds. `boardCache.get()` holds its mutex for
+the whole audit while browsers poll every three seconds, which is
+exactly the "audit unavailable — retrying" the board shows. Specs are
+intent and cost nothing to write, so their number must never multiply
+the work.
 
-**A new story is announced to nobody.** The SSE broadcaster exists for
-exactly this and `live.notify()` is called on the webhook path only
-(`server.go:224`) — never after an intent write. So another viewer's
-board updates on its own 3s poll rather than immediately, and the
-channel built to carry the news sits idle.
+**Saving paid a forge round-trip for a rebase that did nothing.**
+`committer.land` rebased on origin before every push. The board is
+usually the only writer and the sync loop has already fetched, so that
+first round-trip almost always changed nothing — and someone waiting
+for a dialog to close paid it in real seconds.
 
-**Every write invalidates the whole audit.** `cache.invalidate()` forces
-the next `/api/board` to re-derive from scratch, walking every branch of
-every spoke. On a hub with three spokes that is the pause after a save.
+**A new story was announced to nobody.** `live.notify()` fired on the
+webhook path only, never after an intent write, so another viewer's
+board waited out its own 3s poll. The one change most worth announcing
+was the only one not using the channel built to announce it.
 
-**A dialog freezes the board.** `app.js` skips rendering while a dialog
-is open, so nothing lands while the editor is up. Correct — it must not
-yank a form out from under someone — but it looks like sync stopped.
+Two things that look like bugs and are not: `land` holds a mutex, but
+git on one working tree is serial and always will be — the guarantee is
+that every save lands, not that saves overlap. And `app.js` refuses to
+re-render under an open dialog, which is correct; it must not yank a
+form out from under someone.
 
 ## Acceptance
 
-- [ ] An intent write notifies the broadcaster, so other viewers see a
-      new or edited story without waiting for their next poll
-- [ ] Saving reports progress rather than appearing to hang; whatever
-      shape that takes, a push failure still reaches the person who
-      saved, since the spec is written either way and only the push can
-      fail (see the contract in `respondIntent`)
-- [ ] Two people saving at once do not serialize into a visible stall
-- [ ] A cache invalidation does not re-derive spokes whose refs have not
-      moved
-- [ ] Measured, not assumed: record save-to-visible latency on a hub
-      with remote spokes before and after, and put the numbers in the
+- [ ] Adding specs to an unchanged repo adds no git processes to an
+      audit, guarded by a test that fails on the per-pair form
+- [ ] The derivation is unchanged: same statuses, same landings, same
+      evidence, for every spec and unit
+- [ ] An uncontended save costs one round-trip to the forge, not two,
+      and a push refused for a reason a rebase cannot fix surfaces as
+      itself rather than being retried
+- [ ] A save whose push is rejected as stale still rebases and arrives
+- [ ] An intent write notifies the live channel, so other viewers see a
+      new story without waiting for their next poll
+- [ ] Saving reports progress rather than appearing to hang, and a push
+      failure still reaches the person who saved
+- [ ] Measured, not assumed: round-trip counts and audit timings in the
       commit
 
 ## Notes
 
-The dialog-render guard is working as intended — decide whether to
-surface "there are changes waiting" rather than change the behaviour.
-Perceived-speed work overlaps [[tb-c469]]; if that lands first, some of
-this becomes presentation only.
+Perceived-speed work overlaps [[tb-c469]]. The dialog-render guard is
+worth surfacing as "there are changes waiting" rather than changing.

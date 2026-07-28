@@ -78,6 +78,7 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
 		byName[ctx.name] = ctx
 	}
 	reverts := map[string][]revertInfo{}
+	idx := indexTrailers(ctxs, res.Units, specs)
 
 	for i := range specs {
 		s := &specs[i]
@@ -89,7 +90,7 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
 		for j := range res.Units {
 			u := &res.Units[j]
 			ctx := byName[u.Repo]
-			if unitMatchesSpec(ctx.path, ctx.base, s, u) {
+			if unitMatchesSpec(idx, s, u) {
 				u.SpecID = s.ID
 				linked = append(linked, u)
 				ss.Branches = append(ss.Branches, u.Label())
@@ -100,11 +101,11 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
 		}
 		if len(s.Repos) > 0 {
 			ss.Repos = s.Repos
-			ss.Status, ss.Evidence = deriveDeclaredRepos(byName, s, &ss, linked, res)
+			ss.Status, ss.Evidence = deriveDeclaredRepos(byName, idx, s, &ss, linked, res)
 		} else {
 			landedLabel := ""
 			for _, ctx := range ctxs {
-				if sha := landingCommit(ctx.path, ctx.base, s); sha != "" {
+				if sha := landingCommit(idx, ctx.name, s); sha != "" {
 					ss.Landed, ss.LandedRepo = sha, ctx.name
 					landedLabel = ctx.label(ctx.base)
 					break
@@ -151,7 +152,92 @@ func rank(p int) int {
 	return p
 }
 
-func unitMatchesSpec(repo, base string, s *spec.Spec, u *Unit) bool {
+// trailers is the answer to every "does this commit range carry spec X?"
+// question in one pass. Asking git that question per (spec × branch) pair
+// meant a repo with 68 specs and 17 refs spawned 940 `git log --grep`
+// processes for a single audit — forty seconds, during which the board's
+// cache mutex is held and every viewer sees "audit unavailable". Git is
+// asked once per range instead, and the matching happens here.
+type trailers struct {
+	// unmerged maps a unit key to the spec ids its unmerged commits carry.
+	unmerged map[string]map[string]bool
+	// landed maps a repo name to spec id → newest landing SHA on its base.
+	landed map[string]map[string]string
+}
+
+// trailerPattern reads the id out of a "Spec: <id>" mention. Deliberately
+// not anchored to a real trailer position: the per-spec form this replaces
+// used --grep, which matches anywhere in the message, and narrowing that
+// here would silently unlink work that used to derive.
+var trailerPattern = regexp.MustCompile(`Spec:[ \t]*(\S+)`)
+
+func unitKey(u *Unit) string { return u.Repo + "\x00" + u.Name }
+
+// indexTrailers runs one git log per branch and one per repo, rather than
+// one per spec per branch. --grep=Spec: narrows the walk to commits that
+// could match at all, so most repos stream very little.
+func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
+	known := make(map[string]bool, len(specs))
+	for i := range specs {
+		known[specs[i].ID] = true
+	}
+	idx := &trailers{
+		unmerged: make(map[string]map[string]bool, len(units)),
+		landed:   make(map[string]map[string]string, len(ctxs)),
+	}
+	byName := make(map[string]repoCtx, len(ctxs))
+	for _, ctx := range ctxs {
+		byName[ctx.name] = ctx
+	}
+
+	for i := range units {
+		u := &units[i]
+		ctx, ok := byName[u.Repo]
+		if !ok {
+			continue
+		}
+		out, ok := gitrepo.Try(ctx.path, "log", "-n", "200", "--grep", "Spec:",
+			ctx.base+".."+u.Tip, "--format=%B%x1e")
+		if !ok || out == "" {
+			continue
+		}
+		ids := map[string]bool{}
+		for _, m := range trailerPattern.FindAllStringSubmatch(out, -1) {
+			if known[m[1]] {
+				ids[m[1]] = true
+			}
+		}
+		idx.unmerged[unitKey(u)] = ids
+	}
+
+	// Landings are unbounded on purpose: a spec that landed long ago must
+	// still derive as done, so this walk cannot take an -n limit the way
+	// the unmerged one can.
+	for _, ctx := range ctxs {
+		out, ok := gitrepo.Try(ctx.path, "log", "--grep", "Spec:", ctx.base, "--format=%H%x00%B%x1e")
+		if !ok || out == "" {
+			continue
+		}
+		newest := map[string]string{}
+		for _, record := range strings.Split(out, "\x1e") {
+			sha, body, found := strings.Cut(record, "\x00")
+			if !found {
+				continue
+			}
+			sha = strings.TrimSpace(sha)
+			for _, m := range trailerPattern.FindAllStringSubmatch(body, -1) {
+				// git log walks newest first, so the first sighting wins.
+				if known[m[1]] && newest[m[1]] == "" {
+					newest[m[1]] = sha
+				}
+			}
+		}
+		idx.landed[ctx.name] = newest
+	}
+	return idx
+}
+
+func unitMatchesSpec(idx *trailers, s *spec.Spec, u *Unit) bool {
 	if strings.Contains(u.Name, s.ID) {
 		return true
 	}
@@ -161,19 +247,14 @@ func unitMatchesSpec(repo, base string, s *spec.Spec, u *Unit) bool {
 		return true
 	}
 	// Trailer in any unmerged commit of the branch.
-	out, ok := gitrepo.Try(repo, "log", "-n", "200", "--grep", s.Trailer(), base+".."+u.Tip, "--format=%h")
-	return ok && out != ""
+	return idx.unmerged[unitKey(u)][s.ID]
 }
 
 // landingCommit returns the newest commit carrying the spec's trailer that
 // is reachable from the integration branch, or "" when none landed yet.
 // This SHA is also what a CI check (forge enrichment) is run against.
-func landingCommit(repo, base string, s *spec.Spec) string {
-	out, ok := gitrepo.Try(repo, "log", "-n", "1", "--grep", s.Trailer(), base, "--format=%H")
-	if !ok {
-		return ""
-	}
-	return out
+func landingCommit(idx *trailers, repo string, s *spec.Spec) string {
+	return idx.landed[repo][s.ID]
 }
 
 // ScopeCreep reports a spec-linked branch whose diff mostly lives outside
@@ -372,7 +453,7 @@ func regressionEvidence(repo string, s *spec.Spec, reverts []revertInfo) (string
 // yet") — a partially landed story must say exactly what is missing, never
 // a mute in-progress. A declared repo the workspace doesn't know is a
 // drift finding and keeps the spec from ever deriving done.
-func deriveDeclaredRepos(byName map[string]repoCtx, s *spec.Spec, ss *SpecStatus, linked []*Unit, res *Result) (Status, string) {
+func deriveDeclaredRepos(byName map[string]repoCtx, idx *trailers, s *spec.Spec, ss *SpecStatus, linked []*Unit, res *Result) (Status, string) {
 	unreadable := map[string]bool{}
 	for _, h := range res.Workspace {
 		if h.Err != "" {
@@ -411,7 +492,7 @@ func deriveDeclaredRepos(byName map[string]repoCtx, s *spec.Spec, ss *SpecStatus
 			}
 			continue
 		}
-		if sha := landingCommit(ctx.path, ctx.base, s); sha != "" {
+		if sha := landingCommit(idx, ctx.name, s); sha != "" {
 			landedAny = true
 			chips = append(chips, name+" ✓ landed")
 			ss.PerRepo = append(ss.PerRepo, RepoLanding{Repo: name, State: "landed", SHA: sha})
