@@ -179,6 +179,15 @@ func tools() []toolDef {
 			}, "id"),
 		},
 		{
+			Name:        "delete_spec",
+			Description: "Retire a story by deleting its intent file — for one created by mistake. Refused while git still points at it (a linked branch, or a landed commit carrying its trailer), because deleting the promise would leave that work unexplained; pass force to retire it anyway. The deletion is a commit, so the undo is git revert.",
+			InputSchema: objSchema(map[string]any{
+				"id":    map[string]any{"type": "string", "description": "Spec id, e.g. tb-4f2a"},
+				"force": map[string]any{"type": "boolean", "description": "Delete even though git still references the story"},
+				"repo":  repoProp,
+			}, "id"),
+		},
+		{
 			Name:        "next_spec",
 			Description: "The story an idle agent should pick up: the highest-priority planned spec (planned = no branch or commit yet, so unclaimed), returned as the same ready-to-work packet as get_brief. Deterministic — same repo state, same answer. When nothing is planned it says so; never invents work.",
 			InputSchema: objSchema(map[string]any{"repo": repoProp}),
@@ -330,6 +339,40 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			"branch":  s.Branch,
 			"trailer": s.Trailer(),
 			"next":    "work on a matching branch with the trailer in every commit; the board derives the rest",
+		})
+
+	case "delete_spec":
+		var a struct {
+			Repo  string `json:"repo"`
+			ID    string `json:"id"`
+			Force bool   `json:"force"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
+		repo := orDefault(a.Repo, defaultRepo)
+		if _, err := spec.Find(repo, a.ID); err != nil {
+			return "", describeUnknownSpec(repo, a.ID)
+		}
+		if !a.Force {
+			refs, err := audit.Referencing(repo, a.ID)
+			if err != nil {
+				return "", err
+			}
+			if len(refs) > 0 {
+				return "", fmt.Errorf("%s still has proof in git — %s. Deleting the story would leave that work unexplained; pass force: true to retire it anyway",
+					a.ID, strings.Join(refs, ", "))
+			}
+		}
+		s, err := spec.Delete(repo, a.ID)
+		if err != nil {
+			return "", err
+		}
+		return marshal(map[string]any{
+			"id":      s.ID,
+			"deleted": true,
+			"file":    s.File,
+			"next":    "commit the deletion like any intent change; the undo is git revert",
 		})
 
 	case "update_spec":

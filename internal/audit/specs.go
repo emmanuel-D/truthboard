@@ -606,3 +606,45 @@ func deriveSpecStatus(byName map[string]repoCtx, linked []*Unit, trailerMerged b
 		return Planned, "no matching branch or commit yet"
 	}
 }
+
+// Referencing returns the git facts that still point at a spec: the
+// branches linked to it and its landing commit, phrased for a human.
+// Empty means nothing in git refers to it.
+//
+// It answers by running the audit rather than re-implementing the linking
+// rules, which costs a second and buys the guarantee that matters: the
+// guard can never disagree with the board about what a story is linked to.
+// Deleting intent that still has proof would leave branches and trailers
+// nobody can account for — evidence outliving the promise it was made
+// against.
+func Referencing(repo, id string) ([]string, error) {
+	res, err := Audit(repo, Options{})
+	if err != nil {
+		return nil, err
+	}
+	for _, ss := range res.Specs {
+		if ss.ID != id {
+			continue
+		}
+		var refs []string
+		for _, b := range ss.Branches {
+			refs = append(refs, "branch "+b)
+		}
+		if ss.Landed != "" {
+			where := ss.LandedRepo
+			if where == "" {
+				where = "the integration branch"
+			}
+			refs = append(refs, fmt.Sprintf("a landed commit (%s in %s)", short(ss.Landed), where))
+		}
+		return refs, nil
+	}
+	return nil, nil
+}
+
+func short(sha string) string {
+	if len(sha) > 8 {
+		return sha[:8]
+	}
+	return sha
+}

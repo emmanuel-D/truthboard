@@ -88,6 +88,11 @@
   }
   .btn:hover { border-color: var(--in-progress); }
   .btn.primary { background: var(--ink); color: var(--page); border-color: var(--ink); }
+  /* Deleting is the one destructive action on the board; it reads as such
+     without competing with the primary action next to it. */
+  .btn.danger { color: var(--regressed); }
+  .btn.danger:hover { border-color: var(--regressed); }
+  .btn[disabled] { opacity: .55; cursor: default; }
   #theme { margin-left: auto; }
   .meta { width: 100%; color: var(--muted); font-size: .78rem; }
   .meta .rlink { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }

@@ -97,9 +97,10 @@ func TestStatusesHaveNoWritableRoute(t *testing.T) {
 	reject := []struct{ method, path string }{
 		{"POST", "/"}, {"PUT", "/"}, {"PATCH", "/"}, {"DELETE", "/"},
 		{"POST", "/api/board"}, {"PUT", "/api/board"}, {"DELETE", "/api/board"},
-		{"PATCH", "/api/specs"}, {"DELETE", "/api/specs"},
-		{"POST", "/api/specs/tb-x"}, {"PATCH", "/api/specs/tb-x"}, {"DELETE", "/api/specs/tb-x"},
-		{"PUT", "/api/specs"}, // PUT needs an id
+		{"PATCH", "/api/specs"},
+		{"POST", "/api/specs/tb-x"}, {"PATCH", "/api/specs/tb-x"},
+		{"PUT", "/api/specs"},    // PUT needs an id
+		{"DELETE", "/api/specs"}, // so does DELETE
 	}
 	for _, tc := range reject {
 		req, _ := http.NewRequest(tc.method, srv.URL+tc.path, strings.NewReader("{}"))
@@ -111,6 +112,20 @@ func TestStatusesHaveNoWritableRoute(t *testing.T) {
 		if resp.StatusCode != http.StatusMethodNotAllowed {
 			t.Errorf("%s %s = %d, want 405", tc.method, tc.path, resp.StatusCode)
 		}
+	}
+
+	// Retiring a story is an intent write, so DELETE on a spec id is routed
+	// rather than blocked — an unknown id is a 404 from the handler, not a
+	// 405 from the guard. The distinction matters: the guard's job is to
+	// keep proof unwritable, not to keep intent unwritable.
+	req, _ := http.NewRequest("DELETE", srv.URL+"/api/specs/tb-nosuch", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("DELETE of an unknown spec = %d, want 404", resp.StatusCode)
 	}
 }
 

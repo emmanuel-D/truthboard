@@ -263,7 +263,8 @@ func Handler(repo string, o Options) *Board {
 		}
 		allowed := read ||
 			(r.Method == http.MethodPost && r.URL.Path == "/api/specs") ||
-			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/specs/"))
+			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/specs/")) ||
+			(r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/specs/"))
 		if !allowed {
 			http.Error(w, "statuses are derived from git, never typed; only spec intent under /api/specs is writable", http.StatusMethodNotAllowed)
 			return
@@ -409,6 +410,10 @@ func specItem(repo string, invalidate func(), land *committer) http.HandlerFunc 
 			json.NewEncoder(w).Encode(payload(s))
 			return
 		}
+		if r.Method == http.MethodDelete {
+			specDelete(w, r, repo, s, invalidate, land)
+			return
+		}
 		var in struct {
 			Title    *string   `json:"title"`
 			Owner    *string   `json:"owner"`
@@ -522,4 +527,48 @@ func browse(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start() // best effort; the URL is printed either way
+}
+
+// specDelete retires a story. Refused by default while git still points at
+// it: deleting intent that has proof leaves branches and trailers nobody
+// can account for, which is the one shape of wrong answer this tool cannot
+// afford. ?force=1 says the operator means it anyway — a story really can
+// be retired without hand-editing a clone, which is what it took before
+// this route existed.
+func specDelete(w http.ResponseWriter, r *http.Request, repo string, s *spec.Spec, invalidate func(), land *committer) {
+	if r.URL.Query().Get("force") != "1" {
+		refs, err := audit.Referencing(repo, s.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(refs) > 0 {
+			http.Error(w, fmt.Sprintf("%s still has proof in git — %s. Deleting the story would leave that work unexplained; retry with ?force=1 to retire it anyway.",
+				s.ID, strings.Join(refs, ", ")), http.StatusConflict)
+			return
+		}
+	}
+	deleted, err := spec.Delete(repo, s.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	invalidate()
+
+	out := struct {
+		ID        string `json:"id"`
+		Deleted   bool   `json:"deleted"`
+		Undo      string `json:"undo"`
+		PushError string `json:"push_error,omitempty"`
+	}{ID: deleted.ID, Deleted: true, Undo: "git revert the deletion commit"}
+	if land != nil {
+		// No "Spec:" trailer, deliberately — and doubly so here, since a
+		// trailer naming the story this commit just deleted would derive it
+		// as done on the way out.
+		if err := land.land(deleted.File, fmt.Sprintf("Retire: %s (%s) — story deleted from the shared board", deleted.Title, deleted.ID)); err != nil {
+			out.PushError = err.Error()
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
 }

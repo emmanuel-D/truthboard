@@ -90,14 +90,14 @@ func TestHandshakeAndToolList(t *testing.T) {
 		t.Errorf("initialize result = %v", init)
 	}
 	tools := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 6 {
-		t.Errorf("got %d tools, want 6", len(tools))
+	if len(tools) != 7 {
+		t.Errorf("got %d tools, want 7", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tl := range tools {
 		names[tl.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"list_specs", "get_brief", "next_spec", "create_spec", "update_spec", "get_board"} {
+	for _, want := range []string{"list_specs", "get_brief", "next_spec", "create_spec", "update_spec", "delete_spec", "get_board"} {
 		if !names[want] {
 			t.Errorf("missing tool %q", want)
 		}
