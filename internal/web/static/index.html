@@ -29,7 +29,15 @@
   <button class="fclear" id="f-clear" hidden>clear filters</button>
 </div>
 <div id="app"></div>
+<!-- First paint: empty columns and a crashed board look the same, so say
+     which this is until the first audit answers. -->
+<div id="loading">reading the repository…</div>
 <footer id="foot">truthboard · refreshes automatically</footer>
+
+<!-- Transient confirmations. aria-live so a change is announced rather
+     than only shown; the region is polite because none of this is urgent
+     enough to interrupt what a screen reader is already saying. -->
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
 
 <!-- story detail: rendered intent + derived truth -->
 <dialog id="detail">

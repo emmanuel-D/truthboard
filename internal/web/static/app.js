@@ -325,6 +325,8 @@ function digest(b) {
 
 function render(b) {
   lastBoard = b;
+  // The first audit has answered, so the placeholder has done its job.
+  document.getElementById("loading").hidden = true;
   const repoLabel = b.forge || (b.repo || "").split("/").filter(Boolean).pop() || b.repo;
   let meta = esc(`${repoLabel} · integration branch ${b.integration_branch} (${b.elected_via})`);
   if (b.workspace?.length) {
@@ -405,6 +407,46 @@ async function intentFetch(url, opts) {
   return r;
 }
 
+/* ---------- transient feedback ---------- */
+
+// toast says an action worked, by name. A dialog that closes silently is
+// indistinguishable from one that crashed, and the two biggest actions —
+// saving a story and retiring one — used to do exactly that.
+//
+// Failures do not auto-dismiss: an error you did not happen to be looking
+// at is an error nobody reported.
+function toast(message, kind = "ok") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.append(Object.assign(document.createElement("span"), { textContent: message }));
+
+  const close = Object.assign(document.createElement("button"), {
+    className: "x", textContent: "✕", title: "Dismiss",
+  });
+  close.setAttribute("aria-label", "Dismiss");
+  const dismiss = () => {
+    el.classList.add("leaving");
+    // Match the animation, but never strand the node if it never runs
+    // (reduced motion turns the animation off entirely).
+    setTimeout(() => el.remove(), 200);
+  };
+  close.addEventListener("click", dismiss);
+  el.append(close);
+
+  document.getElementById("toasts").append(el);
+  if (kind !== "bad") setTimeout(dismiss, 4000);
+  return el;
+}
+
+// refreshNow re-derives immediately instead of waiting out the poll. Every
+// write used to set `last = ""` and leave it at that, so the person who
+// made the change waited up to 3s to see it — while other viewers, who now
+// get an SSE nudge, saw it at once. The actor was the last to know.
+function refreshNow() {
+  last = "";
+  tick(false);
+}
+
 // On a token-armed board the server pushes each edit to origin; a push
 // that failed must be said out loud, not buried in a server log.
 function surfacePush(out) {
@@ -465,6 +507,12 @@ async function tick(reschedule = true) {
       (syncAt ? " · remote synced " + ago(syncAt) : "");
   } catch (e) {
     document.getElementById("updated").textContent = "audit unavailable — retrying";
+    // Nothing has ever rendered, so the placeholder is all there is to
+    // read — make it say what is actually happening.
+    if (!lastBoard) {
+      document.getElementById("loading").textContent =
+        "the board could not read the repository — retrying: " + e.message;
+    }
   }
   ticking = false;
   if (reschedule) setTimeout(tick, 3000);
@@ -555,10 +603,11 @@ document.getElementById("dt-assign").addEventListener("change", async e => {
     surfacePush(await r.json());
     detailSpec.owner = owner;
     note.textContent = owner ? `assigned to ${owner}` : "unassigned";
-    last = ""; // avatars and owner chips pick it up on the next poll
+    refreshNow(); // avatars and owner chips, straight away
   } catch (err) {
     e.target.value = detailSpec.owner || "";
     note.textContent = "could not assign: " + err.message;
+    toast("Could not assign: " + err.message, "bad");
   }
 });
 
@@ -587,11 +636,14 @@ document.getElementById("dt-delete").addEventListener("click", async () => {
       r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id) + "?force=1", { method: "DELETE" });
     }
     if (!r.ok) throw new Error(await r.text());
+    const gone = detailSpec.id;
     surfacePush(await r.json());
     detailDlg.close();
-    last = ""; // force re-render on next poll
+    toast(`${gone} retired — git revert the deletion commit to bring it back`);
+    refreshNow();
   } catch (e) {
     err.textContent = e.message;
+    toast("Could not retire the story: " + e.message, "bad");
   } finally {
     btn.disabled = false;
     btn.textContent = label;
@@ -620,11 +672,14 @@ document.getElementById("dt-md").addEventListener("change", async e => {
     if (!r.ok) throw new Error(await r.text());
     surfacePush(await r.json());
     detailSpec.body = newBody;
-    last = ""; // progress bars pick it up on the next poll
+    toast(box.checked ? "Acceptance criterion signed off" : "Sign-off withdrawn");
+    refreshNow(); // progress bars, straight away
   } catch (err) {
     box.checked = !box.checked;
     document.getElementById("dt-hint").hidden = false;
     document.getElementById("dt-hint").textContent = "Could not save sign-off: " + err.message;
+    // Said where the action happened, and again where it cannot be missed.
+    toast("Could not save sign-off: " + err.message, "bad");
   } finally {
     box.disabled = false;
   }
@@ -723,9 +778,12 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
       body: JSON.stringify(payload),
     });
     if (!r.ok) throw new Error(await r.text());
-    surfacePush(await r.json());
+    const saved = await r.json();
+    surfacePush(saved);
+    const was = editingId;
     dlg.close();
-    last = ""; // force re-render on next poll
+    toast(was ? `${was} updated` : `Story created · ${saved.id}`);
+    refreshNow();
   } catch (err) {
     document.getElementById("ed-err").textContent = err.message;
   } finally {
