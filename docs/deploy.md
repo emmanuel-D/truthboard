@@ -219,6 +219,31 @@ sync loop as it runs, so until each finishes the board reports it as
 unreadable (`no branches found in …`). It resolves itself — give a hub
 with several large spokes a minute before concluding the deploy failed.
 
+## Preflight: find out before the deploy does
+
+Credential problems are the ones that waste an afternoon, because a
+platform that restarts crashed containers prints the same git error once
+per restart with the cause buried in it. `truthboard preflight` checks
+the things that fail this way and says which one, once:
+
+```sh
+truthboard preflight --remote https://gitlab.com/you/hub.git [repo]
+```
+
+- git's config-from-environment is coherent — `GIT_CONFIG_COUNT` matches
+  the pairs actually set, and no pair is half-configured or uncounted
+- the remote answers, with the credential distinguished from the URL:
+  supplying nothing and supplying a bad token look identical coming back
+  from a forge, and they have opposite fixes
+- with a repo argument, every spoke in the manifest, named individually
+- with `TRUTHBOARD_EDIT_TOKEN` set, whether the clone can actually push —
+  otherwise the deploy looks healthy until the first person saves a story
+
+It exits non-zero on a failure it is sure about and prints nothing at all
+when everything is reachable. The Docker image runs it before cloning, and
+`truthboard ui` runs the repo half at startup, so a deploy that is going
+to fail says why on the first boot rather than the ninth.
+
 ## Keeping the board fresh: poll or push
 
 Two ways, combinable:
