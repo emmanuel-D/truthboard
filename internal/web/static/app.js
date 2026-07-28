@@ -702,17 +702,34 @@ const TEMPLATE = "## Goal\n\n(what outcome, and why)\n\n## Acceptance\n\n- [ ] (
 // between, so the field is hidden unless a stale declaration needs
 // clearing.
 function fillRepos(selected) {
-  const sel = document.getElementById("ed-rp");
+  const box = document.getElementById("ed-rp");
   const known = lastBoard?.workspace?.length ? ["hub", ...lastBoard.workspace.map(r => r.name)] : [];
   const extra = selected.filter(r => !known.includes(r));
   document.getElementById("ed-rp-wrap").hidden = !known.length && !extra.length;
 
-  sel.innerHTML = [...known, ...extra].map(r => {
+  // type="button": these live inside a <form method="dialog">, where a
+  // bare <button> submits.
+  box.innerHTML = [...known, ...extra].map(r => {
     const gone = !known.includes(r);
     const label = (r === "hub" ? "⌂ " : "") + r + (gone ? " — not in workspace" : "");
-    return `<option value="${esc(r)}"${selected.includes(r) ? " selected" : ""}>${esc(label)}</option>`;
+    return `<button type="button" class="fchip${selected.includes(r) ? " on" : ""}" ` +
+      `data-repo="${esc(r)}" aria-pressed="${selected.includes(r)}">${esc(label)}</button>`;
   }).join("");
-  sel.size = Math.min(Math.max(known.length + extra.length, 2), 6);
+}
+
+// Each chip toggles only itself. That is the whole point of the control:
+// the multi-select it replaced treated an unmodified click as "select this
+// one and drop the rest", on a field that decides what done requires.
+document.getElementById("ed-rp").addEventListener("click", e => {
+  const chip = e.target.closest(".fchip");
+  if (!chip) return;
+  const on = !chip.classList.contains("on");
+  chip.classList.toggle("on", on);
+  chip.setAttribute("aria-pressed", String(on));
+});
+
+function selectedRepos() {
+  return [...document.querySelectorAll("#ed-rp .fchip.on")].map(c => c.dataset.repo);
 }
 
 function openEditor(spec) {
@@ -758,7 +775,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
     type: document.getElementById("ed-ty").value,
     needs: document.getElementById("ed-nd").value.split(",").map(x => x.trim()).filter(Boolean),
-    repos: [...document.getElementById("ed-rp").selectedOptions].map(o => o.value),
+    repos: selectedRepos(),
     body: document.getElementById("ed-b").value,
   };
   // On a shared board a save is a commit and a push to the forge, so it

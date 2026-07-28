@@ -269,10 +269,12 @@
   }
   .ed input:focus, .ed select:focus, .ed textarea:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
   .ed textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.55; min-height: 14rem; resize: vertical; }
-  /* A multi-select renders as a list box, so it needs room to breathe and
-     its own padding — the single-line padding above squashes the rows. */
-  .ed select[multiple] { padding: .2rem; height: auto; }
-  .ed select[multiple] option { padding: .22rem .4rem; border-radius: 5px; }
+  /* Repo chips reuse the filter bar's .fchip so the same concept looks the
+     same in both places; only the wrapping and hit area differ, because
+     these are targets for a thumb rather than a filter row. */
+  .chipset { display: flex; flex-wrap: wrap; gap: .35rem; padding: .1rem 0; }
+  .chipset .fchip { padding: .3rem .7rem; font-size: .76rem; }
+  .chipset .fchip:focus-visible { outline: 2px solid var(--in-progress); outline-offset: 1px; }
   .ed .note { padding: .25rem 0 0; display: block; }
   .ed .row3 { display: grid; grid-template-columns: 1fr 1fr 7rem; gap: .6rem; }
   .ed .row3 .wide { grid-column: 1 / -1; }

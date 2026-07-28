@@ -89,8 +89,11 @@
              repos are ones that exist. Hidden entirely on a single-repo
              board, where there is nothing to choose between. -->
         <div class="wide" id="ed-rp-wrap"><label>Repos</label>
-          <select id="ed-rp" multiple size="4"></select>
-          <span class="note">this story must land in every repo selected · ⌘/ctrl-click to select more than one</span>
+          <!-- Toggle chips, not a multi-select: one unmodified click in a
+               <select multiple> deselects everything else, and this field
+               decides what done requires. Same idiom as the filter bar. -->
+          <div id="ed-rp" class="chipset" role="group" aria-label="Repos this story must land in"></div>
+          <span class="note">this story must land in every repo selected</span>
         </div>
       </div>
       <div class="tabs">
