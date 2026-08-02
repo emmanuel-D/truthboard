@@ -223,6 +223,9 @@ func Handler(repo string, o Options) *Board {
 	}
 	mux.HandleFunc("/api/specs", specCreate(repo, changed, land))
 	mux.HandleFunc("/api/specs/", specItem(repo, changed, land))
+	// Retiring a spent branch: the one route that deletes proof rather
+	// than intent. Same gate as an intent write, stricter guards inside.
+	mux.HandleFunc("/api/branches", branchDelete(repo, changed))
 	if sub, err := fs.Sub(staticFiles, "static"); err == nil {
 		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServerFS(sub)))
 	}
@@ -264,7 +267,12 @@ func Handler(repo string, o Options) *Board {
 		allowed := read ||
 			(r.Method == http.MethodPost && r.URL.Path == "/api/specs") ||
 			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/specs/")) ||
-			(r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/specs/"))
+			(r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/specs/")) ||
+			// Branch cleanup deletes a ref the board already reported as
+			// spent. Statuses stay derived either way: this removes the
+			// evidence's leftovers, never the evidence — the merge that
+			// made the branch deletable is in the integration branch.
+			(r.Method == http.MethodDelete && r.URL.Path == "/api/branches")
 		if !allowed {
 			http.Error(w, "statuses are derived from git, never typed; only spec intent under /api/specs is writable", http.StatusMethodNotAllowed)
 			return

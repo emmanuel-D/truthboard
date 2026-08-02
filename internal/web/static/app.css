@@ -215,6 +215,27 @@
   .rows .r:first-child { border-top: none; }
   .status { font-size: .7rem; font-weight: 650; white-space: nowrap; flex: 0 0 7rem; }
   .rows .ev2 { color: var(--muted); font-size: .76rem; }
+  /* Branch cleanup: refs on the right, the retire button after them. The
+     evidence takes the slack so the controls stay in one column down the
+     panel instead of wandering with the length of each explanation. */
+  .rows .r .ev2 { flex: 1 1 auto; }
+  .refs { display: flex; gap: .25rem; flex: none; }
+  .tag.ref { font-size: .6rem; color: var(--muted); letter-spacing: .03em; }
+  .bdel {
+    flex: none; background: none; border: 1px solid transparent; border-radius: 6px;
+    color: var(--muted); font: inherit; font-size: .78rem; line-height: 1;
+    padding: .15rem .3rem; cursor: pointer; opacity: .45; transition: opacity .12s ease, color .12s ease;
+  }
+  .rows .r:hover .bdel { opacity: 1; }
+  .bdel:hover, .bdel:focus-visible { color: var(--regressed); border-color: var(--regressed); opacity: 1; }
+  .brref { display: flex; gap: .5rem; align-items: baseline; font-size: .82rem; padding: .25rem 0; }
+  /* An author display beats the UA's [hidden] rule, and this row is hidden
+     precisely when the ref does not exist — offering to delete origin's
+     copy of a local-only branch is the one thing it must never do. */
+  .brref[hidden] { display: none; }
+  .brref input { flex: none; }
+  .brfinal { font-size: .88rem; line-height: 1.5; }
+  .brfinal code { font-size: .8rem; }
   .digest time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 5.4rem; font-size: .76rem; }
   footer { text-align: center; color: var(--muted); font-size: .72rem; padding: .5rem 0 1.5rem; }
 

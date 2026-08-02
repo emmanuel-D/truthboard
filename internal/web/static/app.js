@@ -294,14 +294,27 @@ function claims(b) {
 // the same label the audit uses in evidence strings.
 function unitLabel(u) { return u.repo ? `${u.repo}:${u.name}` : u.name; }
 
+// Which refs a branch still has, named the way git names them — deleting
+// the local ref and deleting origin's are two different acts, and only one
+// of them is anyone else's business.
+const refTags = u =>
+  `<span class="refs">${u.local ? `<span class="tag ref">local</span>` : ""}${
+    u.remote ? `<span class="tag ref">origin</span>` : ""}</span>`;
+
 function branches(b) {
   if (!b.units?.length) return "";
   const units = b.units.filter(u => repoOn(unitRepo(u)));
   const rows = UNIT_ORDER.map(st => units.filter(u => u.status === st).map(u =>
     `<div class="r">${chip(u.status)}<code>${esc(unitLabel(u))}</code>
-     <span class="ev2">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span></div>`
+     <span class="ev2">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span>
+     ${refTags(u)}${RO ? "" : `<button class="bdel" title="Retire this branch"
+       data-branch="${esc(u.name)}" data-brepo="${esc(u.repo || "")}">🗑</button>`}</div>`
   ).join("")).join("");
-  return `<section class="panel"><h2>Branches</h2><div class="rows">${rows}</div></section>`;
+  // Spent branches are the reason this panel now has buttons: merged work
+  // whose refs nobody got around to removing.
+  const spent = units.filter(u => u.status === "done").length;
+  return `<section class="panel"><h2>Branches${
+    spent ? ` <span class="count">· ${spent} spent</span>` : ""}</h2><div class="rows">${rows}</div></section>`;
 }
 
 function digest(b) {
@@ -399,9 +412,10 @@ function setMode(mode) {
   if (mode === "token") unlock.textContent = localStorage.getItem(TOKEN_KEY) ? "🔑 unlocked" : "🔑 unlock";
 }
 
-// All intent writes go through here: the token rides along, and a 403 on
-// a token-gated board means "not unlocked yet" — offer the key.
-async function intentFetch(url, opts) {
+// All writes go through here — intent edits and branch cleanup alike: the
+// token rides along, and a 403 on a token-gated board means "not unlocked
+// yet" — offer the key.
+async function writeFetch(url, opts) {
   const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), ...authHeaders() } });
   if (r.status === 403 && MODE === "token") document.getElementById("tokendlg").showModal();
   return r;
@@ -497,7 +511,7 @@ async function tick(reschedule = true) {
     const key = text.replace(/"generated_at":"[^"]+"/, "");
     // Never re-render under an open dialog — the next poll after it
     // closes picks the change up.
-    if (key !== last && !dlg.open && !detailDlg.open) {
+    if (key !== last && !dlg.open && !detailDlg.open && !branchDlg.open) {
       last = key;
       const b = JSON.parse(text);
       if (lastBoard && document.startViewTransition) document.startViewTransition(() => render(b));
@@ -594,7 +608,7 @@ document.getElementById("dt-assign").addEventListener("change", async e => {
   if (owner === (detailSpec.owner || "")) return;
   const note = document.getElementById("dt-assign-note");
   try {
-    const r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
+    const r = await writeFetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ owner }),
@@ -628,12 +642,12 @@ document.getElementById("dt-delete").addEventListener("click", async () => {
   btn.disabled = true;
   btn.textContent = "deleting…";
   try {
-    let r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id), { method: "DELETE" });
+    let r = await writeFetch("/api/specs/" + encodeURIComponent(detailSpec.id), { method: "DELETE" });
     if (r.status === 409) {
       // Proof exists. Say exactly what, and make the override deliberate.
       const why = (await r.text()).trim();
       if (!confirm(`${why}\n\nRetire it anyway?`)) return;
-      r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id) + "?force=1", { method: "DELETE" });
+      r = await writeFetch("/api/specs/" + encodeURIComponent(detailSpec.id) + "?force=1", { method: "DELETE" });
     }
     if (!r.ok) throw new Error(await r.text());
     const gone = detailSpec.id;
@@ -664,7 +678,7 @@ document.getElementById("dt-md").addEventListener("change", async e => {
   });
   box.disabled = true;
   try {
-    const r = await intentFetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
+    const r = await writeFetch("/api/specs/" + encodeURIComponent(detailSpec.id), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: newBody }),
@@ -682,6 +696,121 @@ document.getElementById("dt-md").addEventListener("change", async e => {
     toast("Could not save sign-off: " + err.message, "bad");
   } finally {
     box.disabled = false;
+  }
+});
+
+/* ---------- branch cleanup ---------- */
+// The board has reported "landed but not deleted" since the beginning and
+// left it at that. Acting on it is the one destructive thing this UI can
+// do, so it asks twice: once for which refs, once to mean it — and the ref
+// on origin is named as a push, because that one goes for everyone.
+const branchDlg = document.getElementById("branchdlg");
+let branchUnit = null;
+let branchForce = false; // only ever set by the server's own refusal
+
+const branchScope = () => ({
+  local: !document.getElementById("br-local-wrap").hidden && document.getElementById("br-local").checked,
+  remote: !document.getElementById("br-remote-wrap").hidden && document.getElementById("br-remote").checked,
+});
+
+function branchStep(n, finalText) {
+  branchForce = false; // stepping back and forth means starting over
+  document.getElementById("br-step1").hidden = n !== 1;
+  document.getElementById("br-step2").hidden = n !== 2;
+  document.getElementById("br-next").hidden = n !== 1;
+  document.getElementById("br-back").hidden = n !== 2;
+  const go = document.getElementById("br-confirm");
+  go.hidden = n !== 2;
+  go.textContent = "Delete permanently";
+  if (finalText) document.getElementById("br-final").innerHTML = finalText;
+}
+
+function openBranchDialog(u) {
+  branchUnit = u;
+  document.getElementById("br-title").textContent = "Retire " + unitLabel(u);
+  const d = STATUS[u.status] || {};
+  document.getElementById("br-why").innerHTML =
+    `<span class="status" style="color:${sv(u.status)}">${d.ico || "·"} ${esc(d.label || u.status)}</span> — ${esc(u.evidence)}`;
+  document.getElementById("br-local-wrap").hidden = !u.local;
+  document.getElementById("br-remote-wrap").hidden = !u.remote;
+  document.getElementById("br-local").checked = !!u.local;
+  document.getElementById("br-remote").checked = !!u.remote;
+  document.getElementById("br-err").textContent = "";
+  branchStep(1);
+  branchDlg.showModal();
+}
+
+document.getElementById("app").addEventListener("click", e => {
+  const btn = e.target.closest(".bdel");
+  if (!btn || RO) return;
+  const u = (lastBoard?.units || []).find(x =>
+    x.name === btn.dataset.branch && (x.repo || "") === btn.dataset.brepo);
+  if (u) openBranchDialog(u);
+});
+
+document.getElementById("br-cancel").addEventListener("click", () => branchDlg.close());
+document.getElementById("br-back").addEventListener("click", () => {
+  document.getElementById("br-err").textContent = "";
+  branchStep(1);
+});
+document.getElementById("br-next").addEventListener("click", () => {
+  const scope = branchScope();
+  const err = document.getElementById("br-err");
+  if (!scope.local && !scope.remote) {
+    err.textContent = "Nothing selected — pick at least one ref to delete.";
+    return;
+  }
+  err.textContent = "";
+  const parts = [];
+  if (scope.local) parts.push(`the local branch <code>${esc(branchUnit.name)}</code>`);
+  if (scope.remote) parts.push(`<code>origin/${esc(branchUnit.name)}</code>, which is a push — it disappears for everyone`);
+  branchStep(2, `This deletes ${parts.join(" and ")}${
+    branchUnit.repo ? ` in <code>${esc(branchUnit.repo)}</code>` : ""}. The board has no undo for it.`);
+});
+
+document.getElementById("br-confirm").addEventListener("click", async () => {
+  if (!branchUnit) return;
+  const scope = branchScope();
+  const q = new URLSearchParams({ name: branchUnit.name });
+  if (branchUnit.repo) q.set("repo", branchUnit.repo);
+  if (scope.local) q.set("local", "1");
+  if (scope.remote) q.set("remote", "1");
+  if (branchForce) q.set("force", "1");
+
+  const btn = document.getElementById("br-confirm");
+  const err = document.getElementById("br-err");
+  let nextLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "deleting…";
+  err.textContent = "";
+  try {
+    const r = await writeFetch("/api/branches?" + q.toString(), { method: "DELETE" });
+    if (r.status === 409) {
+      // The server refuses a branch that still carries work and says what
+      // would be lost. Quote it — a paraphrase made here could be wrong
+      // about the one thing that matters.
+      const why = (await r.text()).trim();
+      err.textContent = why;
+      if (why.includes("force=1")) {
+        branchForce = true;
+        nextLabel = "Delete anyway — this drops the work";
+      }
+      return;
+    }
+    if (!r.ok) throw new Error(await r.text());
+    const out = await r.json();
+    const label = unitLabel(branchUnit);
+    branchDlg.close();
+    const gone = (out.deleted || []).map(x => x === "origin" ? "the ref on origin" : "the local ref").join(" and ");
+    toast(`${label} retired — ${gone} deleted`);
+    // A push origin refused is not a detail: half a cleanup, said out loud.
+    if (out.failed?.length) toast(`${label}: ${out.failed.join("; ")}`, "bad");
+    refreshNow();
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = nextLabel;
   }
 });
 
@@ -789,7 +918,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
   save.textContent = "saving…";
   document.getElementById("ed-err").textContent = "";
   try {
-    const r = await intentFetch(editingId ? "/api/specs/" + encodeURIComponent(editingId) : "/api/specs", {
+    const r = await writeFetch(editingId ? "/api/specs/" + encodeURIComponent(editingId) : "/api/specs", {
       method: editingId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

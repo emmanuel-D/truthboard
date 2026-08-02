@@ -211,6 +211,14 @@ an uncommitted-changes nudge on the page), while statuses stay computed
 with no route by which anything could set one. The page ships as embedded
 static assets via go:embed — still one binary, no build step.
 
+The one thing the board deletes is a spent branch. Every branch it reports
+carries the refs it still has (`local`, `origin`) and a retire button: two
+confirmations, then the local ref, the ref on origin, or both. A branch
+whose commits are not in the integration branch is refused, naming what
+would be lost, until you override it deliberately — and the integration
+branch and the checked-out branch are never deletable at all. Statuses do
+not move: they are derived from the merge, which stays where it landed.
+
 With `--notify` (or `TRUTHBOARD_NOTIFY_URL`), the board also tells people
 when the truth changes for the worse: a story transitioning into
 `stalled` or `regressed` — or recovering back out — posts one

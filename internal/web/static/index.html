@@ -112,6 +112,34 @@
   </form>
 </dialog>
 
+<!-- branch cleanup: two deliberate steps, because the second one is a push
+     that removes a branch for everyone, not just here -->
+<dialog id="branchdlg">
+  <div class="dhead"><h2 id="br-title">Retire branch</h2></div>
+  <div class="dbody">
+    <p class="note" id="br-why"></p>
+    <div id="br-step1">
+      <p class="note">Which refs should go?</p>
+      <!-- One span per label, not bare text: .brref is a flex row, and every
+           text node in it would otherwise become its own gapped column. -->
+      <label class="brref" id="br-local-wrap"><input type="checkbox" id="br-local"><span>the local branch</span></label>
+      <label class="brref" id="br-remote-wrap"><input type="checkbox" id="br-remote"><span>the branch on <b>origin</b> — deleting it is a push, so it goes for everyone</span></label>
+      <p class="note">The story's status does not change: it is derived from the merge, which stays in the integration branch.</p>
+    </div>
+    <div id="br-step2" hidden>
+      <p class="brfinal" id="br-final"></p>
+      <p class="note">Git keeps deleted refs in its reflog for a while, but nothing on this board will point at them.</p>
+    </div>
+  </div>
+  <div class="err" id="br-err"></div>
+  <div class="dfoot">
+    <button class="btn" id="br-cancel">Cancel</button>
+    <button class="btn" id="br-back" hidden>Back</button>
+    <button class="btn danger" id="br-next">Continue</button>
+    <button class="btn danger" id="br-confirm" hidden>Delete permanently</button>
+  </div>
+</dialog>
+
 <!-- edit token: unlocks intent editing on a shared board -->
 <dialog id="tokendlg">
   <div class="dhead"><h2>Unlock editing</h2></div>
