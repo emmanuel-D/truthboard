@@ -45,6 +45,11 @@ type Unit struct {
 	Behind     int       `json:"behind"`
 	Flags      []string  `json:"flags,omitempty"`
 	SpecID     string    `json:"spec,omitempty"` // set when linked to a .truthboard spec
+	// Which refs the branch actually has. A unit is one branch by short
+	// name, but that name can be two refs — and cleaning one up is not the
+	// same act as cleaning up the other, so the board must say which exist.
+	Local  bool `json:"local"`
+	Remote bool `json:"remote"`
 }
 
 // Label is the unit's display name: branch name, repo-prefixed when the
@@ -123,8 +128,10 @@ type Options struct {
 }
 
 type branchTip struct {
-	sha  string
-	when time.Time
+	sha    string
+	when   time.Time
+	local  bool // refs/heads/<name> exists
+	remote bool // refs/remotes/origin/<name> exists
 }
 
 func (o Options) normalized() Options {
@@ -335,14 +342,20 @@ func collectBranches(repo string) (map[string]branchTip, error) {
 		if len(parts) != 3 || strings.HasSuffix(parts[0], "/HEAD") {
 			continue
 		}
+		local := strings.HasPrefix(parts[0], "refs/heads/")
 		name := strings.TrimPrefix(strings.TrimPrefix(parts[0], "refs/heads/"), "refs/remotes/origin/")
 		when, err := time.Parse(time.RFC3339, parts[2])
 		if err != nil {
 			return nil, fmt.Errorf("parsing commit date for %s: %w", parts[0], err)
 		}
-		if cur, ok := branches[name]; !ok || when.After(cur.when) {
-			branches[name] = branchTip{sha: parts[1], when: when}
+		cur, seen := branches[name]
+		// Newest tip wins the sha, but existence is a union: both refs are
+		// real, and whoever deletes one still has to reckon with the other.
+		if !seen || when.After(cur.when) {
+			cur.sha, cur.when = parts[1], when
 		}
+		cur.local, cur.remote = cur.local || local, cur.remote || !local
+		branches[name] = cur
 	}
 	if len(branches) == 0 {
 		return nil, fmt.Errorf("no branches found in %s", repo)
@@ -396,7 +409,7 @@ func integrationRef(repo, name string) string {
 }
 
 func classify(repo, base, name string, tip branchTip, opts Options) Unit {
-	u := Unit{Name: name, Tip: tip.sha, LastCommit: tip.when}
+	u := Unit{Name: name, Tip: tip.sha, LastCommit: tip.when, Local: tip.local, Remote: tip.remote}
 
 	if _, ok := gitrepo.Try(repo, "merge-base", "--is-ancestor", tip.sha, base); ok {
 		u.Status = Done
