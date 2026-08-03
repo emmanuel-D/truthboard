@@ -218,7 +218,7 @@
   /* Branch cleanup: refs on the right, the retire button after them. The
      evidence takes the slack so the controls stay in one column down the
      panel instead of wandering with the length of each explanation. */
-  .rows .r .ev2 { flex: 1 1 auto; }
+  .rows .r.branch .ev2 { flex: 1 1 auto; }
   .refs { display: flex; gap: .25rem; flex: none; }
   .tag.ref { font-size: .6rem; color: var(--muted); letter-spacing: .03em; }
   .bdel {
@@ -235,7 +235,35 @@
   .brref[hidden] { display: none; }
   .brref input { flex: none; }
   .brfinal { font-size: .88rem; line-height: 1.5; }
+  /* Branch names are the longest unbroken strings on the page, and these
+     two places quote them in full. */
+  .brfinal code, #br-title { overflow-wrap: anywhere; }
   .brfinal code { font-size: .8rem; }
+
+  /* Phone width: five columns do not fit in 390px, and the one that
+     overflowed was the retire button — it sat past the right edge, where
+     no thumb could reach it and only a horizontal scroll could find it.
+     Status and the controls share the first line; the branch name and its
+     evidence get one each, since those are the parts that wrap anyway. */
+  @media (max-width: 40rem) {
+    .rows .r.branch { flex-wrap: wrap; row-gap: .15rem; }
+    .rows .r.branch .status { order: 1; flex: 0 0 auto; }
+    .rows .r.branch .refs   { order: 2; margin-left: auto; }
+    .rows .r.branch .bdel   { order: 3; }
+    .rows .r.branch code    { order: 4; flex: 1 1 100%; overflow-wrap: anywhere; }
+    .rows .r.branch .ev2    { order: 5; flex: 1 1 100%; }
+    /* Three buttons at 390px overflow their row; wrapping keeps the
+       destructive one whole rather than clipped. */
+    .dfoot { flex-wrap: wrap; }
+  }
+  /* Touch: nothing hovers, so a control revealed by hover is a control
+     nobody finds, and a 24px target is one nobody hits. */
+  @media (pointer: coarse) {
+    .bdel {
+      opacity: 1; display: inline-flex; align-items: center; justify-content: center;
+      min-width: 2.75rem; min-height: 2.75rem; font-size: 1rem;
+    }
+  }
   .digest time { color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 5.4rem; font-size: .76rem; }
   footer { text-align: center; color: var(--muted); font-size: .72rem; padding: .5rem 0 1.5rem; }
 
