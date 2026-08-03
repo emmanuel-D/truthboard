@@ -460,7 +460,7 @@ func classify(repo, base, name string, tip branchTip, opts Options) Unit {
 // board accuse their own setup of drift.
 func governedFile(f string) bool {
 	switch f {
-	case ".mcp.json", "AGENTS.md", "CLAUDE.md":
+	case ".mcp.json", ".vscode/mcp.json", "AGENTS.md", "CLAUDE.md":
 		return true
 	}
 	return strings.HasPrefix(f, ".truthboard/")

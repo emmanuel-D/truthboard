@@ -162,6 +162,109 @@ func TestAgentsPreservesOthersFiles(t *testing.T) {
 	}
 }
 
+// vscodeMCP reads the VS Code MCP config a Copilot user's editor picks up.
+// Its schema differs from .mcp.json — `servers`, with an explicit transport —
+// so it gets its own decoder rather than sharing the Claude-shaped one.
+func vscodeMCP(t *testing.T, repo string) map[string]struct {
+	Type    string   `json:"type"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+} {
+	t.Helper()
+	var doc struct {
+		Servers map[string]struct {
+			Type    string   `json:"type"`
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"servers"`
+	}
+	raw, err := os.ReadFile(filepath.Join(repo, ".vscode", "mcp.json"))
+	if err != nil {
+		t.Fatalf(".vscode/mcp.json not written: %v", err)
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf(".vscode/mcp.json is not valid JSON: %v\n%s", err, raw)
+	}
+	return doc.Servers
+}
+
+// GitHub Copilot reads .vscode/mcp.json, so adoption must write it — under
+// VS Code's `servers` key, not the `mcpServers` one .mcp.json uses.
+func TestAgentsWiresVSCodeMCPForCopilot(t *testing.T) {
+	repo := gitRepo(t)
+	log, err := Agents(repo, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := vscodeMCP(t, repo)["truthboard"]
+	if !ok {
+		t.Fatal(".vscode/mcp.json has no truthboard server")
+	}
+	if s.Type != "stdio" || s.Command != "truthboard" || len(s.Args) != 1 || s.Args[0] != "mcp" {
+		t.Errorf("server = %+v, want stdio truthboard mcp", s)
+	}
+	// The file is committed and shared, so it must not pin this machine's
+	// paths — the workspace `mcp ./hub` argument stays a manual edit.
+	raw, _ := os.ReadFile(filepath.Join(repo, ".vscode", "mcp.json"))
+	if strings.Contains(string(raw), repo) {
+		t.Errorf(".vscode/mcp.json leaked an absolute path:\n%s", raw)
+	}
+	if joined := strings.Join(log, "\n"); !strings.Contains(joined, "Copilot") {
+		t.Errorf("log should name the tool this wires, got:\n%s", joined)
+	}
+}
+
+func TestAgentsPreservesOtherVSCodeServers(t *testing.T) {
+	repo := gitRepo(t)
+	os.MkdirAll(filepath.Join(repo, ".vscode"), 0o755)
+	os.WriteFile(filepath.Join(repo, ".vscode", "mcp.json"),
+		[]byte(`{"inputs":[{"id":"tok"}],"servers":{"other":{"command":"other-tool"}}}`), 0o644)
+
+	if _, err := Agents(repo, false); err != nil {
+		t.Fatal(err)
+	}
+	servers := vscodeMCP(t, repo)
+	if _, ok := servers["other"]; !ok {
+		t.Error(".vscode/mcp.json lost the adopter's own server")
+	}
+	if _, ok := servers["truthboard"]; !ok {
+		t.Error("truthboard was not added")
+	}
+	// Unknown top-level keys (VS Code's `inputs`) survive the rewrite.
+	raw, _ := os.ReadFile(filepath.Join(repo, ".vscode", "mcp.json"))
+	if !strings.Contains(string(raw), "inputs") {
+		t.Errorf(".vscode/mcp.json lost an unknown top-level key:\n%s", raw)
+	}
+
+	log, err := Agents(repo, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(log, "\n"), ".vscode/mcp.json: truthboard already registered") {
+		t.Errorf("second run should be a no-op:\n%s", strings.Join(log, "\n"))
+	}
+}
+
+// A hand-edited config that no longer parses must stop adoption by name,
+// never be silently replaced — the same contract .mcp.json already has.
+func TestAgentsFailsLoudlyOnMalformedVSCodeMCP(t *testing.T) {
+	repo := gitRepo(t)
+	os.MkdirAll(filepath.Join(repo, ".vscode"), 0o755)
+	broken := []byte("{ not json")
+	os.WriteFile(filepath.Join(repo, ".vscode", "mcp.json"), broken, 0o644)
+
+	_, err := Agents(repo, false)
+	if err == nil {
+		t.Fatal("Agents() = nil error, want a failure naming the file")
+	}
+	if !strings.Contains(err.Error(), "mcp.json") {
+		t.Errorf("error must name the file, got: %v", err)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(repo, ".vscode", "mcp.json")); string(raw) != string(broken) {
+		t.Errorf("malformed file was overwritten:\n%s", raw)
+	}
+}
+
 func TestSpawnWarningWhenBinaryOnlyInShellProfile(t *testing.T) {
 	sysDir := t.TempDir() // empty: plays the role of /usr/local/bin
 	goBin := filepath.Join(t.TempDir(), "go", "bin")
@@ -301,7 +404,7 @@ func TestAgentsWiresNonRepoAnyway(t *testing.T) {
 	if _, err := Agents(dir, false); err != nil {
 		t.Fatalf("Agents() in a non-repo: %v", err)
 	}
-	for _, f := range []string{".mcp.json", "AGENTS.md", "CLAUDE.md"} {
+	for _, f := range []string{".mcp.json", filepath.Join(".vscode", "mcp.json"), "AGENTS.md", "CLAUDE.md"} {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
 			t.Errorf("%s not written: %v", f, err)
 		}
@@ -344,6 +447,35 @@ func TestInstallHookUpgradesEveryLegacyNudge(t *testing.T) {
 		if !strings.Contains(string(got), "exit 0") {
 			t.Errorf("legacyNudges[%d]: upgrade dropped the rest of the hook:\n%s", i, got)
 		}
+	}
+}
+
+// Every existing adopter carries a bounded nudge whose governed fileset
+// predates .vscode/mcp.json. Re-running init must swap it for the current
+// one via the end marker — no legacyNudges entry needed, because the block
+// is bounded — and their Copilot config commits must go quiet as a result.
+func TestInstallHookUpgradesBoundedStaleNudge(t *testing.T) {
+	repo := gitRepo(t)
+	stale := strings.Replace(hookNudge, "|.vscode/mcp.json", "", 1)
+	if stale == hookNudge {
+		t.Fatal("fixture is not stale — the governed fileset no longer names .vscode/mcp.json")
+	}
+	if err := os.WriteFile(hookPath(repo), []byte("#!/bin/sh\n"+stale+"exit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	msg, err := installHook(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg, "upgraded") {
+		t.Errorf("msg = %q, want an upgrade", msg)
+	}
+	got, _ := os.ReadFile(hookPath(repo))
+	if !strings.Contains(string(got), ".vscode/mcp.json") {
+		t.Errorf("upgraded hook still has the stale fileset:\n%s", got)
+	}
+	if n := strings.Count(string(got), hookEndMark); n != 1 {
+		t.Errorf("%d end markers, want exactly 1:\n%s", n, got)
 	}
 }
 

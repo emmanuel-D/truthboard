@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "truthboard": {
+      "type": "stdio",
+      "command": "truthboard",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

@@ -304,8 +304,12 @@ func TestAdoptionCommitIsNotShadowWork(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(f.dir, ".truthboard", "specs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(f.dir, ".vscode"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for name, body := range map[string]string{
 		".mcp.json":                          `{"mcpServers":{}}`,
+		".vscode/mcp.json":                   `{"servers":{}}`,
 		"AGENTS.md":                          "# agreement\n",
 		"CLAUDE.md":                          "@AGENTS.md\n",
 		".truthboard/specs/tb-cccc-first.md": "---\nid: tb-cccc\ntitle: x\n---\n\n## Goal\n",

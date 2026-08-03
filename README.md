@@ -120,12 +120,20 @@ product.
 (stdio, JSON-RPC 2.0), so agents stop shelling out. There is nothing
 Claude-specific in it: any MCP-capable client works — Claude Code is one
 of them, not the requirement. `truthboard adopt` registers the server in
-the project's `.mcp.json`, which Claude Code picks up automatically;
-other tools want the same one-liner in their own config:
+**both** committed config files — `.mcp.json` (Claude Code, and the shape
+Cursor and friends read) and `.vscode/mcp.json` (VS Code, and so GitHub
+Copilot) — so the two most common editors are wired by the same command.
+Other tools want the same one-liner in their own config:
 
 ```sh
 # Claude Code
 claude mcp add truthboard -- truthboard mcp
+```
+
+```json
+// GitHub Copilot / VS Code — .vscode/mcp.json (written by init --agents)
+// Note the key: VS Code spells it "servers", not "mcpServers".
+{ "servers": { "truthboard": { "type": "stdio", "command": "truthboard", "args": ["mcp"] } } }
 ```
 
 ```json
@@ -161,9 +169,19 @@ git repository fails at startup with the same message every other command
 gives, instead of starting and refusing every tool call afterwards.
 
 The working agreement travels the same way: it lives in `AGENTS.md`, the
-cross-tool convention that Codex, Cursor, Gemini CLI and friends already
-read — `CLAUDE.md` exists only to import it for Claude Code. Point your
-tool at the server and the agreement is already there.
+cross-tool convention that Copilot, Codex, Cursor, Gemini CLI and friends
+already read — `CLAUDE.md` exists only to import it for Claude Code. Point
+your tool at the server and the agreement is already there.
+
+Two things are worth knowing about **Copilot's server-side coding agent**
+(the one that opens PRs from github.com, as opposed to Copilot in your
+editor). Its MCP servers are configured in the repository's settings on
+GitHub, not in a committed file, so no local command can wire it for you.
+And its commits are made on GitHub's infrastructure, where your local
+`commit-msg` hook never runs — the trailer nudge simply won't fire. Neither
+costs you the board: give the agent a branch whose name carries the spec
+id and the work links anyway. That fallback is the reason linking has three
+signals instead of one.
 
 Tools: `list_specs`, `get_brief` (the context packet to start work),
 `next_spec` (the highest-priority *startable* story — an idle agent needs
