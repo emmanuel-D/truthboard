@@ -47,10 +47,10 @@ one. Say so in the facts rather than implying a trend.
 
 ## Acceptance
 
-- [ ] `truthboard plan [sprint]` narrates a planning summary from derived facts, mirroring how `review` is wired (a `planFacts` beside `reviewFacts`, an LLM that only rephrases)
-- [ ] A `PlanRollup` in `internal/audit` carries rollover, ready/blocked candidates in backlog order, committed points vs the closing sprint's landed points, and the unestimated count
-- [ ] Blocked candidates name the spec ids from `needs:` that are not yet done
-- [ ] `plan` with no sprint argument targets the next future dated sprint, or reports rollover and candidates with no target when none exists
-- [ ] The rollup is on the audit `Result` and appears in `--format json`, so the summary is reproducible without an LLM key
-- [ ] A repo with no sprints and no candidates fails loudly with a useful message rather than narrating an empty block
-- [ ] No new intent field is introduced and no status is typed
+- [x] `truthboard plan [sprint]` narrates a planning summary from derived facts, mirroring how `review` is wired (a `planFacts` beside `reviewFacts`, an LLM that only rephrases)
+- [x] A `PlanRollup` in `internal/audit` carries rollover, ready/blocked candidates in backlog order, committed points vs the closing sprint's landed points, and the unestimated count
+- [x] Blocked candidates name the spec ids from `needs:` that are not yet done
+- [x] `plan` with no sprint argument targets the next future dated sprint, or reports rollover and candidates with no target when none exists
+- [x] The rollup is on the audit `Result` and appears in `--format json`, so the summary is reproducible without an LLM key
+- [x] A repo with no sprints and no candidates fails loudly with a useful message rather than narrating an empty block
+- [x] No new intent field is introduced and no status is typed

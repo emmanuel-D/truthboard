@@ -91,6 +91,10 @@ Usage:
                                             kanban columns, drift, digest — keyboard only
   truthboard draft "Concept" [--owner X]    LLM drafts an epic of real stories (goal +
                                             acceptance) — needs ANTHROPIC_API_KEY or OLLAMA_HOST
+  truthboard plan [sprint]                  LLM narrates the sprint about to start: rollover,
+                                            ready vs blocked candidates, committed points against
+                                            what the last sprint landed (sprint defaults to the
+                                            next dated one); the same facts sit in audit --format json
   truthboard review [sprint]                LLM narrates a sprint review from derived facts
   truthboard ui [--port 1337] [--forge] [--no-open] [--detach] [repo]
                                             web board; --detach keeps it running in the background
@@ -145,6 +149,8 @@ func main() {
 		os.Exit(runBoard(os.Args[2:]))
 	case "draft":
 		os.Exit(runDraft(os.Args[2:]))
+	case "plan":
+		os.Exit(runPlan(os.Args[2:]))
 	case "review":
 		os.Exit(runReview(os.Args[2:]))
 	case "ui":
