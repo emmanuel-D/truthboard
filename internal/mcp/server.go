@@ -163,6 +163,7 @@ func tools() []toolDef {
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; omit for unestimated"},
 				"type":     map[string]any{"type": "string", "description": "story | bug | task (default story)"},
 				"needs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Spec ids that must be done before this starts; readiness is derived"},
+				"hold":     map[string]any{"type": "string", "description": "Why work is paused, in one human sentence. Intent, not a status — git still derives the status, and contradicts the note when the work lands or resumes"},
 				"repos":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Workspace repos this story must land in (\"hub\" or spoke names); done requires the trailer landed in every one"},
 				"repo":     repoProp,
 			}, "title"),
@@ -183,6 +184,7 @@ func tools() []toolDef {
 				"points":   map[string]any{"type": "number", "description": "Story-point estimate; 0 clears it"},
 				"type":     map[string]any{"type": "string", "description": "story | bug | task; empty string resets to story"},
 				"needs":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Full replacement needs list; empty array clears it"},
+				"hold":     map[string]any{"type": "string", "description": "Why work is paused; empty string clears it — there is no unhold verb"},
 				"repos":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Full replacement repos list (\"hub\" or spoke names); empty array clears it"},
 				"repo":     repoProp,
 			}, "id"),
@@ -312,6 +314,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Points   int      `json:"points"`
 			Type     string   `json:"type"`
 			Needs    []string `json:"needs"`
+			Hold     string   `json:"hold"`
 			Repos    []string `json:"repos"`
 		}
 		if err := strictArgs(args, &a); err != nil {
@@ -338,7 +341,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if a.Body != "" {
 			s.Body = a.Body
 		}
-		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Repos = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type, a.Needs, a.Repos
+		s.Paths, s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Hold, s.Repos = a.Paths, a.Epic, a.Sprint, a.Priority, a.Points, a.Type, a.Needs, a.Hold, a.Repos
 		if err := s.Save(); err != nil {
 			return "", err
 		}
@@ -399,6 +402,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			Points   *int      `json:"points"`
 			Type     *string   `json:"type"`
 			Needs    *[]string `json:"needs"`
+			Hold     *string   `json:"hold"`
 			Repos    *[]string `json:"repos"`
 		}
 		if err := strictArgs(args, &a); err != nil {
@@ -420,6 +424,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		apply(&s.Branch, a.Branch)
 		apply(&s.Epic, a.Epic)
 		apply(&s.Sprint, a.Sprint)
+		apply(&s.Hold, a.Hold)
 		if a.Paths != nil {
 			s.Paths = *a.Paths
 		}

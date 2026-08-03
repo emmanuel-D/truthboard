@@ -460,6 +460,13 @@ func (m model) viewDetail() string {
 	if s.Points > 0 {
 		meta = append(meta, fmt.Sprintf("points: %d", s.Points))
 	}
+	if s.Hold != "" {
+		label := "on hold: " + s.Hold
+		if s.HoldContradicted != "" {
+			label = "hold contradicted (" + s.HoldContradicted + "): " + s.Hold
+		}
+		meta = append(meta, label)
+	}
 	if s.AcceptanceTotal > 0 {
 		meta = append(meta, fmt.Sprintf("acceptance: %d/%d signed off", s.AcceptanceDone, s.AcceptanceTotal))
 	}
@@ -499,6 +506,10 @@ func (m model) viewDrift() string {
 	section("Landed but branch not deleted", len(d.LandedNotDeleted))
 	for _, u := range d.LandedNotDeleted {
 		fmt.Fprintf(&b, "  %s\n", u.Label())
+	}
+	section("Contradicted holds — a paused reason the evidence disagrees with", len(d.ContradictedHolds))
+	for _, h := range d.ContradictedHolds {
+		fmt.Fprintf(&b, "  %s  %s\n", h.ID, dim.Render(fmt.Sprintf("%q — but %s", h.Hold, h.Why)))
 	}
 	section("Unknown repos — repos: intent the workspace does not declare", len(d.UnknownRepos))
 	for _, ur := range d.UnknownRepos {

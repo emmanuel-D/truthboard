@@ -20,24 +20,32 @@ const (
 // priority are carried through so agents and boards can order the backlog
 // without re-reading spec files.
 type SpecStatus struct {
-	ID         string        `json:"id"`
-	Title      string        `json:"title"`
-	Owner      string        `json:"owner,omitempty"`
-	Epic       string        `json:"epic,omitempty"`
-	Sprint     string        `json:"sprint,omitempty"`
-	Priority   int           `json:"priority,omitempty"`
-	Points     int           `json:"points,omitempty"`
-	Type       string        `json:"type,omitempty"`
-	Needs      []string      `json:"needs,omitempty"`   // declared prerequisites (intent)
-	Waiting    []string      `json:"waiting,omitempty"` // the subset of needs not yet done — derived
-	Repos      []string      `json:"repos,omitempty"`   // declared required repos (intent, from frontmatter)
-	Status     Status        `json:"status"`
-	Evidence   string        `json:"evidence"`
-	Branches   []string      `json:"branches,omitempty"`
-	Landed     string        `json:"landed,omitempty"`      // newest trailer commit reachable from the integration branch
-	LandedRepo string        `json:"landed_repo,omitempty"` // workspace repo the landing commit is in; empty means the hub
-	PerRepo    []RepoLanding `json:"per_repo,omitempty"`    // derived state per declared repo, in declaration order
-	File       string        `json:"file"`
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Owner    string   `json:"owner,omitempty"`
+	Epic     string   `json:"epic,omitempty"`
+	Sprint   string   `json:"sprint,omitempty"`
+	Priority int      `json:"priority,omitempty"`
+	Points   int      `json:"points,omitempty"`
+	Type     string   `json:"type,omitempty"`
+	Needs    []string `json:"needs,omitempty"`   // declared prerequisites (intent)
+	Waiting  []string `json:"waiting,omitempty"` // the subset of needs not yet done — derived
+
+	// Hold is why a human says the work is paused (intent). HoldContradicted
+	// is git's verdict on whether that is still true — set when the evidence
+	// says the work is done or moving. The two always travel together: a
+	// surface that shows the note without the verdict would let a stale
+	// reason pass as current, which is the whole failure mode this guards.
+	Hold             string        `json:"hold,omitempty"`
+	HoldContradicted string        `json:"hold_contradicted,omitempty"` // the evidence that contradicts it; empty means the note stands
+	Repos            []string      `json:"repos,omitempty"`             // declared required repos (intent, from frontmatter)
+	Status           Status        `json:"status"`
+	Evidence         string        `json:"evidence"`
+	Branches         []string      `json:"branches,omitempty"`
+	Landed           string        `json:"landed,omitempty"`      // newest trailer commit reachable from the integration branch
+	LandedRepo       string        `json:"landed_repo,omitempty"` // workspace repo the landing commit is in; empty means the hub
+	PerRepo          []RepoLanding `json:"per_repo,omitempty"`    // derived state per declared repo, in declaration order
+	File             string        `json:"file"`
 
 	// Acceptance progress, counted from "- [ ]"/"- [x]" checkboxes in the
 	// spec body — intent-side detail for boards, no file read needed there.
@@ -83,7 +91,7 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
 	for i := range specs {
 		s := &specs[i]
 		ss := SpecStatus{ID: s.ID, Title: s.Title, Owner: s.Owner,
-			Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, File: s.File}
+			Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Hold: s.Hold, File: s.File}
 		ss.AcceptanceDone, ss.AcceptanceTotal = acceptanceProgress(s.Body)
 
 		var linked []*Unit

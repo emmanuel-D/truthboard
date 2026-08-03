@@ -30,6 +30,7 @@ type Spec struct {
 	Points   int      `yaml:"points,omitempty" json:"points,omitempty"`     // estimate (story points); 0 = unestimated
 	Type     string   `yaml:"type,omitempty" json:"type,omitempty"`         // story | bug | task; empty means story
 	Needs    []string `yaml:"needs,omitempty" json:"needs,omitempty"`       // spec ids that must be done before this starts; readiness is derived
+	Hold     string   `yaml:"hold,omitempty" json:"hold,omitempty"`         // why work is paused, in a human's words; git decides whether it still holds
 	Repos    []string `yaml:"repos,omitempty" json:"repos,omitempty"`       // workspace repos this story must land in ("hub" or spoke names); done requires all of them
 
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter

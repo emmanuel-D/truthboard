@@ -175,6 +175,7 @@ func runSpec(args []string) int {
 	points := fs.Int("points", 0, "story-point estimate; 0 = unestimated")
 	typ := fs.String("type", "", "story | bug | task (default story)")
 	needsFlag := fs.String("needs", "", "comma-separated spec ids that must land first (e.g. tb-1a2b,tb-3c4d)")
+	hold := fs.String("hold", "", "why the work is paused, in one human sentence — intent, never a status")
 	reposFlag := fs.String("repos", "", "comma-separated workspace repos this story must land in (\"hub\" or spoke names); done requires all of them")
 	repo := fs.String("repo", ".", "repository path")
 	// stdlib flag stops at the first positional arg, so split the title
@@ -223,12 +224,13 @@ func runSpec(args []string) int {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-	if *sprint != "" || *points > 0 || *typ != "" || len(needs) > 0 || len(repos) > 0 {
+	if *sprint != "" || *points > 0 || *typ != "" || len(needs) > 0 || len(repos) > 0 || *hold != "" {
 		s.Sprint = *sprint
 		s.Points = *points
 		s.Type = *typ
 		s.Needs = needs
 		s.Repos = repos
+		s.Hold = *hold
 		if err := s.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 			return 1

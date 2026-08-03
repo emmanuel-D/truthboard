@@ -51,8 +51,20 @@ func Brief(repo, id string) (string, error) {
 
 	if res, err := Audit(repo, Options{}); err == nil {
 		for _, ss := range res.Specs {
-			if ss.ID == s.ID && ss.Status != Planned {
+			if ss.ID != s.ID {
+				continue
+			}
+			if ss.Status != Planned {
 				fmt.Fprintf(&b, "Current derived status: %s (%s)\n", ss.Status, ss.Evidence)
+			}
+			// Whoever picks this up must know it was paused, and must not
+			// be told a reason git has already disproved.
+			if ss.Hold != "" {
+				if ss.HoldContradicted != "" {
+					fmt.Fprintf(&b, "Hold note (contradicted — %s): %s\n", ss.HoldContradicted, ss.Hold)
+				} else {
+					fmt.Fprintf(&b, "On hold: %s\n", ss.Hold)
+				}
 			}
 		}
 	}

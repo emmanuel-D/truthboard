@@ -277,7 +277,13 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 				sc.SpecID, sc.Branch, 100*sc.Outside/sc.Total, sc.Outside, sc.Total, sc.TopDirs)
 		}
 	}
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 {
+	if len(d.ContradictedHolds) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Contradicted holds (%d): a paused reason the evidence disagrees with", len(d.ContradictedHolds))))
+		for _, h := range d.ContradictedHolds {
+			fmt.Fprintf(w, "    - %s %s — held for %q, but %s\n", h.ID, truncate(h.Title, 46), h.Hold, h.Why)
+		}
+	}
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.ContradictedHolds) == 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
@@ -443,7 +449,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 
 	d := res.Drift
 	fmt.Fprintf(w, "### Drift\n\n")
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 {
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.ContradictedHolds) == 0 {
 		fmt.Fprintf(w, "✅ Clean — the board matches reality.\n\n")
 	}
 	if len(d.DependencyCycles) > 0 {
@@ -480,6 +486,13 @@ func Markdown(w io.Writer, res *audit.Result) error {
 			len(d.ShadowWork), res.Integration, res.DigestDays)
 		for _, cm := range d.ShadowWork {
 			fmt.Fprintf(w, "- %s%s `%s` %s: %s\n", commitTag(cm), cm.Date, cm.Hash, cm.Author, cm.Subject)
+		}
+		fmt.Fprintln(w)
+	}
+	if len(d.ContradictedHolds) > 0 {
+		fmt.Fprintf(w, "**Contradicted holds (%d)** — a paused reason the evidence disagrees with:\n\n", len(d.ContradictedHolds))
+		for _, h := range d.ContradictedHolds {
+			fmt.Fprintf(w, "- `%s` %s — held for %q, but %s\n", h.ID, h.Title, h.Hold, h.Why)
 		}
 		fmt.Fprintln(w)
 	}
