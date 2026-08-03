@@ -105,6 +105,15 @@ versioned with your code. Backlog structure is intent too:
   whose needs haven't all landed is *waiting* (shown on every surface),
   `truthboard next` skips it, and a dependency cycle is a loud drift
   finding, never a silent skip.
+- `hold:` is why work is paused, in one human sentence — *"waiting on
+  legal sign-off"*. Git can prove work stopped; it can never prove why,
+  so this is the one field a person writes that no history would produce.
+  It is intent, not a status: the story stays exactly as stalled or
+  planned as git says it is. And git is allowed to argue back — a hold on
+  work that has landed, or on work with fresh commits, is reported as
+  **contradicted** everywhere the note appears and lands in the drift
+  report. A reason can be wrong; it cannot be wrong silently. Clearing
+  one is deleting the line — there is no "unhold".
 
 Linking signals, strongest first: a `Spec: tb-4f2a`
 commit trailer, the id in a branch name, the spec's branch glob. Derived
@@ -190,6 +199,34 @@ landed), `create_spec`, `update_spec`, `get_board`. Deliberately absent:
 any tool that sets a status — an agent's work shows up on the board the
 same way a human's does, through commits with the spec trailer.
 
+## Sprint planning and the stakeholder summary
+
+Two commands cover the two meetings, and neither needs an API key:
+
+```sh
+truthboard summary            # what we delivered, what is paused and why
+truthboard summary s12 --ids  # one sprint, with story ids for looking things up
+```
+
+`summary` is written for the person who does not read git. No branch
+names, no story ids, and none of the derived-status words — a story was
+*delivered*, not "done"; it is *paused*, not "stalled". Every paused story
+carries a reason, and the reason is whichever source has the most
+standing: a `hold:` note, else the **title** of the story blocking it,
+else how long it has been untouched. A hold the evidence has already
+contradicted is never repeated as though it were current. Nothing here
+calls a model — it is arithmetic the audit already did, so a stakeholder
+never needs an account to learn what shipped.
+
+The planning side is derived the same way. `truthboard audit --format
+json` carries a `plan` object — what rolls over from the closing sprint
+with each story's derived status, what is already committed, ready versus
+blocked candidates in backlog order with their blockers named, and the
+committed points against what the last sprint actually landed. That
+reference is **one prior sprint and says so**: Truthboard keeps no
+velocity history and will not project one. `truthboard plan` (below) only
+turns those same numbers into prose.
+
 ## Terminal board — the same truth, no browser
 
 ```sh
@@ -241,6 +278,14 @@ truthboard ui --notify <url>  # post stalled/regressed transitions to a webhook
 truthboard status          # is a board running for this repo?
 truthboard stop            # stop the detached board
 ```
+
+Below the kanban the board carries the same two views the commands above
+print: **Where things stand** — delivered, being worked on, paused with
+reasons, not started — and **The sprint about to start**, with what rolls
+over, what is committed, ready versus blocked candidates, and the load
+against what the last sprint landed. Both are rendered from data already
+on `/api/board`, so a shared board shows them to everyone who opens the
+URL with nothing to run and no key to hold.
 
 Detached boards are per-repo: state lives inside `.git/` (never
 committed), no system services, no root.
@@ -417,13 +462,19 @@ MIT — see [LICENSE](LICENSE).
 
 ## Status
 
-`v0.6.0` released (deployable shared board: Dockerfile, edit-token remote
-intent editing); multi-repo workspaces — one board over N repositories,
-with `repos:` cross-repo done semantics — landed on `main` and ship with
-the next tag. Built as the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven
-tracker on the [CONCEPT-V2.md](CONCEPT-V2.md) audit engine; the inference
-logic was validated at 100% done-vs-not-done accuracy against GitHub PR
-state on real repos before being ported to Go (CONCEPT-V1 §11).
-Truthboard tracks its own roadmap in `.truthboard/specs/` — run
-`truthboard audit` on this repo to see the board this README describes,
-derived live.
+`v0.11.0` is the current release (retire spent branches, `truthboard mcp`
+pointed at a directory, Copilot wiring). Landed on `main` and shipping
+with the next tag: the sprint-planning half of the boundary
+(`truthboard plan` and the board's planning panel), `hold:` reasons that
+git contradicts when it disagrees, and `truthboard summary` — the
+plain-language view for stakeholders. Check
+[Releases](https://github.com/emmanuel-D/truthboard/releases) for what is
+actually published; this section describes intent, the tags describe
+fact.
+
+Built as the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker on the
+[CONCEPT-V2.md](CONCEPT-V2.md) audit engine; the inference logic was
+validated at 100% done-vs-not-done accuracy against GitHub PR state on
+real repos before being ported to Go (CONCEPT-V1 §11). Truthboard tracks
+its own roadmap in `.truthboard/specs/` — run `truthboard audit` on this
+repo to see the board this README describes, derived live.
