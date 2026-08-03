@@ -6,6 +6,7 @@ branch: '*/tb-1b2e-*'
 paths:
     - cmd/truthboard/main.go
     - internal/mcp/**
+    - README.md
 epic: mcp-server
 priority: 2
 type: bug
