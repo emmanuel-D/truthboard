@@ -118,7 +118,7 @@ tb_msg=$(cat "$1")
 tb_state=empty
 for tb_f in $(git diff --cached --name-only 2>/dev/null); do
   case "$tb_f" in
-    .truthboard/*|.mcp.json|AGENTS.md|CLAUDE.md) tb_state=governed ;;
+    .truthboard/*|.mcp.json|.vscode/mcp.json|AGENTS.md|CLAUDE.md) tb_state=governed ;;
     *) tb_state=code; break ;;
   esac
 done
@@ -188,7 +188,13 @@ func Agents(repo string, hooks bool) ([]string, error) {
 		return nil, err
 	}
 
-	changed, err := registerMCP(filepath.Join(repo, ".mcp.json"))
+	// Two files, one server: `.mcp.json` is what Claude Code, Cursor and
+	// friends read; `.vscode/mcp.json` is what VS Code — and so GitHub
+	// Copilot — reads. Neither carries a repo argument: the file is
+	// committed and shared, and the workspace layout's `mcp ./hub` is a
+	// documented manual edit (see README) rather than a guess made here.
+	changed, err := registerMCP(filepath.Join(repo, ".mcp.json"), "mcpServers",
+		map[string]any{"command": "truthboard", "args": []string{"mcp"}})
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +202,17 @@ func Agents(repo string, hooks bool) ([]string, error) {
 		step(".mcp.json: registered the truthboard MCP server")
 	} else {
 		step(".mcp.json: truthboard already registered")
+	}
+
+	vscodeChanged, err := registerMCP(filepath.Join(repo, ".vscode", "mcp.json"), vscodeMCPKey,
+		map[string]any{"type": "stdio", "command": "truthboard", "args": []string{"mcp"}})
+	if err != nil {
+		return nil, err
+	}
+	if vscodeChanged {
+		step(".vscode/mcp.json: registered the truthboard MCP server (VS Code / GitHub Copilot)")
+	} else {
+		step(".vscode/mcp.json: truthboard already registered")
 	}
 	if runtime.GOOS != "windows" {
 		exe, exeErr := os.Executable()
@@ -291,27 +308,40 @@ func spawnWarning(exe string, dirs []string) []string {
 	}
 }
 
-// registerMCP adds the truthboard server to .mcp.json, preserving any
-// other servers and unknown top-level keys.
-func registerMCP(path string) (changed bool, err error) {
+// vscodeMCPKey is VS Code's top-level key for MCP servers — GitHub Copilot
+// reads `.vscode/mcp.json`, and that schema spells the collection `servers`
+// (not `mcpServers`) and wants the transport named explicitly. Same binary,
+// same subcommand, different spelling: registering both files is what makes
+// "point your tool at the server" true for a Copilot shop too.
+const vscodeMCPKey = "servers"
+
+// registerMCP adds the truthboard server to an MCP config file under the
+// given top-level key, preserving any other servers and unknown keys. entry
+// is the server object to write, so each client gets the shape it expects.
+func registerMCP(path, key string, entry map[string]any) (changed bool, err error) {
 	doc := map[string]any{}
 	if raw, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			return false, fmt.Errorf("%s exists but is not valid JSON: %w", path, err)
 		}
 	}
-	servers, _ := doc["mcpServers"].(map[string]any)
+	servers, _ := doc[key].(map[string]any)
 	if servers == nil {
 		servers = map[string]any{}
 	}
 	if _, ok := servers["truthboard"]; ok {
 		return false, nil
 	}
-	servers["truthboard"] = map[string]any{"command": "truthboard", "args": []string{"mcp"}}
-	doc["mcpServers"] = servers
+	servers["truthboard"] = entry
+	doc[key] = servers
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return false, err
+	}
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return false, err
+		}
 	}
 	return true, os.WriteFile(path, append(out, '\n'), 0o644)
 }
