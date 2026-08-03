@@ -141,14 +141,48 @@ function inlineMd(s) {
 }
 // interactive: task checkboxes become live sign-off controls carrying
 // their ordinal (data-ti) so a click can flip the right [ ] in the body.
+/* GitHub-flavoured tables: a header row, a delimiter row, then body rows.
+   The delimiter is what makes it a table — pipes turn up in prose and in
+   code, and promoting those to tables would be a worse bug than the one
+   this fixes. Source is already escaped by md() before these run. */
+const tableRow = l => /^\s*\|.*\|\s*$/.test(l);
+const tableDelim = l => /^\s*\|[\s:|-]*-[\s:|-]*\|\s*$/.test(l);
+const tableCells = l => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+const tableAligns = l => tableCells(l).map(c => {
+  const l0 = c.startsWith(":"), r0 = c.endsWith(":");
+  // `:---` is stated rather than left implicit: left happens to be the
+  // default today, and a written alignment should not depend on that.
+  return l0 && r0 ? "center" : r0 ? "right" : l0 ? "left" : "";
+});
+
 function md(src, interactive = false) {
   const lines = esc(src ?? "").split("\n");
   const out = []; let code = false, list = false, para = [], task = 0;
   const flushP = () => { if (para.length) { out.push("<p>" + inlineMd(para.join(" ")) + "</p>"); para = []; } };
   const closeL = () => { if (list) { out.push("</ul>"); list = false; } };
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (line.startsWith("```")) { flushP(); closeL(); code = !code; out.push(code ? "<pre><code>" : "</code></pre>"); continue; }
     if (code) { out.push(line + "\n"); continue; }
+    if (tableRow(line) && !tableDelim(line) && i + 1 < lines.length && tableDelim(lines[i + 1])) {
+      flushP(); closeL();
+      const head = tableCells(line), al = tableAligns(lines[i + 1]);
+      const cell = (tag, text, k) =>
+        `<${tag}${al[k] ? ` style="text-align:${al[k]}"` : ""}>${inlineMd(text ?? "")}</${tag}>`;
+      const body = [];
+      let j = i + 2;
+      while (j < lines.length && tableRow(lines[j]) && !tableDelim(lines[j])) {
+        const r = tableCells(lines[j]);
+        // Indexed off the header, so a short row leaves empty cells rather
+        // than shifting content into the wrong column.
+        body.push("<tr>" + head.map((_, k) => cell("td", r[k], k)).join("") + "</tr>");
+        j++;
+      }
+      out.push(`<div class="tablewrap"><table><thead><tr>${
+        head.map((h, k) => cell("th", h, k)).join("")}</tr></thead><tbody>${body.join("")}</tbody></table></div>`);
+      i = j - 1;
+      continue;
+    }
     let m;
     if ((m = line.match(/^#{1,4}\s+(.*)/))) { flushP(); closeL(); out.push("<h3>" + inlineMd(m[1]) + "</h3>"); continue; }
     if ((m = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)/))) {
