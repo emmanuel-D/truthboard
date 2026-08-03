@@ -57,5 +57,5 @@ units, in both panels.
 - [x] Committed points appear against the reference sprint's landed points, labelled as one prior sprint rather than a velocity or an average
 - [x] The panel is absent, not empty, when the audit produced no plan
 - [x] The live-update path refreshes the panel like every other section, with no full reload
-- [ ] The panel is readable at mobile width, like the rest of the board
+- [x] The panel is readable at mobile width, like the rest of the board
 - [x] In both the planning panel and the existing sprint panel, each story's icon, id and title wrap as one unit rather than as independent flex children, and stories are separated by something other than a gap
