@@ -462,19 +462,20 @@ MIT — see [LICENSE](LICENSE).
 
 ## Status
 
-`v0.11.0` is the current release (retire spent branches, `truthboard mcp`
-pointed at a directory, Copilot wiring). Landed on `main` and shipping
-with the next tag: the sprint-planning half of the boundary
-(`truthboard plan` and the board's planning panel), `hold:` reasons that
-git contradicts when it disagrees, and `truthboard summary` — the
-plain-language view for stakeholders. Check
-[Releases](https://github.com/emmanuel-D/truthboard/releases) for what is
-actually published; this section describes intent, the tags describe
-fact.
+Truthboard is in active use on its own development and on several other
+repositories. The original design in [CONCEPT-V1.md](CONCEPT-V1.md) /
+[CONCEPT-V2.md](CONCEPT-V2.md) is fully built — a spec-driven tracker on
+an audit engine whose inference was validated at 100% done-vs-not-done
+accuracy against GitHub PR state on real repos before being ported to Go
+(CONCEPT-V1 §11). What lands now is refinement rather than foundation.
 
-Built as the [CONCEPT-V1.md](CONCEPT-V1.md) spec-driven tracker on the
-[CONCEPT-V2.md](CONCEPT-V2.md) audit engine; the inference logic was
-validated at 100% done-vs-not-done accuracy against GitHub PR state on
-real repos before being ported to Go (CONCEPT-V1 §11). Truthboard tracks
-its own roadmap in `.truthboard/specs/` — run `truthboard audit` on this
-repo to see the board this README describes, derived live.
+Every published version, with notes and assets, is on the
+[Releases](https://github.com/emmanuel-D/truthboard/releases) page — that
+list is generated from the tags and is the only account of what you can
+install. This page deliberately names no version: a "current release"
+line written by hand is a status somebody types, which is precisely what
+this tool exists to refuse.
+
+Truthboard tracks its own roadmap in `.truthboard/specs/` — run
+`truthboard audit` on this repo to see the board this README describes,
+derived live.
