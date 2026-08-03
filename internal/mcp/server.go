@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
+	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"github.com/emmanuel-D/truthboard/internal/spec"
 )
 
@@ -44,7 +45,15 @@ type toolDef struct {
 // Serve runs the MCP loop until stdin closes. defaultRepo is used when a
 // tool call omits the repo argument (Claude Code runs servers in the
 // project directory, so "." is the right default).
+//
+// A repository that cannot be read fails here, before the handshake. The
+// alternative is a server that starts happily and answers every single
+// tool call with the same error — which an agent reads as "the board is
+// broken", not as "you pointed me at the wrong directory".
 func Serve(in io.Reader, out io.Writer, defaultRepo, version string) error {
+	if _, err := gitrepo.Run(defaultRepo, "rev-parse", "--git-dir"); err != nil {
+		return err
+	}
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	enc := json.NewEncoder(out)

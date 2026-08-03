@@ -145,6 +145,21 @@ args = ["mcp"]
 { "mcpServers": { "truthboard": { "command": "truthboard", "args": ["mcp"] } } }
 ```
 
+The server takes an optional repository — `truthboard mcp [repo]` — and
+this is the one command where that argument earns its keep, because an MCP
+server runs in the directory its *client* chose. When the hub lives in a
+subdirectory (the `init --workspace` layout) and agents are launched from
+the workspace parent, point the server at it:
+
+```json
+{ "mcpServers": { "truthboard": { "command": "truthboard", "args": ["mcp", "./hub"] } } }
+```
+
+A relative path keeps the file portable — it is committed and shared, so
+this machine's absolute paths do not belong in it. A path that is not a
+git repository fails at startup with the same message every other command
+gives, instead of starting and refusing every tool call afterwards.
+
 The working agreement travels the same way: it lives in `AGENTS.md`, the
 cross-tool convention that Codex, Cursor, Gemini CLI and friends already
 read — `CLAUDE.md` exists only to import it for Claude Code. Point your

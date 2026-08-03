@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -83,7 +84,9 @@ Usage:
   truthboard next [repo]                    the highest-priority planned story, as a brief —
                                             deterministic, so "start the next story" is one call
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
-  truthboard mcp                            serve specs/board over MCP (stdio) for AI agents
+  truthboard mcp [repo]                     serve specs/board over MCP (stdio) for AI agents;
+                                            repo defaults to the current directory, which the
+                                            MCP client picks — pass a path when they differ
   truthboard board [repo]                   the board in your terminal (read-only TUI):
                                             kanban columns, drift, digest — keyboard only
   truthboard draft "Concept" [--owner X]    LLM drafts an epic of real stories (goal +
@@ -137,10 +140,7 @@ func main() {
 	case "link":
 		os.Exit(runLink(os.Args[2:]))
 	case "mcp":
-		if err := mcp.Serve(os.Stdin, os.Stdout, ".", version); err != nil {
-			fmt.Fprintf(os.Stderr, "truthboard mcp: %v\n", err)
-			os.Exit(1)
-		}
+		os.Exit(runMcp(os.Args[2:], os.Stdin, os.Stdout))
 	case "board":
 		os.Exit(runBoard(os.Args[2:]))
 	case "draft":
@@ -167,6 +167,34 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(2)
 	}
+}
+
+// runMcp serves one repository over MCP. The repo argument matters more
+// here than anywhere else: every other command runs in a directory the
+// person chose, while an MCP server runs in whatever directory the client
+// spawned it from — which, for a hub living in a subdirectory, is usually
+// the wrong one. in/out are parameters so a test can drive a real session.
+func runMcp(args []string, in io.Reader, out io.Writer) int {
+	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprint(fs.Output(), `usage: truthboard mcp [repo]
+
+Serve specs and the derived board over MCP (stdio) for AI agents.
+
+  repo   repository to serve (default: the current directory — which the
+         MCP client picks, not you, so pass a path when they differ)
+`)
+	}
+	fs.Parse(args)
+	repo := "."
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
+	}
+	if err := mcp.Serve(in, out, repo, version); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard mcp: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func runBoard(args []string) int {
