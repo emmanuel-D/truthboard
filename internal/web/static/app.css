@@ -385,6 +385,16 @@
   .md li.task label:has(input[data-ti]):hover { color: var(--ink); }
   .md code { background: var(--inset); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 .3em; }
   .md pre { background: var(--inset); border: 1px solid var(--hairline); border-radius: 8px; padding: .6rem .8rem; overflow-x: auto; margin: .5rem 0; }
+  /* The detail view is a dialog, so a wide table must scroll inside its own
+     container — widening the dialog would push the footer controls, Close
+     among them, off a phone screen. */
+  .md .tablewrap { overflow-x: auto; margin: .6rem 0; border: 1px solid var(--hairline); border-radius: 8px; }
+  .md table { border-collapse: collapse; width: 100%; font-size: .82rem; }
+  .md thead th { text-align: left; font-weight: 700; color: var(--ink);
+                 background: var(--inset); white-space: nowrap; }
+  .md th, .md td { padding: .35rem .6rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  .md tbody tr:last-child td { border-bottom: 0; }
+  .md td { color: var(--ink-2); }
   .md pre code { background: none; border: none; padding: 0; }
   .md b { color: var(--ink); }
 
