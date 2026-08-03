@@ -113,6 +113,20 @@ func sprintWindow(sp audit.SprintRollup) string {
 	return out
 }
 
+// sprintDetail is everything after the done count: the drift-prone half,
+// and the reason this bug existed. Terminal rendered it and Markdown did
+// not, so the format most likely to reach a non-developer was the one
+// missing the numbers they needed. Any third surface composes from here.
+func sprintDetail(sp audit.SprintRollup) string {
+	return sprintPoints(sp) + sprintWindow(sp)
+}
+
+// sprintFacts is the whole line body — what every renderer must say about a
+// sprint, however it decorates it.
+func sprintFacts(sp audit.SprintRollup) string {
+	return fmt.Sprintf("%d/%d done", sp.Done, sp.Total) + sprintDetail(sp)
+}
+
 func countClaims(claims []audit.Claim, kind string) int {
 	n := 0
 	for _, c := range claims {
@@ -198,7 +212,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	if len(res.Sprints) > 0 {
 		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "SPRINTS (arithmetic over derived statuses — a sprint finishes when its stories land)"))
 		for _, sp := range res.Sprints {
-			fmt.Fprintf(w, "  %s  %d/%d done%s%s\n", c(ansiCyan, sp.Name), sp.Done, sp.Total, c(ansiDim, sprintPoints(sp)), c(ansiDim, sprintWindow(sp)))
+			fmt.Fprintf(w, "  %s  %d/%d done%s\n", c(ansiCyan, sp.Name), sp.Done, sp.Total, c(ansiDim, sprintDetail(sp)))
 			for _, o := range sp.Open {
 				fmt.Fprintf(w, "    %s %s %s\n",
 					c(ansi[o.Status], fmt.Sprintf("%-12s", strings.ToUpper(string(o.Status)))), o.ID, o.Title)
@@ -414,7 +428,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 	if len(res.Sprints) > 0 {
 		fmt.Fprintf(w, "### Sprints (derived — a sprint finishes when its stories land)\n\n")
 		for _, sp := range res.Sprints {
-			fmt.Fprintf(w, "- **%s** — %d/%d done", sp.Name, sp.Done, sp.Total)
+			fmt.Fprintf(w, "- **%s** — %s", sp.Name, sprintFacts(sp))
 			if len(sp.Open) > 0 {
 				var open []string
 				for _, o := range sp.Open {
