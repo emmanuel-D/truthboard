@@ -55,11 +55,11 @@ open the URL. They must not drift — same builder, two renderers.
 
 ## Acceptance
 
-- [ ] `truthboard summary [sprint]` writes plain-language markdown covering delivered (with points), in flight, paused with reasons, and not started
-- [ ] The default output contains no spec ids, no branch names and no derived-status words from the table above; `--ids` adds identifiers back for anyone who wants to look something up
-- [ ] Points are stated as achievement ("13 of 21 points delivered"), with unestimated stories named as such rather than counted as zero
-- [ ] Every paused story carries a reason: a hold note, or the title of the story blocking it, or how long it has been untouched — in that order of preference
-- [ ] A contradicted hold (tb-eeb7) is never presented as a live reason
-- [ ] The web board renders the same summary as a panel, built from the same function as the CLI, with a test asserting the two agree
-- [ ] The summary needs no API key and no network
-- [ ] With no sprint argument it summarises the digest window, mirroring how `review` behaves
+- [x] `truthboard summary [sprint]` writes plain-language markdown covering delivered (with points), in flight, paused with reasons, and not started
+- [x] The default output contains no spec ids, no branch names and no derived-status words from the table above; `--ids` adds identifiers back for anyone who wants to look something up
+- [x] Points are stated as achievement ("13 of 21 points delivered"), with unestimated stories named as such rather than counted as zero
+- [x] Every paused story carries a reason: a hold note, or the title of the story blocking it, or how long it has been untouched — in that order of preference
+- [x] A contradicted hold (tb-eeb7) is never presented as a live reason
+- [x] The web board renders the same summary as a panel, built from the same function as the CLI, with a test asserting the two agree
+- [x] The summary needs no API key and no network
+- [x] With no sprint argument it summarises the digest window, mirroring how `review` behaves
