@@ -305,7 +305,7 @@ function branches(b) {
   if (!b.units?.length) return "";
   const units = b.units.filter(u => repoOn(unitRepo(u)));
   const rows = UNIT_ORDER.map(st => units.filter(u => u.status === st).map(u =>
-    `<div class="r">${chip(u.status)}<code>${esc(unitLabel(u))}</code>
+    `<div class="r branch">${chip(u.status)}<code>${esc(unitLabel(u))}</code>
      <span class="ev2">${esc(u.evidence)}${(u.flags||[]).map(f=>` — ⚠ ${esc(f)}`).join("")}</span>
      ${refTags(u)}${RO ? "" : `<button class="bdel" title="Retire this branch"
        data-branch="${esc(u.name)}" data-brepo="${esc(u.repo || "")}">🗑</button>`}</div>`
