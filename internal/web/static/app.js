@@ -241,6 +241,36 @@ function kanban(b) {
   }).join("") + `</div>`;
 }
 
+// The one panel written for the person who does not read git. Every word
+// of judgement here — the headline, the section names, why something is
+// paused — was chosen in internal/audit and is shared verbatim with
+// `truthboard summary`, so the page and the pasted document cannot come to
+// disagree about what happened.
+function summaryPanel(b) {
+  const s = b.summary;
+  if (!s) return "";
+  const list = (heading, items, kind) => items?.length ? `
+    <div class="sumsec">
+      <h3>${esc(heading)} <span class="sumn">${items.length}</span></h3>
+      <ul class="sumlist ${kind}">${items.map(it => `
+        <li><span class="sumt">${esc(it.title)}</span>${
+          it.points ? `<span class="sumpts">${it.points} points</span>` : ""}${
+          it.reason ? `<span class="sumwhy">${esc(it.reason)}</span>` : ""}</li>`).join("")}</ul>
+    </div>` : "";
+  return `<section class="panel summary">
+    <h2>Where things stand — ${esc(s.scope)}</h2>
+    <p class="sumhead">${esc(s.headline)}</p>
+    <div class="sumgrid">
+      ${list("Delivered", s.delivered, "ok")}
+      ${list("Broke after delivery", s.broken, "bad")}
+      ${list("Being worked on", s.in_flight, "live")}
+      ${list("Paused", s.paused, "held")}
+      ${list("Not started yet", s.not_started, "cold")}
+    </div>
+    ${s.unestimated ? `<p class="sumfoot">${s.unestimated} open ${s.unestimated === 1 ? "story carries" : "stories carry"} no estimate, so ${s.unestimated === 1 ? "it is" : "they are"} not in the point totals — that is not the same as being zero-sized.</p>` : ""}
+  </section>`;
+}
+
 // Sprints are arithmetic over the same derived statuses as the board —
 // a sprint "finishes" when its stories land, and there is nothing to set.
 function sprintsPanel(b) {
@@ -377,7 +407,7 @@ function render(b) {
     // A spoke whose forge stayed dark is a quieter truth: git still speaks.
     else if (r.forge_note) html += `<div class="warn">◦ workspace repo ${esc(r.name)}: ${esc(r.forge_note)}</div>`;
   }
-  html += tiles(b) + kanban(b) + sprintsPanel(b);
+  html += tiles(b) + kanban(b) + summaryPanel(b) + sprintsPanel(b);
   html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
   html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
   document.getElementById("app").innerHTML = html;

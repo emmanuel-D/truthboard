@@ -118,6 +118,7 @@ type Result struct {
 	Shipped      []ShippedSpec  `json:"shipped,omitempty"` // specs landed within the digest window
 	Sprints      []SprintRollup `json:"sprints,omitempty"` // per-sprint arithmetic over derived statuses
 	Plan         *PlanRollup    `json:"plan,omitempty"`    // the sprint about to start: rollover, candidates, load
+	Summary      *Summary       `json:"summary,omitempty"` // the same facts in plain language, for readers who do not read git
 	Specs        []SpecStatus   `json:"specs,omitempty"`
 	Claims       []Claim        `json:"claims,omitempty"`
 	Forge        string         `json:"forge,omitempty"` // owner/name when forge data enriched the audit
@@ -258,6 +259,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 	deriveHolds(res)
 	rollupSprints(res, sprintIntents, opts.Now)
 	rollupPlan(res)
+	summariseAll(res)
 	for _, u := range res.Units {
 		switch u.Status {
 		case Stalled:

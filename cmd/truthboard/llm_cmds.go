@@ -8,6 +8,7 @@ import (
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/llm"
+	"github.com/emmanuel-D/truthboard/internal/report"
 )
 
 func runDraft(args []string) int {
@@ -43,6 +44,35 @@ func runDraft(args []string) int {
 		fmt.Printf("  %s  %s\n", s.ID, s.Title)
 	}
 	fmt.Printf("\nReview and edit the intent (%s), then work them like any story.\n", created[0].File[:strings.LastIndex(created[0].File, "/")])
+	return 0
+}
+
+// Summary is deliberately not in this file's spirit: it calls no model.
+// A PO should not need an API key to learn what shipped, so the summary is
+// arithmetic the audit already did, rendered as sentences.
+func runSummary(args []string) int {
+	fs := flag.NewFlagSet("summary", flag.ExitOnError)
+	repo := fs.String("repo", ".", "repository path")
+	withIDs := fs.Bool("ids", false, "include story ids, for a reader who wants to look one up")
+	fs.Parse(args)
+	sprint := ""
+	if fs.NArg() > 0 {
+		sprint = fs.Arg(0)
+	}
+	res, err := audit.Audit(*repo, audit.Options{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard summary: %v\n", err)
+		return 1
+	}
+	s, err := res.Summarise(sprint)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard summary: %v\n", err)
+		return 1
+	}
+	if err := report.Summary(os.Stdout, s, *withIDs); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard summary: %v\n", err)
+		return 1
+	}
 	return 0
 }
 

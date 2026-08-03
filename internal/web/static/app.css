@@ -173,6 +173,24 @@
     border-radius: 999px; padding: .15rem .7rem; font: inherit; font-size: .75rem; width: 11rem; }
   #dt-assign:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
   #dt-assign-note { font-size: .7rem; color: var(--muted); margin-left: .5rem; }
+  /* The summary reads as prose, not as a control surface: no chips, no
+     icons, generous measure. Its only colour is the semantic rail marking
+     which of five things happened to a story. */
+  .panel.summary .sumhead { font-size: .95rem; color: var(--ink); margin-bottom: .8rem; max-width: 62ch; }
+  .sumgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem 1.6rem; }
+  .sumsec h3 { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .4rem; }
+  .sumsec h3 .sumn { color: var(--ink-2); letter-spacing: 0; }
+  .sumlist { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+  .sumlist li { display: flex; flex-direction: column; gap: .1rem; padding-left: .6rem; border-left: 2px solid var(--hairline); }
+  .sumlist.ok   li { border-left-color: var(--done); }
+  .sumlist.bad  li { border-left-color: var(--regressed); }
+  .sumlist.live li { border-left-color: var(--in-progress); }
+  .sumlist.held li { border-left-color: var(--stalled); }
+  .sumlist.cold li { border-left-color: var(--planned); }
+  .sumt { font-size: .84rem; }
+  .sumpts { font-size: .72rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .sumwhy { font-size: .75rem; color: var(--stalled); }
+  .sumfoot { margin-top: .9rem; font-size: .74rem; color: var(--muted); max-width: 62ch; }
   .sprow { display: flex; align-items: baseline; gap: .7rem; padding: .35rem 0; border-top: 1px solid var(--hairline); flex-wrap: wrap; }
   .sprow:first-of-type { border-top: 0; }
   .sprow .spname { font-weight: 700; min-width: 5.5rem; }
