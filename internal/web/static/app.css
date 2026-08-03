@@ -215,6 +215,12 @@
   .pstory[data-status="regressed"]   { border-left-color: var(--regressed); }
   .pstory[data-status="planned"]     { border-left-color: var(--planned); }
   .pstory .pico { font-size: .72rem; }
+  /* An id is one token — copied, searched for, typed into `truthboard
+     brief`. CSS breaks after a hyphen and every id has one, so without
+     this it reads as two words and half of it lands on the previous line.
+     Scoped to identifiers only: titles below must keep wrapping freely,
+     which is what keeps a story whole inside its chip. */
+  .pstory .pid, .pstory .pblock code, .sprow .spstory code { white-space: nowrap; }
   .pstory .pid { font-size: .68rem; color: var(--muted); }
   .pstory .ptitle { font-size: .8rem; overflow-wrap: anywhere; }
   .pstory .pepic { font-size: .66rem; color: var(--ink-2); display: inline-flex; align-items: center; gap: .25rem; }
