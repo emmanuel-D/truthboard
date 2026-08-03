@@ -113,6 +113,7 @@ type Result struct {
 	Digest       []Commit       `json:"digest"`
 	Shipped      []ShippedSpec  `json:"shipped,omitempty"` // specs landed within the digest window
 	Sprints      []SprintRollup `json:"sprints,omitempty"` // per-sprint arithmetic over derived statuses
+	Plan         *PlanRollup    `json:"plan,omitempty"`    // the sprint about to start: rollover, candidates, load
 	Specs        []SpecStatus   `json:"specs,omitempty"`
 	Claims       []Claim        `json:"claims,omitempty"`
 	Forge        string         `json:"forge,omitempty"` // owner/name when forge data enriched the audit
@@ -251,6 +252,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 	deriveWaiting(res)
 	attributeDigest(res)
 	rollupSprints(res, sprintIntents, opts.Now)
+	rollupPlan(res)
 	for _, u := range res.Units {
 		switch u.Status {
 		case Stalled:

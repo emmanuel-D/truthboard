@@ -46,6 +46,34 @@ func runDraft(args []string) int {
 	return 0
 }
 
+func runPlan(args []string) int {
+	fs := flag.NewFlagSet("plan", flag.ExitOnError)
+	repo := fs.String("repo", ".", "repository path")
+	fs.Parse(args)
+	sprint := ""
+	if fs.NArg() > 0 {
+		sprint = fs.Arg(0)
+	}
+	p, err := llm.FromEnv()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard plan: %v\n", err)
+		return 1
+	}
+	res, err := audit.Audit(*repo, audit.Options{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard plan: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stderr, "planning with %s…\n", p.Name())
+	text, err := llm.Plan(p, res, sprint)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard plan: %v\n", err)
+		return 1
+	}
+	fmt.Println(strings.TrimSpace(text))
+	return 0
+}
+
 func runReview(args []string) int {
 	fs := flag.NewFlagSet("review", flag.ExitOnError)
 	repo := fs.String("repo", ".", "repository path")

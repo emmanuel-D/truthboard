@@ -204,18 +204,31 @@ owner filters, `d`/`g` for the drift report and digest. Refreshes itself;
 ## LLM assist — optional, explicit, never a source of truth
 
 With `ANTHROPIC_API_KEY` (Anthropic API) or `OLLAMA_HOST` (local Ollama)
-set — `TRUTHBOARD_LLM_MODEL` overrides the model — two commands light up:
+set — `TRUTHBOARD_LLM_MODEL` overrides the model — three commands light up:
 
 ```sh
 truthboard draft "usage-based billing for teams"   # concept → epic of real stories
 truthboard review s12                              # narrated sprint review
+truthboard plan s13                                # narrated sprint planning summary
 ```
 
 `draft` writes fully-formed specs (goal + Given/When/Then acceptance)
 through the same files a human would edit, and refuses placeholder
 stories. `review` narrates a sprint — or the whole digest window — strictly
 from derived facts: the LLM is a writer, never a source. Nothing calls a
-model unless one of these two commands is explicitly invoked.
+model unless one of these three commands is explicitly invoked.
+
+`plan` is the other end of the sprint boundary: what rolls over from the
+sprint that is closing, what is already committed to the next one, which
+unsprinted stories are ready and which are blocked (naming the `needs:`
+ids that block them), and the committed points against what the last
+sprint actually landed. Omit the slug and it targets the next dated
+sprint that has not started. The load reference is one prior sprint and
+says so — Truthboard keeps no velocity history and will not project one.
+
+The same numbers are in `truthboard audit --format json` under `plan`, so
+the planning summary is reproducible with no API key at all; the LLM only
+turns it into prose.
 
 ## Web board — for the people who used to ask "what's the status?"
 
