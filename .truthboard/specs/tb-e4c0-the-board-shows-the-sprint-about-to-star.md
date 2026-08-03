@@ -39,6 +39,15 @@ Terminal (`audit`) and markdown (`--format md`) rendering stay out
 deliberately: `truthboard plan` narrates for humans and `--format json`
 carries the data, so a second text rendering earns nothing yet.
 
+The existing sprint panel gets fixed in the same pass, because the new
+panel would otherwise inherit its defect. Each open story there is emitted
+as three flat siblings — icon, id, title — directly inside the wrapping
+flex row (`sprintsPanel`, `internal/web/static/app.js`), so at narrow
+widths they wrap independently and a story's id can end up on a different
+line from its title, beside the next story's icon. Nothing in the
+`max-width: 40rem` block addresses `.sprow` at all. Stories must wrap as
+units, in both panels.
+
 ## Acceptance
 
 - [ ] The web board renders a planning panel from the `plan` object already on `/api/board` — no new endpoint, no second audit
@@ -49,3 +58,4 @@ carries the data, so a second text rendering earns nothing yet.
 - [ ] The panel is absent, not empty, when the audit produced no plan
 - [ ] The live-update path refreshes the panel like every other section, with no full reload
 - [ ] The panel is readable at mobile width, like the rest of the board
+- [ ] In both the planning panel and the existing sprint panel, each story's icon, id and title wrap as one unit rather than as independent flex children, and stories are separated by something other than a gap
