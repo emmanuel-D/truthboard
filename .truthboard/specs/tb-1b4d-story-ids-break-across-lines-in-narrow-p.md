@@ -38,7 +38,7 @@ class of its own.
 
 ## Acceptance
 
-- [ ] A story id renders as one unbroken token in the planning panel and the sprint panel at 390px
-- [ ] The `needs <id>` blocker in a blocked chip keeps its id whole too
-- [ ] Story titles still wrap freely inside their chip — the fix is scoped to identifiers, not to the chip
-- [ ] No chip overflows its panel and the page still does not scroll sideways at 390px
+- [x] A story id renders as one unbroken token in the planning panel and the sprint panel at 390px
+- [x] The `needs <id>` blocker in a blocked chip keeps its id whole too
+- [x] Story titles still wrap freely inside their chip — the fix is scoped to identifiers, not to the chip
+- [x] No chip overflows its panel and the page still does not scroll sideways at 390px
