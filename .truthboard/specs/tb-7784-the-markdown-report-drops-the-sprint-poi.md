@@ -34,7 +34,7 @@ points": the terminal could answer it and the paste-able format could not.
 
 ## Acceptance
 
-- [ ] The markdown sprint line carries points done vs total, the unestimated count, the date window, the derived state, and days remaining — the same facts the terminal renders
-- [ ] Undated sprints and unestimated sprints degrade in markdown exactly as they do in the terminal, with no empty separators left behind
-- [ ] The shared rendering is factored so a third surface cannot drift from these two again
-- [ ] A test asserts the two renderers agree on the same rollup, so this cannot silently regress
+- [x] The markdown sprint line carries points done vs total, the unestimated count, the date window, the derived state, and days remaining — the same facts the terminal renders
+- [x] Undated sprints and unestimated sprints degrade in markdown exactly as they do in the terminal, with no empty separators left behind
+- [x] The shared rendering is factored so a third surface cannot drift from these two again
+- [x] A test asserts the two renderers agree on the same rollup, so this cannot silently regress
