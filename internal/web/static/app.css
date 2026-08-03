@@ -173,6 +173,56 @@
     border-radius: 999px; padding: .15rem .7rem; font: inherit; font-size: .75rem; width: 11rem; }
   #dt-assign:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
   #dt-assign-note { font-size: .7rem; color: var(--muted); margin-left: .5rem; }
+  /* ---- the sprint about to start ---- */
+  .panel.plan { padding: 0; overflow: hidden; }
+  .panel.plan > h2 { padding: .85rem 1.05rem 0; }
+  .phead { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .9rem;
+           padding: .5rem 1.05rem .8rem; border-bottom: 1px solid var(--hairline); }
+  .phead .ptarget { font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; }
+  .phead .ptarget.none { font-size: .95rem; font-weight: 600; color: var(--ink-2); }
+  .phead .pwindow { font-size: .78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .phead .pstate { margin-left: auto; font-size: .66rem; text-transform: uppercase; letter-spacing: .06em;
+                   border: 1px solid var(--ring); border-radius: 999px; padding: .15rem .5rem; }
+
+  .pload { display: flex; flex-direction: column; gap: .4rem; padding: .8rem 1.05rem; border-bottom: 1px solid var(--hairline); }
+  .pload-figures { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .6rem; }
+  .pload-figures b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+  .pload-figures span { font-size: .78rem; color: var(--ink-2); }
+  .pload-track { display: flex; height: 11px; border-radius: 4px; background: var(--inset);
+                 border: 1px solid var(--hairline); overflow: hidden; }
+  .pload-track .seg-committed { background: var(--planned); opacity: .55; }
+  .pload-track .seg-rollover { background: var(--stalled); opacity: .5; }
+  .pload-mark { position: relative; height: 1rem; }
+  .pload-mark i { position: absolute; top: -1.25rem; width: 2px; height: 1.4rem; background: var(--done); }
+  .pload-mark span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap;
+                     font-size: .66rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .pload-note { font-size: .7rem; color: var(--muted); max-width: 64ch; }
+
+  .pband { padding: .7rem 1.05rem; border-bottom: 1px solid var(--hairline); display: flex; flex-direction: column; gap: .45rem; }
+  .pband:last-child { border-bottom: 0; }
+  .pband-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
+  .pband-head h3 { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .pband-head .ptally { font-size: .7rem; color: var(--ink-2); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  /* One flex child per story, so a story never splits across lines. */
+  .pstories { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .pstory { display: inline-flex; align-items: center; gap: .4rem; max-width: 100%;
+            border: 1px solid var(--hairline); border-left-width: 3px; border-radius: 7px;
+            background: var(--inset); padding: .28rem .5rem; }
+  .pstory[data-status="in-progress"] { border-left-color: var(--in-progress); }
+  .pstory[data-status="stalled"]     { border-left-color: var(--stalled); }
+  .pstory[data-status="in-review"]   { border-left-color: var(--in-review); }
+  .pstory[data-status="regressed"]   { border-left-color: var(--regressed); }
+  .pstory[data-status="planned"]     { border-left-color: var(--planned); }
+  .pstory .pico { font-size: .72rem; }
+  .pstory .pid { font-size: .68rem; color: var(--muted); }
+  .pstory .ptitle { font-size: .8rem; overflow-wrap: anywhere; }
+  .pstory .pepic { font-size: .66rem; color: var(--ink-2); display: inline-flex; align-items: center; gap: .25rem; }
+  .pstory .ppts { font-size: .68rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .pstory .ppts.none { font-style: italic; color: var(--muted); }
+  .pstory .pblock { font-size: .66rem; color: var(--stalled); }
+  .pstory .pblock code { font-size: .64rem; }
+
   /* The summary reads as prose, not as a control surface: no chips, no
      icons, generous measure. Its only colour is the semantic rail marking
      which of five things happened to a story. */
@@ -199,6 +249,13 @@
   .sprow .spbar i.full { background: var(--done); }
   .sprow .spn { font-size: .75rem; color: var(--ink-2); }
   .sprow .spopen { font-size: .75rem; color: var(--ink-2); }
+  /* One flex child per story. The inset chip is the separator — with only
+     a gap between them, one story's title ran straight into the next
+     story's icon. */
+  .sprow .spstory { display: inline-flex; align-items: baseline; gap: .3rem; max-width: 100%;
+                    background: var(--inset); border: 1px solid var(--hairline); border-radius: 6px;
+                    padding: .1rem .4rem; }
+  .sprow .spstory .spico { font-size: .7rem; }
   .sprow .spwindow { font-size: .75rem; color: var(--ink-2); }
   .sprow .spwindow b { font-weight: 700; }
   .sprow .sp-active { color: var(--in-progress); }
@@ -277,6 +334,12 @@
     /* Three buttons at 390px overflow their row; wrapping keeps the
        destructive one whole rather than clipped. */
     .dfoot { flex-wrap: wrap; }
+    /* Sprint and planning rows: at this width a story gets its own line
+       rather than competing with the counts for one. */
+    .sprow .spbar { flex-basis: 100%; }
+    .sprow .spstory, .pstory { width: 100%; }
+    .phead .pstate, .pband-head .ptally { margin-left: 0; }
+    .pload-mark span { transform: none; left: 0 !important; }
   }
   /* Touch: nothing hovers, so a control revealed by hover is a control
      nobody finds, and a 24px target is one nobody hits. */

@@ -241,6 +241,86 @@ function kanban(b) {
   }).join("") + `</div>`;
 }
 
+/* The sprint about to start. Everything here is already on /api/board —
+   tb-0274 put the rollup on the audit Result — so this is rendering, not a
+   second computation, and it refreshes with every other section because
+   render() rebuilds from lastBoard.
+
+   Two rules the panel must not break. It never implies a velocity: the
+   reference is one prior sprint and the caption says so. And it never
+   flattens a stalled rollover story into "open" — a story nobody has
+   touched is the most useful thing on this panel. */
+function planStory(it, extra = "") {
+  const st = it.status || "planned";
+  return `<span class="pstory" data-status="${esc(st)}">
+    <span class="pico" style="color:${sv(st)}" title="${esc((STATUS[st]||{}).label || st)}">${(STATUS[st]||{}).ico || "·"}</span>
+    <code class="pid">${esc(it.id)}</code>
+    <span class="ptitle">${esc(it.title)}</span>${extra}${
+      it.epic ? `<span class="pepic"><i class="dot" style="background:${epicColor(it.epic)}"></i>${esc(it.epic)}</span>` : ""}${
+      it.points ? `<span class="ppts">${it.points}</span>` : `<span class="ppts none">no estimate</span>`}
+  </span>`;
+}
+
+function planDays(plan) {
+  if (!plan.start || !plan.end) return 0;
+  const a = Date.parse(plan.start + "T00:00:00Z"), b = Date.parse(plan.end + "T00:00:00Z");
+  if (isNaN(a) || isNaN(b) || b < a) return 0;
+  return Math.round((b - a) / 86400000) + 1; // the end date is inclusive
+}
+
+function planPanel(b) {
+  const p = b.plan;
+  if (!p) return "";
+  const band = (heading, items, tally, decorate) => items?.length ? `
+    <div class="pband">
+      <div class="pband-head"><h3>${esc(heading)}</h3><span class="ptally">${esc(tally)}</span></div>
+      <div class="pstories">${items.map(it => planStory(it, decorate ? decorate(it) : "")).join("")}</div>
+    </div>` : "";
+
+  const days = planDays(p);
+  const head = p.sprint
+    ? `<span class="ptarget">${esc(p.sprint)}</span>
+       <span class="pwindow">${p.start && p.end
+          ? `${esc(p.start)} → ${esc(p.end)}${days ? ` · ${days} days` : ""}`
+          : "no dates declared for this sprint"}</span>
+       ${p.state ? `<span class="pstate sp-${esc(p.state)}">${esc(p.state)}</span>` : ""}`
+    : `<span class="ptarget none">No sprint is waiting to start</span>
+       <span class="pwindow">rollover and candidates only — give a sprint dates to plan into it</span>`;
+
+  const committed = p.points || 0, rolling = p.rollover_points || 0;
+  const total = committed + rolling;
+  let load = "";
+  if (total > 0 || p.reference_points) {
+    const span = Math.max(total, p.reference_points || 0) || 1;
+    const mark = p.reference_points ? Math.min(100, 100 * p.reference_points / span) : null;
+    load = `<div class="pload">
+      <div class="pload-figures"><b>${total} pts</b>
+        <span>on the table — ${committed} committed, ${rolling} rolling over</span></div>
+      <div class="pload-track">
+        <span class="seg-committed" style="width:${100 * committed / span}%"></span>
+        <span class="seg-rollover" style="width:${100 * rolling / span}%"></span>
+      </div>
+      ${mark === null ? "" : `<div class="pload-mark"><i style="left:${mark}%"></i>
+        <span style="left:${mark}%">${esc(p.reference_sprint || "last sprint")} landed ${p.reference_points}</span></div>`}
+      <p class="pload-note">${p.reference_points
+        ? "One prior sprint, not a velocity — there is no history behind this number."
+        : "No prior sprint to compare against."}${
+        p.unestimated ? ` ${p.unestimated} committed ${p.unestimated === 1 ? "story carries" : "stories carry"} no estimate and ${p.unestimated === 1 ? "is" : "are"} excluded from the total.` : ""}</p>
+    </div>`;
+  }
+
+  return `<section class="panel plan">
+    <h2>The sprint about to start</h2>
+    <div class="phead">${head}</div>
+    ${load}
+    ${band("Rolls over from " + esc(p.from || "the last sprint"), p.rollover, `${(p.rollover||[]).length} · ${rolling} pts if all of it is pulled in`)}
+    ${band("Already committed", p.committed, `${(p.committed||[]).length} · ${committed} pts`)}
+    ${band("Ready to pull in", p.ready, `${(p.ready||[]).length} · backlog order`)}
+    ${band("Blocked", p.blocked, `${(p.blocked||[]).length}`,
+      it => it.waiting?.length ? `<span class="pblock">needs ${it.waiting.map(w => `<code>${esc(w)}</code>`).join(" ")}</span>` : "")}
+  </section>`;
+}
+
 // The one panel written for the person who does not read git. Every word
 // of judgement here — the headline, the section names, why something is
 // paused — was chosen in internal/audit and is shared verbatim with
@@ -277,9 +357,13 @@ function sprintsPanel(b) {
   if (!b.sprints?.length) return "";
   const rows = b.sprints.map(sp => {
     const pct = sp.total ? Math.round(100 * sp.done / sp.total) : 0;
+    // One element per story: icon, id and title are children of it, so a
+    // narrow viewport wraps whole stories instead of splitting an id from
+    // its title beside the next story's icon. The chip's own inset is the
+    // separator — a gap alone left them running together.
     const open = (sp.open || []).map(o =>
-      `<span class="spopen" style="color:${sv(o.status)}">${(STATUS[o.status]||{}).ico || ""}</span> <code>${esc(o.id)}</code> <span class="spopen">${esc(o.title)}</span>`
-    ).join(" ");
+      `<span class="spstory"><span class="spico" style="color:${sv(o.status)}" title="${esc((STATUS[o.status]||{}).label || o.status)}">${(STATUS[o.status]||{}).ico || ""}</span><code>${esc(o.id)}</code><span class="spopen">${esc(o.title)}</span></span>`
+    ).join("");
     let window = "";
     if (sp.state) {
       const left = sp.state === "active" ? (sp.days_left ? ` · ${sp.days_left}d left` : " · ends today") : "";
@@ -407,7 +491,7 @@ function render(b) {
     // A spoke whose forge stayed dark is a quieter truth: git still speaks.
     else if (r.forge_note) html += `<div class="warn">◦ workspace repo ${esc(r.name)}: ${esc(r.forge_note)}</div>`;
   }
-  html += tiles(b) + kanban(b) + summaryPanel(b) + sprintsPanel(b);
+  html += tiles(b) + kanban(b) + summaryPanel(b) + planPanel(b) + sprintsPanel(b);
   html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
   html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
   document.getElementById("app").innerHTML = html;

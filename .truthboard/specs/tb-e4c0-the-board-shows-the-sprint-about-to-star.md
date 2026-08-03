@@ -50,12 +50,12 @@ units, in both panels.
 
 ## Acceptance
 
-- [ ] The web board renders a planning panel from the `plan` object already on `/api/board` — no new endpoint, no second audit
-- [ ] The panel shows the target sprint's window and length, or says plainly that no sprint is waiting to start
-- [ ] Rollover stories show their derived status, with stalled visually distinct from in-progress
-- [ ] Ready and blocked candidates appear in backlog order; blocked ones name the `needs:` ids blocking them
-- [ ] Committed points appear against the reference sprint's landed points, labelled as one prior sprint rather than a velocity or an average
-- [ ] The panel is absent, not empty, when the audit produced no plan
-- [ ] The live-update path refreshes the panel like every other section, with no full reload
+- [x] The web board renders a planning panel from the `plan` object already on `/api/board` — no new endpoint, no second audit
+- [x] The panel shows the target sprint's window and length, or says plainly that no sprint is waiting to start
+- [x] Rollover stories show their derived status, with stalled visually distinct from in-progress
+- [x] Ready and blocked candidates appear in backlog order; blocked ones name the `needs:` ids blocking them
+- [x] Committed points appear against the reference sprint's landed points, labelled as one prior sprint rather than a velocity or an average
+- [x] The panel is absent, not empty, when the audit produced no plan
+- [x] The live-update path refreshes the panel like every other section, with no full reload
 - [ ] The panel is readable at mobile width, like the rest of the board
-- [ ] In both the planning panel and the existing sprint panel, each story's icon, id and title wrap as one unit rather than as independent flex children, and stories are separated by something other than a gap
+- [x] In both the planning panel and the existing sprint panel, each story's icon, id and title wrap as one unit rather than as independent flex children, and stories are separated by something other than a gap
