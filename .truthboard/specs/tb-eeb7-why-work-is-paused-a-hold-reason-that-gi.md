@@ -8,6 +8,9 @@ paths:
     - internal/audit/**
     - internal/mcp/**
     - internal/web/**
+    - internal/report/**
+    - internal/tui/**
+    - cmd/truthboard/**
 epic: po-experience
 priority: 1
 ---

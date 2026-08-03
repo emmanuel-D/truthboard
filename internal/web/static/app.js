@@ -27,6 +27,16 @@ function epicColor(name) {
 }
 const epicTag = name => name ? `<span class="tag"><i class="dot" style="background:${epicColor(name)}"></i>${esc(name)}</span>` : "";
 const TYPE_ICO = { story: "✦", bug: "✗", task: "⚙" };
+/* A hold is the one field a human writes that git cannot produce, so it is
+   never shown alone: when the evidence contradicts it, the contradiction
+   is part of the label. Showing the bare note would let a reason that has
+   stopped being true keep passing as current. */
+function holdTag(s) {
+  if (!s.hold) return "";
+  return s.hold_contradicted
+    ? `<span class="tag hold stale" title="${esc(s.hold_contradicted)}">! held: ${esc(s.hold)}</span>`
+    : `<span class="tag hold" title="on hold">⏸ ${esc(s.hold)}</span>`;
+}
 const typeTag = t => (t && t !== "story") ? `<span class="tag type-${esc(t)}">${TYPE_ICO[t] || ""} ${esc(t)}</span>` : "";
 
 /* ---------- theme: system → light → dark ---------- */
@@ -195,7 +205,7 @@ function cardHTML(s, st) {
       s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
       s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${typeTag(s.type)}${
       s.waiting?.length ? `<span class="tag wait" title="waiting on ${esc(s.waiting.join(", "))}">⧗ ${esc(s.waiting.join(" "))}</span>` : ""}${epicTag(s.epic)}${
-      s.sprint ? `<span class="tag sprint">${esc(s.sprint)}</span>` : ""}</div>
+      s.sprint ? `<span class="tag sprint">${esc(s.sprint)}</span>` : ""}${holdTag(s)}</div>
     <div class="ev">${esc(s.evidence)}</div>
     <div class="cfoot"><span class="avatar" title="${esc(s.owner || "unowned")}">${esc(initials(s.owner))}</span>${prog}</div>
   </div>`;
@@ -263,6 +273,13 @@ function drift(b) {
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⇢</span>
       <span class="what"><b>Scope creep</b> — <code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code>:
       ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff outside spec paths (mostly ${esc(sc.top_dirs)})</span></div>`);
+  // A hold note the evidence disagrees with is drift in the same sense as
+  // a stale promise: the board would otherwise repeat a reason that has
+  // stopped being true.
+  for (const h of d.contradicted_holds || [])
+    out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">!</span>
+      <span class="what"><b>Contradicted hold</b> — <code>${esc(h.id)}</code> ${esc(h.title)}:
+      held for “${esc(h.hold)}”, but ${esc(h.why)}</span></div>`);
   for (const u of (d.stale_promises || []).filter(u => repoOn(unitRepo(u))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⏸</span>
       <span class="what"><b>Stale promise</b> — <code>${esc(unitLabel(u))}</code>: ${esc(u.evidence)}</span></div>`);
@@ -559,6 +576,7 @@ function openDetail(full) {
     typeTag(full.type) +
     epicTag(full.epic) +
     (full.sprint ? `<span class="tag sprint">${esc(full.sprint)}</span>` : "") +
+    holdTag(onBoard) +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
   document.getElementById("dt-assign-wrap").hidden = RO;
   document.getElementById("dt-assign").value = full.owner || "";
@@ -872,6 +890,7 @@ function openEditor(spec) {
   document.getElementById("ed-pts").value = spec?.points || "";
   document.getElementById("ed-ty").value = (spec?.type === "story" ? "" : spec?.type) || "";
   document.getElementById("ed-nd").value = (spec?.needs || []).join(", ");
+  document.getElementById("ed-hd").value = spec?.hold || "";
   fillRepos(spec?.repos || []);
   document.getElementById("ed-b").value = spec?.body ?? TEMPLATE;
   document.getElementById("ed-err").textContent = "";
@@ -904,6 +923,7 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
     points: parseInt(document.getElementById("ed-pts").value, 10) || 0,
     type: document.getElementById("ed-ty").value,
     needs: document.getElementById("ed-nd").value.split(",").map(x => x.trim()).filter(Boolean),
+    hold: document.getElementById("ed-hd").value.trim(),
     repos: selectedRepos(),
     body: document.getElementById("ed-b").value,
   };

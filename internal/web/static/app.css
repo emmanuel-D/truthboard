@@ -165,6 +165,10 @@
   .tag.type-task { color: var(--muted); }
   .tag.wait { color: var(--stalled); border-style: dashed; }
   .tag.sprint { border-style: dashed; }
+  /* A live hold is quiet — it explains a pause the status already shows.
+     A contradicted one is loud: it is the board about to tell a lie. */
+  .tag.hold { color: var(--stalled); max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag.hold.stale { color: var(--regressed); border-color: currentColor; font-weight: 600; }
   #dt-assign { background: var(--bg-2, transparent); color: var(--ink); border: 1px solid var(--hairline);
     border-radius: 999px; padding: .15rem .7rem; font: inherit; font-size: .75rem; width: 11rem; }
   #dt-assign:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }

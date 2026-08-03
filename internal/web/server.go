@@ -306,6 +306,7 @@ type specPayload struct {
 	Points   int      `json:"points"`
 	Type     string   `json:"type"`
 	Needs    []string `json:"needs"`
+	Hold     string   `json:"hold"`
 	Repos    []string `json:"repos"`
 	Paths    []string `json:"paths"`
 	Body     string   `json:"body"`
@@ -313,7 +314,7 @@ type specPayload struct {
 
 func payload(s *spec.Spec) specPayload {
 	return specPayload{ID: s.ID, Title: s.Title, Owner: s.Owner, Branch: s.Branch,
-		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Repos: s.Repos, Paths: s.Paths, Body: s.Body}
+		Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Hold: s.Hold, Repos: s.Repos, Paths: s.Paths, Body: s.Body}
 }
 
 // decodeIntent rejects unknown fields so a "status" in the payload fails
@@ -362,6 +363,7 @@ func specCreate(repo string, invalidate func(), land *committer) http.HandlerFun
 			Points   int      `json:"points"`
 			Type     string   `json:"type"`
 			Needs    []string `json:"needs"`
+			Hold     string   `json:"hold"`
 			Repos    []string `json:"repos"`
 			Paths    []string `json:"paths"`
 			Body     string   `json:"body"`
@@ -395,7 +397,7 @@ func specCreate(repo string, invalidate func(), land *committer) http.HandlerFun
 		if in.Body != "" {
 			s.Body = in.Body
 		}
-		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Repos, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Needs, in.Repos, in.Paths
+		s.Epic, s.Sprint, s.Priority, s.Points, s.Type, s.Needs, s.Hold, s.Repos, s.Paths = in.Epic, in.Sprint, in.Priority, in.Points, in.Type, in.Needs, in.Hold, in.Repos, in.Paths
 		if err := s.Save(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -432,6 +434,7 @@ func specItem(repo string, invalidate func(), land *committer) http.HandlerFunc 
 			Points   *int      `json:"points"`
 			Type     *string   `json:"type"`
 			Needs    *[]string `json:"needs"`
+			Hold     *string   `json:"hold"`
 			Repos    *[]string `json:"repos"`
 			Paths    *[]string `json:"paths"`
 			Body     *string   `json:"body"`
@@ -449,6 +452,7 @@ func specItem(repo string, invalidate func(), land *committer) http.HandlerFunc 
 		set(&s.Branch, in.Branch)
 		set(&s.Epic, in.Epic)
 		set(&s.Sprint, in.Sprint)
+		set(&s.Hold, in.Hold)
 		set(&s.Body, in.Body)
 		if in.Priority != nil {
 			s.Priority = *in.Priority

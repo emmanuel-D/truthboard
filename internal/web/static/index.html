@@ -85,6 +85,9 @@
         <div><label>Type</label><select id="ed-ty">
           <option value="">story</option><option value="bug">bug</option><option value="task">task</option></select></div>
         <div class="wide"><label>Needs</label><input id="ed-nd" placeholder="ids that must land first, e.g. tb-1a2b, tb-3c4d"></div>
+        <!-- Intent, not a status: git still decides whether the work is
+             stalled or moving, and contradicts this note when it resumes. -->
+        <div class="wide"><label>On hold because</label><input id="ed-hd" maxlength="160" placeholder="why it is paused, e.g. waiting on legal sign-off — clear the field to lift it"></div>
         <!-- Populated from the workspace manifest, so the only selectable
              repos are ones that exist. Hidden entirely on a single-repo
              board, where there is nothing to choose between. -->

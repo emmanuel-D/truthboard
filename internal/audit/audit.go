@@ -88,6 +88,10 @@ type Drift struct {
 	ScopeCreep       []ScopeCreep `json:"scope_creep,omitempty"`
 	DependencyCycles []string     `json:"dependency_cycles,omitempty"` // intent that can never become ready
 	UnknownRepos     []string     `json:"unknown_repos,omitempty"`     // repos: intent naming repos the workspace doesn't declare
+
+	// Hold notes the evidence disagrees with — a human reason that has
+	// outlived the pause it explained.
+	ContradictedHolds []ContradictedHold `json:"contradicted_holds,omitempty"`
 }
 
 // RepoHealth is one workspace spoke as the audit saw it. A spoke that could
@@ -251,6 +255,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 	linkSpecs(ctxs, res, specs, opts)
 	deriveWaiting(res)
 	attributeDigest(res)
+	deriveHolds(res)
 	rollupSprints(res, sprintIntents, opts.Now)
 	rollupPlan(res)
 	for _, u := range res.Units {
