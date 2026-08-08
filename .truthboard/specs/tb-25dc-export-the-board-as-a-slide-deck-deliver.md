@@ -30,12 +30,12 @@ board chrome, nothing that only makes sense on a screen.
 
 ## Acceptance
 
-- [ ] An Export button on the board opens a dialog with three scope choices: stories delivered in the digest window, one sprint, or the whole board
-- [ ] Statuses to include are chosen as chips; delivered scope defaults to done alone
-- [ ] Detail is chosen as a preset (title only / standard / everything) and every field it controls can be toggled on its own afterwards
-- [ ] The deck previews on screen before printing, so nobody prints to find out what they got
+- [x] An Export button on the board opens a dialog with three scope choices: stories delivered in the digest window, one sprint, or the whole board
+- [x] Statuses to include are chosen as chips; delivered scope defaults to done alone
+- [x] Detail is chosen as a preset (title only / standard / everything) and every field it controls can be toggled on its own afterwards
+- [x] The deck previews on screen before printing, so nobody prints to find out what they got
 - [ ] Printing produces 16:9 landscape slides: a cover with the counts and the window it covers, then story slides grouped by status, paginated so no slide overflows
-- [ ] The deck renders legibly whether or not the print dialog's background graphics are enabled
-- [ ] Exporting works on a read-only board — it reads, it never writes
-- [ ] Board filters in force are honoured, and the cover says so
-- [ ] `go build ./...` and `go test ./...` pass
+- [x] The deck renders legibly whether or not the print dialog's background graphics are enabled
+- [x] Exporting works on a read-only board — it reads, it never writes
+- [x] Board filters in force are honoured, and the cover says so
+- [x] `go build ./...` and `go test ./...` pass

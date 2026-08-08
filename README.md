@@ -318,6 +318,17 @@ an uncommitted-changes nudge on the page), while statuses stay computed
 with no route by which anything could set one. The page ships as embedded
 static assets via go:embed — still one binary, no build step.
 
+**Export** turns the board into a deck. Pick what it covers — stories
+delivered in the digest window, one sprint, or the whole board — which
+statuses to include, and how much each story carries (titles only,
+standard, everything, or any combination of the fields those presets set).
+The deck previews on screen and prints as 16:9 landscape slides: a cover
+with the counts and the window it covers, then story slides grouped by
+status. Save it as PDF from the browser's print dialog — the page brings
+its own page geometry, so nothing needs configuring, and the binary gains
+no PDF dependency. Whatever filters the board is showing apply to the
+deck, and the cover says so.
+
 The one thing the board deletes is a spent branch. Every branch it reports
 carries the refs it still has (`local`, `origin`) and a retire button: two
 confirmations, then the local ref, the ref on origin, or both. A branch

@@ -1155,6 +1155,331 @@ document.getElementById("ed-form").addEventListener("submit", async e => {
   }
 });
 
+/* ---------- export: the board as a slide deck ----------
+
+   A PO leaving the repo with what the board knows. The PDF comes from the
+   browser's own print engine — no dependency in the binary, real
+   typography, and the preview on screen *is* the printed page, so nobody
+   prints to find out what they got.
+
+   Two rules the deck must not break. It never invents: every number on it
+   is one the audit already derived, and stories arrive already filtered by
+   whatever the board is filtered by (said out loud on the cover, because a
+   deck that quietly omits half the sprint is worse than no deck). And it
+   must survive paper: a printed slide cannot scroll, so pagination is
+   computed from how much each story carries, and long prose is clamped
+   rather than allowed to run off the page. */
+
+const EX_SCOPES = [
+  ["delivered", "Delivered recently"],
+  ["sprint", "One sprint"],
+  ["board", "Whole board"],
+];
+// Field keys are what the slides read; presets are just sets of them, so
+// "standard, but with the acceptance list" is one click away from a preset
+// rather than a different feature.
+const EX_FIELDS = [
+  ["evidence", "Evidence"],
+  ["meta", "Epic · owner · points"],
+  ["progress", "Sign-off count"],
+  ["refs", "Branches and landing"],
+  ["goal", "Goal"],
+  ["acceptance", "Acceptance checklist"],
+];
+const EX_PRESETS = [
+  ["titles", "Titles only", []],
+  ["standard", "Standard", ["evidence", "meta", "progress"]],
+  ["everything", "Everything", ["evidence", "meta", "progress", "refs", "goal", "acceptance"]],
+];
+const EX = { scope: "delivered", sprint: "", statuses: new Set(["done"]), fields: new Set(EX_PRESETS[1][2]) };
+
+const exDlg = document.getElementById("exportdlg");
+const deckWrap = document.getElementById("deckwrap");
+const exChip = (on, data, label) =>
+  `<button type="button" class="fchip${on ? " on" : ""}" ${data} aria-pressed="${on}">${label}</button>`;
+
+// Sprints newest first, the order the sprint filter already uses.
+const exSprints = () => [...new Set((lastBoard?.specs || []).map(s => s.sprint).filter(Boolean))].sort().reverse();
+
+function exStories() {
+  const b = lastBoard;
+  if (!b) return [];
+  // specMatches: the deck shows what the board shows. A filtered board
+  // exporting the unfiltered truth would be a different document than the
+  // one the exporter was looking at.
+  let specs = (b.specs || []).filter(specMatches);
+  if (EX.scope === "delivered") {
+    const recent = new Set((b.shipped || []).map(s => s.id));
+    specs = specs.filter(s => recent.has(s.id));
+  } else if (EX.scope === "sprint") {
+    // No sprint picked means no sprint exists to pick: "" would otherwise
+    // match every story that never declared one — the opposite of a
+    // sprint deck.
+    if (!EX.sprint) return [];
+    specs = specs.filter(s => s.sprint === EX.sprint);
+  }
+  return specs.filter(s => EX.statuses.has(s.status));
+}
+
+// How many stories fit on one slide, from how much each one carries. A
+// slide cannot scroll, so this is the difference between a deck and a
+// deck with the last two stories cut off.
+function exPerSlide() {
+  if (EX.fields.has("goal") || EX.fields.has("acceptance")) return 2;
+  if (EX.fields.has("evidence") || EX.fields.has("refs")) return 6;
+  if (EX.fields.has("meta") || EX.fields.has("progress")) return 8;
+  return 12;
+}
+
+const chunk = (xs, n) => {
+  const out = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+};
+
+function exSlideCount(specs) {
+  const per = exPerSlide();
+  return 1 + SPEC_ORDER.reduce((n, st) =>
+    n + chunk(specs.filter(s => s.status === st), per).length, 0);
+}
+
+function exRefresh() {
+  const b = lastBoard;
+  document.getElementById("ex-scope").innerHTML = EX_SCOPES.map(([k, label]) => {
+    const note = k === "delivered" && b?.digest_days ? ` · last ${b.digest_days} days` : "";
+    return exChip(EX.scope === k, `data-exscope="${k}"`, esc(label + note));
+  }).join("");
+  const sprints = exSprints();
+  const wrap = document.getElementById("ex-sprint-wrap");
+  wrap.hidden = EX.scope !== "sprint";
+  if (EX.scope === "sprint") {
+    if (!sprints.includes(EX.sprint)) EX.sprint = sprints[0] || "";
+    document.getElementById("ex-sprint").innerHTML = sprints.length
+      ? sprints.map(s => `<option value="${esc(s)}"${s === EX.sprint ? " selected" : ""}>${esc(s)}</option>`).join("")
+      : `<option value="">no story declares a sprint yet</option>`;
+  }
+  document.getElementById("ex-status").innerHTML = SPEC_ORDER.map(st =>
+    exChip(EX.statuses.has(st), `data-exstatus="${st}"`,
+      `<span style="color:${sv(st)}">${STATUS[st].ico}</span> ${esc(STATUS[st].label)}`)).join("");
+  const same = keys => keys.length === EX.fields.size && keys.every(k => EX.fields.has(k));
+  document.getElementById("ex-preset").innerHTML = EX_PRESETS.map(([k, label, keys]) =>
+    exChip(same(keys), `data-expreset="${k}"`, esc(label))).join("") +
+    (EX_PRESETS.some(([, , keys]) => same(keys)) ? "" : `<span class="fchip on" aria-hidden="true">Custom</span>`);
+  document.getElementById("ex-fields").innerHTML = EX_FIELDS.map(([k, label]) =>
+    exChip(EX.fields.has(k), `data-exfield="${k}"`, esc(label))).join("");
+
+  const specs = exStories();
+  const pts = specs.reduce((a, s) => a + (s.points || 0), 0);
+  document.getElementById("ex-count").textContent = specs.length
+    ? `${specs.length} stor${specs.length === 1 ? "y" : "ies"}${pts ? ` · ${pts} points` : ""} · ${exSlideCount(specs)} slides` +
+      (filterActive() ? " · the board's filters apply" : "")
+    : EX.scope === "sprint" && !EX.sprint
+      ? "No story declares a sprint yet — a sprint deck needs one."
+      : "Nothing matches — widen the scope or the statuses.";
+  document.getElementById("ex-build").disabled = !specs.length;
+}
+
+document.getElementById("export").addEventListener("click", () => {
+  document.getElementById("ex-err").textContent = "";
+  exRefresh();
+  exDlg.showModal();
+});
+exDlg.addEventListener("click", e => {
+  const c = e.target.closest(".fchip");
+  if (!c) return;
+  if (c.dataset.exscope) {
+    EX.scope = c.dataset.exscope;
+    // Each scope carries its own honest default: delivered means done —
+    // nothing else in that window shipped — while a sprint or a board
+    // review is about everything in it, done or not.
+    EX.statuses = EX.scope === "delivered" ? new Set(["done"]) : new Set(SPEC_ORDER);
+  } else if (c.dataset.exstatus) {
+    EX.statuses.has(c.dataset.exstatus) ? EX.statuses.delete(c.dataset.exstatus) : EX.statuses.add(c.dataset.exstatus);
+  } else if (c.dataset.expreset) {
+    EX.fields = new Set(EX_PRESETS.find(p => p[0] === c.dataset.expreset)[2]);
+  } else if (c.dataset.exfield) {
+    EX.fields.has(c.dataset.exfield) ? EX.fields.delete(c.dataset.exfield) : EX.fields.add(c.dataset.exfield);
+  } else return;
+  exRefresh();
+});
+document.getElementById("ex-sprint").addEventListener("change", e => {
+  EX.sprint = e.target.value;
+  exRefresh();
+});
+
+/* ---- the slides ---- */
+
+// The story body is markdown a human wrote: pull the goal out of it
+// without reprinting the acceptance checklist that follows, and fall back
+// to whatever prose comes before the first heading when there is no
+// "## Goal" at all.
+function goalOf(body) {
+  const lines = String(body || "").split("\n");
+  const upToNextHeading = xs => {
+    const end = xs.findIndex(l => /^##+\s/.test(l));
+    return (end < 0 ? xs : xs.slice(0, end)).join("\n").trim();
+  };
+  const goal = lines.findIndex(l => /^##+\s*goal\b/i.test(l));
+  return goal >= 0 ? upToNextHeading(lines.slice(goal + 1)) : upToNextHeading(lines);
+}
+function acceptanceOf(body) {
+  return [...(body || "").matchAll(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/gm)]
+    .map(m => ({ done: m[1] !== " ", text: m[2].trim() }));
+}
+
+function exStoryCard(s, full) {
+  const f = k => EX.fields.has(k);
+  const bits = [];
+  if (f("meta")) {
+    bits.push(
+      (s.epic ? `<span class="s-epic"><i style="background:${epicColor(s.epic)}"></i>${esc(s.epic)}</span>` : "") +
+      (s.owner ? `<span class="s-own">${esc(s.owner)}</span>` : "") +
+      (s.points ? `<span class="s-pts">${esc(s.points)} pt</span>` : "") +
+      (s.type && s.type !== "story" ? `<span class="s-type">${esc(s.type)}</span>` : ""));
+  }
+  if (f("progress") && s.acceptance_total)
+    bits.push(`<span class="s-prog">${s.acceptance_done || 0}/${s.acceptance_total} signed off</span>`);
+  const meta = bits.filter(Boolean).join("");
+
+  const goal = f("goal") ? goalOf(full?.body) : "";
+  const acc = f("acceptance") ? acceptanceOf(full?.body) : [];
+  const shown = acc.slice(0, 5);
+  // No status on the card: every slide is one status group, and a column
+  // of "✓ Done" under a heading reading "Done" is noise. The date it
+  // landed is the thing a delivered deck is actually being asked for.
+  const when = (lastBoard?.shipped || []).find(x => x.id === s.id)?.date || "";
+  return `<article class="s-card" style="--st:${sv(s.status)}">
+    <div class="s-top"><span class="s-id">${esc(s.id)}</span>
+      ${when ? `<span class="s-when">${esc(when)}</span>` : ""}</div>
+    <h3>${esc(s.title)}</h3>
+    ${meta ? `<div class="s-meta">${meta}</div>` : ""}
+    ${goal ? `<div class="s-goal">${md(goal)}</div>` : ""}
+    ${shown.length ? `<ul class="s-acc">` + shown.map(a =>
+      `<li class="${a.done ? "on" : ""}">${a.done ? "✓" : "○"} ${esc(a.text)}</li>`).join("") +
+      (acc.length > shown.length ? `<li class="more">+ ${acc.length - shown.length} more</li>` : "") + `</ul>` : ""}
+    ${f("evidence") && s.evidence ? `<p class="s-ev">${esc(s.evidence)}</p>` : ""}
+    ${f("refs") ? `<p class="s-refs">${
+      (s.landed ? `landed <code>${esc(s.landed.slice(0, 7))}</code>${s.landed_repo ? ` in ${esc(s.landed_repo)}` : ""}` : "") +
+      (s.branches?.length ? `${s.landed ? " · " : ""}${s.branches.map(x => `<code>${esc(x)}</code>`).join(" ")}` : "")
+    }</p>` : ""}
+  </article>`;
+}
+
+function exCover(specs) {
+  const b = lastBoard;
+  const title = EX.scope === "sprint" ? `Sprint ${EX.sprint || "—"}`
+    : EX.scope === "delivered" ? "Delivered"
+    : "Where the board stands";
+  const sp = (b.sprints || []).find(x => x.name === EX.sprint);
+  const sub = EX.scope === "sprint"
+    ? (sp?.start && sp?.end ? `${sp.start} → ${sp.end}${sp.state ? ` · ${sp.state}` : ""}` : "no dates declared for this sprint")
+    : EX.scope === "delivered" ? `landed in the last ${b.digest_days || 14} days`
+    : `every story matching the current view`;
+  const pts = specs.reduce((a, s) => a + (s.points || 0), 0);
+  // A per-status breakdown of a single-status deck just says the total
+  // twice — split the count only when there is something to split.
+  const present = SPEC_ORDER.filter(st => specs.some(s => s.status === st));
+  const counts = present.length < 2 ? "" : present.map(st =>
+    `<div class="c-stat"><b style="color:${sv(st)}">${specs.filter(s => s.status === st).length}</b>
+      <span>${esc(STATUS[st].label.toLowerCase())}</span></div>`).join("");
+  return `<section class="slide cover">
+    <div class="c-eyebrow">${esc(b.repo?.split("/").pop() || "repository")} · ${esc(b.integration_branch || "")}</div>
+    <h1>${esc(title)}</h1>
+    <p class="c-sub">${esc(sub)}</p>
+    <div class="c-stats">
+      <div class="c-stat"><b>${specs.length}</b><span>stor${specs.length === 1 ? "y" : "ies"}</span></div>
+      ${pts ? `<div class="c-stat"><b>${pts}</b><span>points</span></div>` : ""}
+      ${counts}
+    </div>
+    <div class="c-foot">
+      <span>Derived from git — statuses are proven, never typed.</span>
+      <span>${esc(new Date().toLocaleDateString())}${filterActive() ? " · filtered view" : ""}</span>
+    </div>
+  </section>`;
+}
+
+function exSlides(specs, bodies) {
+  const per = exPerSlide();
+  let html = exCover(specs);
+  for (const st of SPEC_ORDER) {
+    const inSt = specs.filter(s => s.status === st);
+    if (!inSt.length) continue;
+    const pages = chunk(inSt, per);
+    pages.forEach((page, i) => {
+      html += `<section class="slide">
+        <header class="s-head" style="--st:${sv(st)}">
+          <h2>${STATUS[st].ico} ${esc(STATUS[st].label)}</h2>
+          <span>${inSt.length} stor${inSt.length === 1 ? "y" : "ies"}${pages.length > 1 ? ` · ${i + 1} of ${pages.length}` : ""}</span>
+        </header>
+        <div class="s-grid cols${page.length === 1 ? 1 : 2}">${
+          page.map(s => exStoryCard(s, bodies[s.id])).join("")}</div>
+      </section>`;
+    });
+  }
+  return html;
+}
+
+// Slides are laid out in millimetres so the print engine gets a real page;
+// on screen they are zoomed to fit whatever window is looking at them.
+function exFit() {
+  const px = 297 * (96 / 25.4); // one slide, full width
+  document.getElementById("deck").style.setProperty("--dz",
+    String(Math.min(1, (window.innerWidth - 48) / px)));
+}
+window.addEventListener("resize", () => { if (!deckWrap.hidden) exFit(); });
+
+// The 16:9 page geometry is armed with the deck and disarmed with it, so
+// printing the board itself still uses the printer's own paper.
+const deckPage = document.getElementById("deckpage");
+function closeDeck() {
+  deckWrap.hidden = true;
+  deckPage.media = "not all";
+  document.body.classList.remove("deck-open");
+}
+document.getElementById("dk-back").addEventListener("click", closeDeck);
+document.getElementById("dk-print").addEventListener("click", () => window.print());
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !deckWrap.hidden) closeDeck(); });
+
+document.getElementById("ex-form").addEventListener("submit", async e => {
+  if (e.submitter?.value === "cancel") return;
+  e.preventDefault();
+  const specs = exStories();
+  if (!specs.length) return;
+  const btn = document.getElementById("ex-build");
+  const label = btn.textContent;
+  const err = document.getElementById("ex-err");
+  btn.disabled = true;
+  err.textContent = "";
+  const bodies = {};
+  try {
+    // Only the goal and the checklist need the story file; a titles-only
+    // deck never touches the API.
+    if (EX.fields.has("goal") || EX.fields.has("acceptance")) {
+      btn.textContent = "reading stories…";
+      const got = await Promise.all(specs.map(async s => {
+        const r = await fetch("/api/specs/" + encodeURIComponent(s.id));
+        if (!r.ok) throw new Error(`${s.id}: ${await r.text()}`);
+        return r.json();
+      }));
+      for (const full of got) bodies[full.id] = full;
+    }
+    document.getElementById("deck").innerHTML = exSlides(specs, bodies);
+    document.getElementById("dk-note").textContent =
+      `${exSlideCount(specs)} slides · Save as PDF, landscape, no scaling`;
+    exDlg.close();
+    deckWrap.hidden = false;
+    deckPage.media = "print";
+    document.body.classList.add("deck-open");
+    exFit();
+    deckWrap.scrollTop = 0; // the overlay is the scroller, not the page
+  } catch (e2) {
+    err.textContent = "could not build the deck: " + e2.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+});
+
 /* ---------- edit token (shared boards) ---------- */
 const tokendlg = document.getElementById("tokendlg");
 document.getElementById("unlock").addEventListener("click", () => {

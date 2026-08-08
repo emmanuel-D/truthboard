@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Truthboard</title>
 <link rel="stylesheet" href="/static/app.css">
+<!-- The deck's page geometry, kept inert until a deck is on screen: @page
+     cannot be scoped to a selector, and printing the board itself must
+     still come out on the printer's own paper. -->
+<style id="deckpage" media="not all">@page { size: 297mm 167mm; margin: 0; }</style>
 </head>
 <body>
 <header>
@@ -12,6 +16,7 @@
   <span class="live"><span class="dot"></span><span id="updated">connecting…</span></span>
   <button class="btn" id="theme" title="Theme">◐ auto</button>
   <button class="btn" id="unlock" title="This shared board edits stories with a token" hidden>🔑 unlock</button>
+  <button class="btn" id="export" title="Export the board as a slide deck (PDF)">⤓ Export</button>
   <button class="btn" id="new-story" style="margin-left:0">+ New story</button>
   <div class="meta" id="meta"></div>
 </header>
@@ -165,6 +170,47 @@
     </div>
   </form>
 </dialog>
+
+<!-- export: what the deck covers, and how much of each story it carries -->
+<dialog id="exportdlg">
+  <div class="dhead"><h2>Export a deck</h2></div>
+  <p class="note">Slides built from the board as it stands, saved as PDF by the
+    browser's print dialog — pick <b>Save as PDF</b> there, and leave the paper
+    size alone: the deck sets its own 16:9 landscape page.</p>
+  <form method="dialog" class="ed" id="ex-form">
+    <div class="dbody">
+      <label>What it covers</label>
+      <div class="chipset" id="ex-scope" role="group" aria-label="Deck scope"></div>
+      <div id="ex-sprint-wrap" hidden><select id="ex-sprint"></select></div>
+      <label>Statuses</label>
+      <div class="chipset" id="ex-status" role="group" aria-label="Statuses to include"></div>
+      <label>Detail</label>
+      <!-- Presets first, fields under them: the preset is the decision most
+           people want to make, the toggles are for the one who wants a
+           different deck than the three on offer. -->
+      <div class="chipset" id="ex-preset" role="group" aria-label="Detail preset"></div>
+      <div class="chipset" id="ex-fields" role="group" aria-label="Fields on each story"></div>
+      <p class="note" id="ex-count"></p>
+    </div>
+    <div class="err" id="ex-err"></div>
+    <div class="dfoot">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" id="ex-build" value="default">Build the deck</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- The deck itself: an on-screen preview that is also the printed page —
+     @media print hides the board and unscales these slides, so what was
+     reviewed is exactly what comes out. -->
+<div id="deckwrap" hidden>
+  <div class="decktools" id="decktools">
+    <button class="btn" id="dk-back">← Back to the board</button>
+    <span class="note" id="dk-note"></span>
+    <button class="btn primary" id="dk-print">Save as PDF</button>
+  </div>
+  <div id="deck"></div>
+</div>
 
 <script src="/static/app.js" defer></script>
 </body>
