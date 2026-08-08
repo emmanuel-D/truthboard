@@ -131,6 +131,29 @@ func (w *Workspace) Resolve(r Repo) (string, error) {
 	return "", fmt.Errorf("no local copy — start the board server (it clones spokes) or set path: in %s", File)
 }
 
+// Checkout returns the spoke's working tree — a declared path: that exists
+// and is the repository it claims to be. Unlike Resolve it never falls back
+// to the server's managed clone: that clone is a mirror, so writing an
+// agreement or a hook into it would wire a directory no human ever opens.
+// Callers that write into a spoke use this; callers that only read proof
+// use Resolve.
+func (w *Workspace) Checkout(r Repo) (string, error) {
+	if r.Path == "" {
+		return "", fmt.Errorf("no local checkout declared (add path: to %s)", File)
+	}
+	p := r.Path
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(w.Hub, p)
+	}
+	if _, err := os.Stat(p); err != nil {
+		return "", fmt.Errorf("declared path %s is not checked out yet", r.Path)
+	}
+	if err := verifyIdentity(p, r); err != nil {
+		return "", err
+	}
+	return p, nil
+}
+
 // verifyIdentity refuses a declared path holding a checkout of some other
 // repository. Existence alone used to be the whole test, so a mistyped or
 // stale path made the board read proof from the wrong repo and report it with

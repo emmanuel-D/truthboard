@@ -79,6 +79,9 @@ Usage:
                                             specs dir, and agent wiring (with multi-repo
                                             guidance) in one command; re-runs merge new
                                             spokes, never rewrite existing ones
+                --no-spokes                 wire only the hub — by default every spoke with a
+                                            declared path: is wired too, its MCP server
+                                            pointed back at the hub
   truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard next [repo]                    the highest-priority planned story, as a brief —

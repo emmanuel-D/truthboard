@@ -26,6 +26,7 @@ func runInit(args []string) int {
 	agents := fs.Bool("agents", false, "wire the repo for AI agents: MCP registration + AGENTS.md working agreement")
 	hooks := fs.Bool("hooks", false, "with --agents: install a commit-msg hook that warns (never blocks) on missing Spec trailers")
 	wsFlag := fs.Bool("workspace", false, "scaffold a multi-repo hub: name=remote pairs become .truthboard/workspace.yml (implies --agents)")
+	noSpokes := fs.Bool("no-spokes", false, "wire only this repo: leave the declared spokes' checkouts untouched")
 	var pathFlags repeatedFlag
 	fs.Var(&pathFlags, "path", "with --workspace: name=dir declares a local checkout (repeatable; alone or alongside a name=remote pair)")
 
@@ -110,6 +111,20 @@ func runInit(args []string) int {
 		}
 		for _, line := range log {
 			fmt.Println("  " + line)
+		}
+
+		// Spokes are wired by the command that declares them: a hub that is
+		// correctly set up while its spokes have no board is the one failure
+		// nobody goes looking for.
+		if !*noSpokes {
+			spokeLog, err := adopt.Spokes(repo, *hooks)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+				return 1
+			}
+			for _, line := range spokeLog {
+				fmt.Println("  " + line)
+			}
 		}
 	}
 

@@ -390,8 +390,15 @@ the audit cannot see is a loud finding, never a silent omission.
 A story that must land in several repos declares it — `repos: [api, web]`
 (`hub` names the hub itself) — and is done only when the trailer landed in
 every one, with per-repo evidence in the meantime: `api ✓ landed · web —
-no branch yet`. A revert in any declared repo regresses it. Details in
-[docs/multi-repo.md](docs/multi-repo.md).
+no branch yet`. A revert in any declared repo regresses it.
+
+Spokes with a local checkout (`path: ../api`) are **wired by the command
+that declares them**: each gets the MCP server pointed back at the hub
+(`["mcp", "../hub"]`, relative so the committed file stays portable), the
+working agreement in its spoke form, and the trailer nudge — so an agent
+opened in a spoke has the hub's board with no further setup. Spokes that
+cannot be wired are named; adoption never clones, and `--no-spokes` wires
+the hub alone. Details in [docs/multi-repo.md](docs/multi-repo.md).
 
 ## Audit mode — works on any repo, no specs needed
 
