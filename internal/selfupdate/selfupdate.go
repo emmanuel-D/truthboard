@@ -57,6 +57,16 @@ func Run(w io.Writer, current string, checkOnly bool) error {
 		fmt.Fprintln(w, "update from source:  git pull && go install ./cmd/truthboard")
 		return nil
 	}
+	// Same principle as the source build above: do not overwrite a binary
+	// another tool owns. Swapping a keg in place would leave brew reporting
+	// the old version and revert the update on its next upgrade — the user
+	// would believe they were current while going backwards.
+	if formula := brewFormula(resolvedExecutable()); formula != "" {
+		fmt.Fprintln(w, "this binary is managed by Homebrew — update it with brew, so brew's")
+		fmt.Fprintln(w, "recorded version stays true and the next upgrade cannot revert you:")
+		fmt.Fprintf(w, "  brew update && brew upgrade %s\n", formula)
+		return nil
+	}
 	if checkOnly {
 		fmt.Fprintf(w, "run `truthboard update` to install %s\n", rel.Tag)
 		return nil
@@ -199,16 +209,55 @@ func extractBinary(archive []byte) ([]byte, error) {
 	return nil, fmt.Errorf("archive contains no truthboard binary")
 }
 
+// resolvedExecutable is where this binary actually lives, symlinks followed.
+// The indirection matters: /opt/homebrew/bin/truthboard is a symlink into the
+// Cellar, so anything deciding what owns this binary has to look past it.
+// Empty when the path cannot be resolved — callers treat that as "no special
+// ownership", never as a reason to refuse.
+func resolvedExecutable() string {
+	path, err := execPath()
+	if err != nil {
+		return ""
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return ""
+	}
+	return resolved
+}
+
+// brewFormula names the Homebrew formula owning this binary, or "" when it
+// is not a keg. The test is structural — a keg is laid out as
+// <prefix>/Cellar/<formula>/<version>/bin/<exe> — rather than a substring
+// match on "Cellar", which would misread an ordinary directory of that name.
+// Any prefix qualifies, so Linuxbrew and custom prefixes are covered.
+func brewFormula(exe string) string {
+	if exe == "" {
+		return ""
+	}
+	bin := filepath.Dir(exe)
+	if filepath.Base(bin) != "bin" {
+		return ""
+	}
+	version := filepath.Dir(bin)
+	formula := filepath.Dir(version)
+	if filepath.Base(filepath.Dir(formula)) != "Cellar" {
+		return ""
+	}
+	name := filepath.Base(formula)
+	if name == "." || name == string(filepath.Separator) {
+		return ""
+	}
+	return name
+}
+
 // replaceExecutable swaps the running binary atomically: the new one is
 // written next to it and renamed into place (the old file is first moved
 // aside, which also keeps Windows happy about replacing a running exe).
 func replaceExecutable(bin []byte) (string, error) {
-	path, err := execPath()
-	if err != nil {
-		return "", err
-	}
-	if path, err = filepath.EvalSymlinks(path); err != nil {
-		return "", err
+	path := resolvedExecutable()
+	if path == "" {
+		return "", fmt.Errorf("cannot locate the running binary to replace it")
 	}
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".truthboard-new-*")

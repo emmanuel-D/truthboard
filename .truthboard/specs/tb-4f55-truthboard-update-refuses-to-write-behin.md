@@ -27,21 +27,28 @@ the same treatment: refuse, and name the command that does the job properly.
 
 ## Acceptance
 
-- [ ] `truthboard update` on a Homebrew-managed binary does not replace it,
+- [x] `truthboard update` on a Homebrew-managed binary does not replace it,
       and exits 0 — this is guidance, not a failure, matching how a source
       build is already handled.
-- [ ] It names the working command (`brew update && brew upgrade truthboard`)
+- [x] It names the working command (`brew update && brew upgrade truthboard`)
       and says in one line why brew has to do it.
-- [ ] `truthboard update --check` gives the same brew advice rather than
+- [x] `truthboard update --check` gives the same brew advice rather than
       telling the user to run a command that will refuse.
-- [ ] An already-current brew install still just says it is up to date — no
+- [x] An already-current brew install still just says it is up to date — no
       warning where there is nothing to do.
-- [ ] Detection is structural, not a substring: the resolved executable must
+- [x] Detection is structural, not a substring: the resolved executable must
       sit at `…/Cellar/<formula>/<version>/bin/<exe>`. A path that merely
       contains "Cellar" is not a brew install, and neither Linuxbrew's prefix
       nor a custom one may be excluded.
-- [ ] Detection runs on the *resolved* path, since `/opt/homebrew/bin/…` is a
+- [x] Detection runs on the *resolved* path, since `/opt/homebrew/bin/…` is a
       symlink into the Cellar — that indirection is the whole bug.
-- [ ] Every other install path is untouched: script installs, tarballs and
+- [x] Every other install path is untouched: script installs, tarballs and
       `go install …@latest` still update in place.
-- [ ] The README's warning becomes a statement of what the command does now.
+- [x] The README's warning becomes a statement of what the command does now.
+
+Verified beyond unit tests, against the live release feed: a v0.12.0-stamped
+binary in a real keg layout, invoked through the `bin/` symlink brew creates,
+printed the brew advice and left the keg byte-identical; the same binary in
+an ordinary directory really downloaded and became v0.12.2. The negative
+control matters — it is what proves the refusal is a decision and not a
+silently broken update path.

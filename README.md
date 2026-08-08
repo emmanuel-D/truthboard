@@ -53,9 +53,10 @@ brew install emmanuel-D/truthboard/truthboard
 brew upgrade truthboard      # this is the update path — not `truthboard update`
 ```
 
-Use `brew upgrade` for a brew install. `truthboard update` follows the
-symlink and writes into the Cellar, where brew keeps reporting the old
-version and the next `brew upgrade` quietly reverts you.
+Brew owns that binary, so brew updates it: `truthboard update` recognises
+a keg and points you back here rather than writing into the Cellar, where
+brew would keep reporting the old version and revert you on its next
+upgrade.
 
 Or grab a tarball from
 [Releases](https://github.com/emmanuel-D/truthboard/releases) yourself
