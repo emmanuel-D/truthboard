@@ -214,7 +214,7 @@ function tiles(b) {
   const active = n("in-progress") + n("in-review");
   const d = b.drift || {};
   const drift = (d.stale_promises?.length||0) + (d.shadow_work?.length||0) +
-                (d.scope_creep?.length||0) + (d.unknown_repos?.length||0) +
+                (d.scope_creep?.length||0) + (d.unknown_repos?.length||0) + (d.unwired_repos?.length||0) +
                 (b.claims?.length||0) + n("regressed");
   const tile = (num, label, color) =>
     `<div class="tile"><div class="num">${num}</div>
@@ -417,6 +417,11 @@ function drift(b) {
   for (const ur of d.unknown_repos || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--regressed, #e5534b)">✗</span>
       <span class="what"><b>Unknown repo</b> — ${esc(ur)}</span></div>`);
+  // Wiring is a property of the repo, not of any branch, so a spoke filter
+  // would only ever hide the finding from the person who needs it.
+  for (const ur of d.unwired_repos || [])
+    out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⚙</span>
+      <span class="what"><b>Unwired spoke</b> — ${esc(ur)}</span></div>`);
   for (const sc of (d.scope_creep || []).filter(sc => repoOn(branchRepo(sc.branch))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⇢</span>
       <span class="what"><b>Scope creep</b> — <code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code>:

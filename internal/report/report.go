@@ -284,6 +284,12 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "    - %s\n", ur)
 		}
 	}
+	if len(d.UnwiredRepos) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Unwired spokes (%d): checked out and watched for proof, but agents there have no board", len(d.UnwiredRepos))))
+		for _, ur := range d.UnwiredRepos {
+			fmt.Fprintf(w, "    - %s\n", ur)
+		}
+	}
 	if len(d.ScopeCreep) > 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Scope creep (%d): linked work drifting outside declared spec paths", len(d.ScopeCreep))))
 		for _, sc := range d.ScopeCreep {
@@ -297,7 +303,7 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "    - %s %s — held for %q, but %s\n", h.ID, truncate(h.Title, 46), h.Hold, h.Why)
 		}
 	}
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.ContradictedHolds) == 0 {
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.UnwiredRepos) == 0 && len(d.ContradictedHolds) == 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
@@ -463,7 +469,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 
 	d := res.Drift
 	fmt.Fprintf(w, "### Drift\n\n")
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.ContradictedHolds) == 0 {
+	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.UnwiredRepos) == 0 && len(d.ContradictedHolds) == 0 {
 		fmt.Fprintf(w, "✅ Clean — the board matches reality.\n\n")
 	}
 	if len(d.DependencyCycles) > 0 {
@@ -476,6 +482,13 @@ func Markdown(w io.Writer, res *audit.Result) error {
 	if len(d.UnknownRepos) > 0 {
 		fmt.Fprintf(w, "**Unknown repos (%d)** — repos: intent naming repos the workspace does not declare:\n\n", len(d.UnknownRepos))
 		for _, ur := range d.UnknownRepos {
+			fmt.Fprintf(w, "- %s\n", ur)
+		}
+		fmt.Fprintln(w)
+	}
+	if len(d.UnwiredRepos) > 0 {
+		fmt.Fprintf(w, "**Unwired spokes (%d)** — checked out and watched for proof, but agents there have no board:\n\n", len(d.UnwiredRepos))
+		for _, ur := range d.UnwiredRepos {
 			fmt.Fprintf(w, "- %s\n", ur)
 		}
 		fmt.Fprintln(w)

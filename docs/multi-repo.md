@@ -111,8 +111,30 @@ make it a second, competing hub.
 
 Spokes that cannot be wired are named, never skipped in silence — no
 `path:` declared, not checked out yet, or a path holding a checkout of a
-different repository. Adoption never clones; check the repo out, then re-run.
+different repository. Adoption never clones; check the repo out, then re-run
+(`truthboard init --workspace` with no new pairs re-applies the wiring).
 `--no-spokes` wires the hub alone.
+
+### Staying wired
+
+Wiring a spoke once is not the same as a spoke staying wired: a fresh clone,
+a hand-edited `.mcp.json`, or a spoke declared after the last setup run each
+leave a repo watched for proof whose agents have no board. So it is derived
+like everything else — `truthboard audit` reports **unwired spokes** as
+drift, naming the repo, what is missing, and the command that fixes it:
+
+```
+Unwired spokes (1): checked out and watched for proof, but agents there have no board
+  - web (../web): no MCP registration (agents here have no board), no working
+    agreement in AGENTS.md — re-run `truthboard init --workspace` in the hub
+```
+
+The audit detects, it never wires. A spoke with **no local copy** is not a
+wiring finding — that is the unreadable-spoke report above, and saying the
+same thing twice in two vocabularies teaches people to skim both. The
+commit-msg nudge is opt-in (`--hooks`), so its absence is never a finding on
+its own; it is named only when a spoke is already being reported and the hub
+has one.
 
 Agents that work from a **shared board** instead of a hub checkout (see
 [deploy.md](deploy.md)) need no local wiring at all — same agreement, same
