@@ -33,32 +33,47 @@ The promise is editable; the proof is not.
 
 ## Install
 
+**Recommended — the install script:**
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/emmanuel-D/truthboard/main/install.sh | sh
+truthboard update            # later, to stay current (--check to only look)
 ```
 
-The script picks the right build for your platform (macOS/Linux,
-amd64/arm64), verifies it against the release checksums, and installs to
-`/usr/local/bin` or `~/.local/bin` — no sudo. Homebrew works too:
+It picks the right build for your platform (macOS/Linux, amd64/arm64),
+verifies it against the release checksums, and installs to
+`/usr/local/bin` or `~/.local/bin` — no sudo. It is also the path
+`truthboard update` keeps current: the same checksum verification, and an
+atomic swap of the binary in place.
+
+**Homebrew**, if you would rather your package manager owned it:
 
 ```sh
 brew install emmanuel-D/truthboard/truthboard
+brew upgrade truthboard      # this is the update path — not `truthboard update`
 ```
+
+Use `brew upgrade` for a brew install. `truthboard update` follows the
+symlink and writes into the Cellar, where brew keeps reporting the old
+version and the next `brew upgrade` quietly reverts you.
 
 Or grab a tarball from
 [Releases](https://github.com/emmanuel-D/truthboard/releases) yourself
-(Windows lives there), or build from source:
+(Windows lives there), or install with Go:
 
 ```sh
 go install github.com/emmanuel-D/truthboard/cmd/truthboard@latest
 ```
 
+That one carries its version like a release install, so `truthboard
+update` keeps it current too. A binary built from a *checkout* reports
+`dev` and is deliberately never replaced — `update` points you at
+`git pull` instead, so nobody's working copy is overwritten.
+
 Single static binary; the only runtime dependency is `git`. Optional:
 `gh`/`glab` for tracker claims, `npm` for package scripts.
 
-Stay current with `truthboard update` (`--check` to only look): it
-verifies the download against the release checksums and swaps the binary
-atomically. Detached boards keep running the old binary until you
+However you update, detached boards keep running the old binary until you
 `truthboard stop && truthboard ui --detach` — the board's footer shows
 which version is serving it.
 
