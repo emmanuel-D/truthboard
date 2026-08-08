@@ -477,3 +477,98 @@
   @media (prefers-reduced-motion: reduce) {
     .toast, .toast.leaving { animation: none; }
   }
+
+  /* ---------- export deck ----------
+     Slides, not a web page: sized in millimetres so the print engine gets
+     a real 16:9 page, and zoomed on screen to fit the window. The preview
+     and the printout are the same DOM — @media print only stops the
+     scaling and hides the board around it.
+
+     The palette is fixed light, whatever theme the board is in: this
+     leaves the browser as a PDF, and a dark slide is somebody else's ink.
+     Colour arrives through borders and text rather than filled panels,
+     because a print dialog with "background graphics" unticked drops
+     backgrounds and keeps both of those. */
+  body.deck-open { overflow: hidden; }
+  #deckwrap { position: fixed; inset: 0; z-index: 60; overflow: auto; background: var(--inset); }
+  .decktools {
+    position: sticky; top: 0; z-index: 2; display: flex; gap: .6rem; align-items: center;
+    padding: .55rem .9rem; background: var(--page); border-bottom: 1px solid var(--hairline);
+  }
+  .decktools .note { margin-right: auto; }
+  #deck { --dz: 1; counter-reset: slide; display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 1.2rem 0 3rem; }
+
+  .slide {
+    zoom: var(--dz);
+    box-sizing: border-box; position: relative; overflow: hidden;
+    width: 297mm; height: 167mm; padding: 13mm 16mm;
+    display: flex; flex-direction: column;
+    background: #fff; color: #14140f;
+    border: 1px solid var(--hairline); box-shadow: var(--shadow);
+    counter-increment: slide;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  .slide:not(.cover)::after {
+    content: counter(slide); position: absolute; right: 12mm; bottom: 8mm;
+    font-size: 8pt; color: #b5b3ab;
+  }
+  .slide code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .94em; }
+
+  /* cover */
+  .slide.cover { justify-content: center; border-left: 6mm solid #14140f; }
+  .cover .c-eyebrow { font-size: 9.5pt; letter-spacing: .16em; text-transform: uppercase; color: #8a8880; }
+  .cover h1 { font-size: 40pt; line-height: 1.04; letter-spacing: -.02em; margin: .18em 0 0; }
+  .cover .c-sub { font-size: 13.5pt; color: #52514e; margin-top: .5em; }
+  .cover .c-stats { display: flex; flex-wrap: wrap; gap: 12mm; margin-top: 11mm; }
+  .c-stat b { display: block; font-size: 26pt; line-height: 1; }
+  .c-stat span { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .09em; color: #8a8880; }
+  .cover .c-foot {
+    position: absolute; left: 16mm; right: 16mm; bottom: 9mm;
+    display: flex; justify-content: space-between; gap: 6mm;
+    font-size: 8.5pt; color: #8a8880; border-top: 1px solid #e6e5de; padding-top: 3mm;
+  }
+
+  /* story slides */
+  .s-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 6mm;
+    border-bottom: 1.2pt solid var(--st); padding-bottom: 2.5mm; margin-bottom: 6mm;
+  }
+  .s-head h2 { font-size: 17pt; letter-spacing: -.01em; color: var(--st); }
+  .s-head span { font-size: 9pt; color: #8a8880; }
+  .s-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 9mm; align-content: start; overflow: hidden; }
+  .s-grid.cols1 { grid-template-columns: 1fr; }
+  .s-card { overflow: hidden; border-left: 1.1mm solid var(--st); padding-left: 4.5mm; }
+  .s-top { display: flex; justify-content: space-between; gap: 4mm; font-size: 8pt; letter-spacing: .04em; color: #8a8880; }
+  .s-top .s-when { color: #a9a79f; }
+  .s-card h3 { font-size: 12.5pt; line-height: 1.24; margin: .18em 0 .28em; }
+  .s-meta { display: flex; flex-wrap: wrap; gap: 4mm; font-size: 8.5pt; color: #52514e; }
+  .s-epic i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: .28em; vertical-align: 1px; }
+  .s-pts, .s-type { color: #8a8880; }
+  /* Prose is the one thing on a slide that has no natural end — clamp it
+     rather than let it run off a page that cannot scroll. */
+  .s-goal { font-size: 9pt; line-height: 1.45; color: #3d3c39; margin-top: .3em;
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+  .s-goal p { margin: 0 0 .35em; }
+  .s-goal h3 { font-size: 9pt; }
+  .s-acc { list-style: none; padding: 0; margin: .35em 0 0; font-size: 8.5pt; color: #52514e; }
+  /* Two lines per criterion, hard: acceptance is written for a reviewer,
+     not for a slide, and one essay-length item would push the rest of the
+     story off a page that cannot scroll. */
+  .s-acc li { line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .s-acc li.on { color: #0a7a0a; }
+  .s-acc li.more { color: #a9a79f; }
+  .s-ev { font-size: 8.5pt; color: #6f6d67; margin-top: .4em; }
+  .s-refs { font-size: 8pt; color: #8a8880; margin-top: .25em; }
+
+  @media print {
+    body.deck-open > *:not(#deckwrap) { display: none !important; }
+    body.deck-open { overflow: visible; background: #fff; }
+    body.deck-open #deckwrap { position: static; overflow: visible; background: #fff; }
+    body.deck-open .decktools { display: none; }
+    body.deck-open #deck { display: block; padding: 0; gap: 0; }
+    body.deck-open .slide {
+      zoom: 1; border: 0; box-shadow: none; break-after: page; page-break-after: always;
+    }
+    body.deck-open .slide.cover { border-left: 6mm solid #14140f; }
+    body.deck-open .slide:last-child { break-after: auto; page-break-after: auto; }
+  }
