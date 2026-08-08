@@ -515,6 +515,10 @@ func (m model) viewDrift() string {
 	for _, ur := range d.UnknownRepos {
 		fmt.Fprintf(&b, "  %s\n", ur)
 	}
+	section("Unwired spokes — watched for proof, but agents there have no board", len(d.UnwiredRepos))
+	for _, ur := range d.UnwiredRepos {
+		fmt.Fprintf(&b, "  %s\n", ur)
+	}
 	section("Shadow work — commits outside any branch/MR flow", len(d.ShadowWork))
 	for i, c := range d.ShadowWork {
 		if i == 12 {

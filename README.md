@@ -398,7 +398,9 @@ that declares them**: each gets the MCP server pointed back at the hub
 working agreement in its spoke form, and the trailer nudge — so an agent
 opened in a spoke has the hub's board with no further setup. Spokes that
 cannot be wired are named; adoption never clones, and `--no-spokes` wires
-the hub alone. Details in [docs/multi-repo.md](docs/multi-repo.md).
+the hub alone. Staying wired is derived too: a checked-out spoke whose
+agents have no board is a drift finding, naming the repo and the fix.
+Details in [docs/multi-repo.md](docs/multi-repo.md).
 
 ## Audit mode — works on any repo, no specs needed
 

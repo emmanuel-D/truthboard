@@ -24,16 +24,21 @@ a drift finding, computed from what is on disk, naming the spoke and the fix.
 
 ## Acceptance
 
-- [ ] The audit reports a drift finding per declared spoke that has a local
+- [x] The audit reports a drift finding per declared spoke that has a local
       checkout but is not wired: missing MCP registration, an MCP argument that
       no longer resolves to the hub, or a missing working agreement.
-- [ ] The finding names the spoke and the exact command that fixes it.
-- [ ] A spoke with no local copy is not a wiring finding — that is already the
-      existing unreadable-spoke report, and saying it twice trains people to
-      ignore both.
-- [ ] The commit-msg nudge is reported when absent but never as a hard finding:
-      it is optional (`--hooks`), and a warning for an opt-in feature cries wolf.
-- [ ] A single-repo workspace produces no such finding, ever.
-- [ ] The audit stays read-only: it detects, it never wires.
-- [ ] `docs/multi-repo.md` documents the finding alongside the unreadable-spoke
+- [x] The finding names the spoke and the exact command that fixes it — and
+      that command works as printed, including on a hub with nothing new to
+      declare.
+- [x] A spoke with no local copy is not a wiring finding — that is the existing
+      unreadable-spoke report, and saying it twice trains people to ignore both.
+- [x] The commit-msg nudge is never a finding on its own: it is opt-in
+      (`--hooks`), so it is named only when a spoke is already being reported
+      for a real gap *and* the hub has a nudge the spoke lacks — a demonstrated
+      intent mismatch rather than a warning nobody asked for.
+- [x] A single-repo workspace produces no such finding, ever.
+- [x] The audit stays read-only: it detects, it never wires.
+- [x] The finding renders everywhere the board does — terminal, markdown, JSON,
+      TUI, web — and counts toward the web drift tile.
+- [x] `docs/multi-repo.md` documents the finding alongside the unreadable-spoke
       one.

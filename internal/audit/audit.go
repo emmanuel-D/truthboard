@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"github.com/emmanuel-D/truthboard/internal/spec"
 	"github.com/emmanuel-D/truthboard/internal/workspace"
@@ -88,6 +89,7 @@ type Drift struct {
 	ScopeCreep       []ScopeCreep `json:"scope_creep,omitempty"`
 	DependencyCycles []string     `json:"dependency_cycles,omitempty"` // intent that can never become ready
 	UnknownRepos     []string     `json:"unknown_repos,omitempty"`     // repos: intent naming repos the workspace doesn't declare
+	UnwiredRepos     []string     `json:"unwired_repos,omitempty"`     // declared spokes checked out but not wired for agents
 
 	// Hold notes the evidence disagrees with — a human reason that has
 	// outlived the pause it explained.
@@ -205,6 +207,11 @@ func Audit(repo string, opts Options) (*Result, error) {
 		return nil, err
 	}
 	if ws != nil {
+		// A spoke can be perfectly readable — proof flows from it — while
+		// the agents working in it have no board at all. That gap is
+		// derived from what is on disk, like every other finding here; the
+		// audit only ever reports it, never wires anything.
+		res.Drift.UnwiredRepos = adopt.Gaps(repo)
 		for _, r := range ws.Repos {
 			health := RepoHealth{Name: r.Name}
 			ctx, err := openSpoke(ws, r)

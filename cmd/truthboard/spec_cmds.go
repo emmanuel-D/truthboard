@@ -79,10 +79,22 @@ func runInit(args []string) int {
 	fmt.Printf("initialized %s\n", dir)
 
 	if *wsFlag {
-		log, err := workspace.Declare(repo, spokes)
+		// No pairs on a repo that is already a hub means "apply the
+		// workspace setup again" — the re-run that wires a spoke checked
+		// out since last time, and the fix the audit's unwired-spoke
+		// finding names. Only a first run with nothing to declare is an
+		// error, because then there is no workspace to re-apply.
+		declared, err := workspace.Load(repo)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 			return 2
+		}
+		var log []string
+		if len(spokes) > 0 || declared == nil {
+			if log, err = workspace.Declare(repo, spokes); err != nil {
+				fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+				return 2
+			}
 		}
 		fmt.Printf("workspace manifest: %s\n", workspace.File)
 		for _, line := range log {
