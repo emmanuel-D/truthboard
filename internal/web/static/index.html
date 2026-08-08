@@ -54,6 +54,10 @@
   <div class="dbody">
     <p class="note" id="dt-hint" style="padding:0" hidden>☑ Acceptance boxes are sign-off — click one to record that you verified it.</p>
     <div class="md" id="dt-md"></div>
+    <!-- Two blocks, never one: intent is what a human declared and can
+         change, derived truth is git's answer. Mixing them once hid
+         declared repos inside a heading that says "not editable". -->
+    <div class="truth" id="dt-intent"></div>
     <div class="truth" id="dt-truth"></div>
   </div>
   <div class="dfoot">

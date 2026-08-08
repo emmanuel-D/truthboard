@@ -716,20 +716,37 @@ try {
 const detailDlg = document.getElementById("detail");
 let detailSpec = null;
 
+// The detail view is the only place a story is read in full, so it mirrors
+// the editor field for field: everything a human can write must be
+// readable here, including the fields nobody filled in. An omitted field
+// and an empty one look identical once they are both absent, and that
+// ambiguity is what sent declared repos missing for a whole release —
+// they were only ever drawn from the audit's per-repo evidence, so a
+// cross-repo story showed nothing at all until work started landing.
+const NOT_SET = `<span class="unset">not set</span>`;
+const PRIORITY_LABEL = { 1: "p1 · now", 2: "p2 · next", 3: "p3 · later" };
+const kvRows = rows => rows.map(([k, v]) => `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");
+const codeList = xs => xs.map(x => `<code>${esc(x)}</code>`).join(" ");
+
 function openDetail(full) {
   detailSpec = full;
   const onBoard = (lastBoard?.specs || []).find(x => x.id === full.id) || {};
   const st = onBoard.status || "planned";
   document.getElementById("dt-status").outerHTML = `<span class="status" id="dt-status" style="color:${sv(st)}">${(STATUS[st]||{}).ico || ""} ${esc((STATUS[st]||{}).label || st)}</span>`;
   document.getElementById("dt-title").textContent = full.title;
+  // Chips are the glance — the card's own summary, set values only. The
+  // intent block below is the record, and repeats them on purpose.
+  // The hold note comes from the story file (saved a moment ago, maybe),
+  // its contradiction from the last audit — never the note alone.
   document.getElementById("dt-chips").innerHTML =
     `<code>${esc(full.id)}</code>` +
     (full.priority ? `<span class="tag pri">p${esc(full.priority)}</span>` : "") +
     (full.points ? `<span class="tag pts">${esc(full.points)}pt</span>` : "") +
     typeTag(full.type) +
+    (onBoard.waiting?.length ? `<span class="tag wait" title="waiting on ${esc(onBoard.waiting.join(", "))}">⧗ ${esc(onBoard.waiting.join(" "))}</span>` : "") +
     epicTag(full.epic) +
     (full.sprint ? `<span class="tag sprint">${esc(full.sprint)}</span>` : "") +
-    holdTag(onBoard) +
+    holdTag({ hold: full.hold, hold_contradicted: onBoard.hold_contradicted }) +
     (full.owner ? `<span class="tag">${esc(full.owner)}</span>` : "");
   document.getElementById("dt-assign-wrap").hidden = RO;
   document.getElementById("dt-assign").value = full.owner || "";
@@ -740,18 +757,44 @@ function openDetail(full) {
   document.getElementById("dt-md").innerHTML = md(full.body, true);
   if (RO) document.querySelectorAll("#dt-md input[type=checkbox]").forEach(b => { b.disabled = true; });
   document.getElementById("dt-hint").hidden = RO || !/^\s*[-*]\s+\[[ xX]\]/m.test(full.body);
+  // Declared intent: every field the editor writes, in the editor's order,
+  // whether or not it holds anything. None of it is derived, so none of it
+  // belongs under the heading below.
+  const intent = [
+    ["Owner", full.owner ? esc(full.owner) : NOT_SET],
+    ["Type", esc(full.type || "story")],
+    ["Priority", full.priority ? esc(PRIORITY_LABEL[full.priority] || `p${full.priority}`) : NOT_SET],
+    ["Points", full.points ? `${esc(full.points)} pt` : NOT_SET],
+    ["Epic", full.epic ? epicTag(full.epic) : NOT_SET],
+    ["Sprint", full.sprint ? esc(full.sprint) : NOT_SET],
+    // Separated the way the per-repo evidence row below is, so the two
+    // read as the same list — one declared, one proven.
+    ["Repos", full.repos?.length
+      ? full.repos.map(r => `<code>${esc(r)}</code>`).join(" · ") +
+        ` <span class="unset">— done requires all of them</span>`
+      : NOT_SET],
+    ["Needs", full.needs?.length ? full.needs.map(id => {
+      const dep = (lastBoard?.specs || []).find(x => x.id === id);
+      const dst = dep ? dep.status : "missing";
+      return `<code>${esc(id)}</code> <span style="color:${sv(dst)}">${(STATUS[dst]||{}).ico || "?"} ${esc(dst)}</span>`;
+    }).join(" · ") : NOT_SET],
+    ["Scope", full.paths?.length ? codeList(full.paths) : NOT_SET],
+    ["Branch glob", full.branch ? `<code>${esc(full.branch)}</code>` : NOT_SET],
+    ["On hold", full.hold
+      ? esc(full.hold) + (onBoard.hold_contradicted
+          ? ` <span style="color:var(--regressed, #e5534b)">! git says otherwise: ${esc(onBoard.hold_contradicted)}</span>` : "")
+      : NOT_SET],
+  ];
+  document.getElementById("dt-intent").innerHTML =
+    `<h4>Declared intent — this is what "Edit story" writes</h4>` + kvRows(intent);
+
   const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];
-  if (onBoard.branches?.length) rows.push(["Branches", onBoard.branches.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
-  if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>`]);
-  rows.push(["Linking", `any branch containing <code>${esc(full.id)}</code> · trailer <code>Spec: ${esc(full.id)}</code>` +
-    (full.branch ? ` · glob <code>${esc(full.branch)}</code>` : "")]);
-  if (full.paths?.length) rows.push(["Scope", full.paths.map(x=>`<code>${esc(x)}</code>`).join(" ")]);
-  if (full.needs?.length) rows.push(["Needs", full.needs.map(id => {
-    const dep = (lastBoard?.specs || []).find(x => x.id === id);
-    const st = dep ? dep.status : "missing";
-    return `<code>${esc(id)}</code> <span style="color:${sv(st)}">${(STATUS[st]||{}).ico || "?"} ${esc(st)}</span>`;
-  }).join(" · ")]);
-  if (onBoard.per_repo?.length) rows.push(["Repos", onBoard.per_repo.map(r => {
+  const total = onBoard.acceptance_total || 0;
+  if (total) rows.push(["Acceptance", `${onBoard.acceptance_done || 0} of ${total} signed off`]);
+  if (onBoard.branches?.length) rows.push(["Branches", codeList(onBoard.branches)]);
+  if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>` +
+    ` in <code>${esc(onBoard.landed_repo || "hub")}</code>`]);
+  if (onBoard.per_repo?.length) rows.push(["Per repo", onBoard.per_repo.map(r => {
     const good = r.state === "landed";
     const bad = r.state === "not-in-workspace" || r.state === "unreadable";
     const mark = good ? "✓" : bad ? "✗" : "…";
@@ -759,8 +802,9 @@ function openDetail(full) {
     const extra = r.sha ? ` <code>${esc(r.sha.slice(0,7))}</code>` : r.branch ? ` <code>${esc(r.branch)}</code>` : "";
     return `<code>${esc(r.repo)}</code> <span style="color:${col}">${mark} ${esc(r.state)}</span>${extra}`;
   }).join(" · ")]);
-  document.getElementById("dt-truth").innerHTML = `<h4>Derived truth — computed, not editable</h4>` +
-    rows.map(([k,v]) => `<div class="kv"><b>${k}</b><span>${v}</span></div>`).join("");
+  rows.push(["Linking", `any branch containing <code>${esc(full.id)}</code> · trailer <code>Spec: ${esc(full.id)}</code>`]);
+  if (onBoard.file) rows.push(["Story file", `<code>${esc(onBoard.file.replace(/^.*\/\.truthboard\//, ".truthboard/"))}</code>`]);
+  document.getElementById("dt-truth").innerHTML = `<h4>Derived truth — computed, not editable</h4>` + kvRows(rows);
   detailDlg.showModal();
 }
 
