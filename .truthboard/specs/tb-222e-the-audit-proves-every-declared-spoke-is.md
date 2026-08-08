@@ -3,8 +3,14 @@ id: tb-222e
 title: The audit proves every declared spoke is still wired, or says which is not
 branch: '*/tb-222e-*'
 paths:
+    - internal/adopt/**
     - internal/audit/**
+    - internal/report/**
+    - internal/tui/**
+    - internal/web/static/**
+    - cmd/truthboard/**
     - docs/multi-repo.md
+    - README.md
 epic: agent-loop
 priority: 2
 needs:
