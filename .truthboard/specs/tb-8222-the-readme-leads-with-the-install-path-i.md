@@ -26,17 +26,20 @@ path should carry the update command that belongs to it.
 
 ## Acceptance
 
-- [ ] The install script is named as the recommended path in words, not left
+- [x] The install script is named as the recommended path in words, not left
       to ordering alone, and stays first.
-- [ ] The reason is one line a reader can check: right build for the
+- [x] The reason is one line a reader can check: right build for the
       platform, checksum-verified, no sudo, and it is the path
       `truthboard update` keeps current.
-- [ ] Homebrew keeps its place as a genuine alternative and carries
+- [x] Homebrew keeps its place as a genuine alternative and carries
       `brew upgrade` as *its* update command, next to the install command
       rather than in a separate paragraph.
-- [ ] The README never tells a Homebrew user to run `truthboard update`.
-- [ ] Source builds keep saying what they already say — `update` refuses
-      them by design.
-- [ ] No version number is written anywhere it can rot (tb-02da's rule).
-- [ ] The detached-board caveat survives: an updated binary does not restart
+- [x] The README never tells a Homebrew user to run `truthboard update`.
+- [x] Source builds keep saying what they already say — `update` refuses
+      them by design. Sharpened while writing it: only a *checkout* build
+      reports `dev` and is refused; `go install …@latest` is proxy-fetched,
+      carries its module version, and updates like a release install. The
+      first draft of the fix got this backwards.
+- [x] No version number is written anywhere it can rot (tb-02da's rule).
+- [x] The detached-board caveat survives: an updated binary does not restart
       running boards.
