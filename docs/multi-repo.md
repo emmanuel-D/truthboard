@@ -30,6 +30,10 @@ checkouts (alone or alongside a `name=remote` pair). Re-running with new
 pairs merges them into the existing manifest; an existing entry is never
 rewritten — change one by editing the file, like any intent.
 
+Every spoke with a local checkout is wired in the same run (see [Spoke
+adoption](#spoke-adoption)), so adopting a workspace costs exactly what
+adopting a single repo costs.
+
 Until a spoke has a local copy — a declared `path:` or the clone the board
 server makes (`truthboard ui --detach`) — `truthboard audit` reports that
 spoke as unreadable, by name. That is the board being honest about what it
@@ -83,12 +87,36 @@ evidence reads `work landed on api:main`.
 
 ## Spoke adoption
 
-Agents working in a spoke don't need the hub cloned — they need the hub's
-*board*. Point them at a shared board (see [deploy.md](deploy.md)) and its MCP
-surface, or give them a hub checkout for CLI use. Either way the working
-agreement is the same one `truthboard adopt` writes: get the brief, work on a
-branch containing the spec id, end every commit with the `Spec:` trailer —
-in whichever repo the work belongs.
+An agent works in the spoke, but intent lives in the hub — so a spoke that
+is watched for proof and wired for nothing else is the worst case available:
+the hub looks correctly set up while the agent doing the work has no board
+to read and no trailer to write. `init --workspace` therefore wires each
+spoke that declares a `path:`, in the same run that declares it:
+
+- **MCP registration** (`.mcp.json` and `.vscode/mcp.json`) carrying the hub
+  as its argument — `["mcp", "../hub"]`, computed relative from the spoke, so
+  the committed file stays portable. `get_brief` and `next_spec` then work
+  from the spoke's directory with no further setup. A bare `["mcp"]` would
+  serve the spoke, which has no specs in it.
+- **The working agreement** in `AGENTS.md` (imported by `CLAUDE.md`), in its
+  spoke form: same loop, but it says where intent lives instead of pointing
+  at `.truthboard/specs/*.md` files that are not there.
+- **The commit-msg nudge**, with `--hooks`. This is where it earns the most:
+  a trailerless commit in a spoke is shadow work you find out about later.
+
+A spoke keeps whatever it already had — other MCP servers, existing
+`AGENTS.md` prose, someone else's commit-msg hook — and re-running changes
+nothing. No `.truthboard/` directory is ever created in a spoke: that would
+make it a second, competing hub.
+
+Spokes that cannot be wired are named, never skipped in silence — no
+`path:` declared, not checked out yet, or a path holding a checkout of a
+different repository. Adoption never clones; check the repo out, then re-run.
+`--no-spokes` wires the hub alone.
+
+Agents that work from a **shared board** instead of a hub checkout (see
+[deploy.md](deploy.md)) need no local wiring at all — same agreement, same
+trailer, in whichever repo the work belongs.
 
 ## Stories that must land in several repos
 

@@ -26,7 +26,12 @@ const (
 	hookEndMark = hookMark + " end"
 )
 
-const agreement = beginMark + `
+// agreementSteps is the part of the working agreement that is true in every
+// repo of a workspace: the loop itself. Where *intent* lives differs between
+// a hub and a spoke, so that paragraph is appended separately — the rendered
+// hub text is byte-identical to the single constant this was split out of,
+// which is what keeps re-running adopt a no-op on already-wired repos.
+const agreementSteps = beginMark + `
 ## Truthboard working agreement
 
 This repo tracks work with Truthboard. One rule: **statuses are derived
@@ -46,11 +51,18 @@ Before any coding task:
    That trailer is how your work appears on the board with zero extra effort.
 5. When acceptance criteria are met, merge — the board flips to done by
    itself. Reverts and red CI flip it to regressed by themselves too.
+`
 
+// hubIntent closes the agreement in the repo that carries .truthboard/.
+const hubIntent = `
 Story *intent* (title, goal, acceptance, epic, priority, scope) is always
 editable — ` + "`update_spec`" + ` over MCP, the CLI, or editing
 ` + "`.truthboard/specs/*.md`" + ` directly. Commit intent changes like code.
 `
+
+// agreement is the hub's full working agreement, unchanged in wording from
+// the version that shipped as one constant.
+const agreement = agreementSteps + hubIntent
 
 // workspaceGuidance is appended inside the agreement block when the repo
 // carries a workspace manifest: decomposition is the practice that keeps
@@ -77,6 +89,26 @@ The id namespace and the ` + "`Spec:`" + ` trailer work identically in every
 repo of the workspace.
 `
 
+// spokeIntent closes the agreement in a spoke: the loop above is identical,
+// but the specs are not here. An agent told to edit `.truthboard/specs/*.md`
+// in a repo that has no such directory would either create one — making a
+// second, competing hub — or conclude the tooling is broken.
+const spokeIntent = `
+### This repo is a workspace spoke
+
+Intent lives in the hub (` + "`%s`" + `), not here — every spec, epic and sprint of
+the workspace, which gathers proof from %s. The MCP server
+registered in this repo already points there, so ` + "`get_brief`" + `, ` + "`next_spec`" + `
+and ` + "`update_spec`" + ` work from this directory unchanged, and there is no
+` + "`.truthboard/`" + ` here to look for.
+
+What belongs in this repo is the work itself: a branch carrying the spec id
+and the ` + "`Spec: tb-1234`" + ` trailer on every commit. Ids are global across the
+workspace, so a brief handed out anywhere is claimed by that trailer here —
+and a story whose acceptance spans repos is split (or declared with
+` + "`repos:`" + `) in the hub, one provable landing per spec.
+`
+
 // agreementText renders the working agreement, appending workspace
 // guidance when a manifest declares spokes. upsertBlock replaces the whole
 // marker block, so adding a workspace later just means re-running adopt.
@@ -84,11 +116,22 @@ func agreementText(ws *workspace.Workspace) string {
 	if ws == nil || len(ws.Repos) == 0 {
 		return agreement + endMark + "\n"
 	}
+	return agreement + fmt.Sprintf(workspaceGuidance, repoNames(ws)) + endMark + "\n"
+}
+
+// spokeAgreementText renders the agreement for a spoke, naming the hub by
+// the same relative path its MCP registration uses.
+func spokeAgreementText(ws *workspace.Workspace, hubArg string) string {
+	return agreementSteps + fmt.Sprintf(spokeIntent, hubArg, repoNames(ws)) + endMark + "\n"
+}
+
+// repoNames renders the declared spokes as an inline code list.
+func repoNames(ws *workspace.Workspace) string {
 	names := make([]string, len(ws.Repos))
 	for i, r := range ws.Repos {
 		names[i] = "`" + r.Name + "`"
 	}
-	return agreement + fmt.Sprintf(workspaceGuidance, strings.Join(names, ", ")) + endMark + "\n"
+	return strings.Join(names, ", ")
 }
 
 // claudePointer must import AGENTS.md rather than merely mention it:
@@ -181,20 +224,41 @@ esac
 
 // Agents performs the wiring and returns a human-readable action log.
 func Agents(repo string, hooks bool) ([]string, error) {
+	// A malformed manifest must not block adoption; the audit already
+	// reports it loudly, so the agreement simply omits the guidance.
+	ws, _ := workspace.Load(repo)
+	return wire(repo, hooks, "", agreementText(ws), ws)
+}
+
+// wire writes the agent-facing files into one repository. hubArg is the
+// repository the MCP server should serve, relative to this one — empty when
+// this repo carries .truthboard/ itself. agreement is the block to install,
+// already rendered, because a hub and a spoke say different things about
+// where intent lives.
+func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Workspace) ([]string, error) {
 	var log []string
 	step := func(format string, a ...any) { log = append(log, fmt.Sprintf(format, a...)) }
 
-	if err := os.MkdirAll(filepath.Join(repo, ".truthboard", "specs"), 0o755); err != nil {
-		return nil, err
+	// Only a hub gets a specs directory. Creating one in a spoke would make
+	// it look like a second hub — two competing sources of intent, which is
+	// the one thing the hub-and-spokes model exists to prevent.
+	mcpArgs := []string{"mcp"}
+	if hubArg == "" {
+		if err := os.MkdirAll(filepath.Join(repo, ".truthboard", "specs"), 0o755); err != nil {
+			return nil, err
+		}
+	} else {
+		mcpArgs = append(mcpArgs, hubArg)
 	}
 
 	// Two files, one server: `.mcp.json` is what Claude Code, Cursor and
 	// friends read; `.vscode/mcp.json` is what VS Code — and so GitHub
-	// Copilot — reads. Neither carries a repo argument: the file is
+	// Copilot — reads. A hub's entry carries no repo argument (the file is
 	// committed and shared, and the workspace layout's `mcp ./hub` is a
-	// documented manual edit (see README) rather than a guess made here.
+	// documented manual edit); a spoke's must, since serving the spoke
+	// itself would serve a repository with no specs in it.
 	changed, err := registerMCP(filepath.Join(repo, ".mcp.json"), "mcpServers",
-		map[string]any{"command": "truthboard", "args": []string{"mcp"}})
+		map[string]any{"command": "truthboard", "args": mcpArgs})
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +269,7 @@ func Agents(repo string, hooks bool) ([]string, error) {
 	}
 
 	vscodeChanged, err := registerMCP(filepath.Join(repo, ".vscode", "mcp.json"), vscodeMCPKey,
-		map[string]any{"type": "stdio", "command": "truthboard", "args": []string{"mcp"}})
+		map[string]any{"type": "stdio", "command": "truthboard", "args": mcpArgs})
 	if err != nil {
 		return nil, err
 	}
@@ -226,16 +290,15 @@ func Agents(repo string, hooks bool) ([]string, error) {
 		}
 	}
 
-	// A malformed manifest must not block adoption; the audit already
-	// reports it loudly, so the agreement simply omits the guidance.
-	ws, _ := workspace.Load(repo)
-
 	agentsPath := filepath.Join(repo, "AGENTS.md")
-	if changed, err = upsertBlock(agentsPath, agreementText(ws), true); err != nil {
+	if changed, err = upsertBlock(agentsPath, agreement, true); err != nil {
 		return nil, err
 	}
 	step("AGENTS.md: working agreement %s", writtenWord(changed))
-	if ws != nil && len(ws.Repos) > 0 {
+	switch {
+	case hubArg != "":
+		step("AGENTS.md: names the hub (%s) as where intent lives", hubArg)
+	case ws != nil && len(ws.Repos) > 0:
 		step("AGENTS.md: includes multi-repo decomposition guidance (%d workspace repos)", len(ws.Repos))
 	}
 
