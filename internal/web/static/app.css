@@ -408,7 +408,14 @@
            padding: .6rem .8rem; margin-top: .9rem; font-size: .78rem; color: var(--ink-2); }
   .truth h4 { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .3rem; }
   .truth .kv { display: flex; gap: .5rem; padding: .12rem 0; }
-  .truth .kv b { flex: 0 0 5.5rem; font-weight: 600; color: var(--muted); }
+  /* Wide enough for the longest label ("Branch glob") on one line — a
+     wrapped label reads as two rows. */
+  .truth .kv b { flex: 0 0 6.5rem; font-weight: 600; color: var(--muted); }
+  .truth .kv > span { min-width: 0; overflow-wrap: anywhere; }
+  /* An unfilled field is stated, not omitted — but it must never read as
+     loudly as one somebody bothered to fill in. */
+  .truth .unset { color: var(--muted); font-style: italic; }
+  .truth .tag { font-size: .68rem; }
 
   /* editor form */
   .ed label { display: block; font-size: .72rem; color: var(--ink-2); margin: .6rem 0 .18rem; }

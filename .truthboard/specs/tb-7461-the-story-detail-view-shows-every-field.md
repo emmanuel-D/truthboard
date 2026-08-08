@@ -24,11 +24,11 @@ the whole point of opening the card.
 
 ## Acceptance
 
-- [ ] Every field the editor writes — title, owner, type, priority, points, epic, sprint, repos, needs, scope, branch glob, hold, body — is visible in the detail view
-- [ ] A field nobody set reads "not set" instead of vanishing, so the reader can tell an empty field from a missing one
-- [ ] Declared repos show as intent (what done will require), separately from the derived per-repo landing evidence
-- [ ] The hold note is read from the story file itself, with git's contradiction supplied by the board, so a hold saved seconds ago shows before the next audit
-- [ ] Priority reads p1 · now / p2 · next / p3 · later — the same words the editor offers
-- [ ] Intent and derived truth sit in separate blocks: no editable field appears under the "computed, not editable" heading
-- [ ] The derived block also reports acceptance sign-off count, the repo a landing is in, and the story file path
-- [ ] `go build ./...` and `go test ./...` pass
+- [x] Every field the editor writes — title, owner, type, priority, points, epic, sprint, repos, needs, scope, branch glob, hold, body — is visible in the detail view
+- [x] A field nobody set reads "not set" instead of vanishing, so the reader can tell an empty field from a missing one
+- [x] Declared repos show as intent (what done will require), separately from the derived per-repo landing evidence
+- [x] The hold note is read from the story file itself, with git's contradiction supplied by the board, so a hold saved seconds ago shows before the next audit
+- [x] Priority reads p1 · now / p2 · next / p3 · later — the same words the editor offers
+- [x] Intent and derived truth sit in separate blocks: no editable field appears under the "computed, not editable" heading
+- [x] The derived block also reports acceptance sign-off count, the repo a landing is in, and the story file path
+- [x] `go build ./...` and `go test ./...` pass
