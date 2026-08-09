@@ -34,7 +34,7 @@ board chrome, nothing that only makes sense on a screen.
 - [x] Statuses to include are chosen as chips; delivered scope defaults to done alone
 - [x] Detail is chosen as a preset (title only / standard / everything) and every field it controls can be toggled on its own afterwards
 - [x] The deck previews on screen before printing, so nobody prints to find out what they got
-- [ ] Printing produces 16:9 landscape slides: a cover with the counts and the window it covers, then story slides grouped by status, paginated so no slide overflows
+- [x] Printing produces 16:9 landscape slides: a cover with the counts and the window it covers, then story slides grouped by status, paginated so no slide overflows
 - [x] The deck renders legibly whether or not the print dialog's background graphics are enabled
 - [x] Exporting works on a read-only board — it reads, it never writes
 - [x] Board filters in force are honoured, and the cover says so

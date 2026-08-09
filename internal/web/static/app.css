@@ -562,7 +562,10 @@
 
   @media print {
     body.deck-open > *:not(#deckwrap) { display: none !important; }
-    body.deck-open { overflow: visible; background: #fff; }
+    /* The board's own page padding and centring must go: a slide is
+       exactly one page tall, so 20px of body padding pushes every slide
+       past the bottom edge and prints a blank page after the last one. */
+    body.deck-open { overflow: visible; background: #fff; padding: 0; margin: 0; max-width: none; }
     body.deck-open #deckwrap { position: static; overflow: visible; background: #fff; }
     body.deck-open .decktools { display: none; }
     body.deck-open #deck { display: block; padding: 0; gap: 0; }
