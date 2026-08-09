@@ -28,8 +28,8 @@ PATs expire. This will happen, quietly, months after the secret is set.
 
 ## Acceptance
 
-- [ ] A tap bump that fails for any reason leaves the release job green
-- [ ] The failure is loud where someone will see it: a `::warning::` annotation on the run, naming the likely cause and what to do by hand
-- [ ] An empty token still says so and skips, as it does today
-- [ ] A formula that is already current still short-circuits without an empty commit
-- [ ] The happy path is unchanged: a valid token still clones, regenerates the formula, commits, and pushes
+- [x] A tap bump that fails for any reason leaves the release job green
+- [x] The failure is loud where someone will see it: a `::warning::` annotation on the run, naming the likely cause and what to do by hand
+- [x] An empty token still says so and skips, as it does today
+- [x] A formula that is already current still short-circuits without an empty commit
+- [x] The happy path is unchanged: a valid token still clones, regenerates the formula, commits, and pushes
