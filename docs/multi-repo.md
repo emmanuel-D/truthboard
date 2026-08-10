@@ -18,26 +18,51 @@ A repo without a manifest is simply a workspace of one: nothing changes.
 
 The hub is a git repository, and most workspaces do not have one yet: the
 usual starting point is a folder of checkouts — `api/`, `web/`, `infra/` —
-with no planning repo among them. So the first move is to make one, next to
-the repos it will watch:
+with no planning repo among them. From that folder, name a hub that does not
+exist yet and say nothing else:
 
 ```sh
-cd ~/dev/acme                 # the folder holding api/ and web/
-mkdir hub && cd hub
-git init
+cd ~/dev/acme                        # the folder holding api/ and web/
+truthboard init --workspace ./hub --hooks --commit --ui
 ```
 
-`git init` is not ceremony: every status truthboard reports is derived from
-git history, so a hub with no history has nothing to derive from. `init`
-warns when it scaffolds into a directory that is not a repository, and
-`audit` there tells you the same — but reading it after you have committed
-to a layout is late.
+```
+initialized hub/.truthboard/specs
+  git init: created the hub repository (every derived status starts from git history)
 
-With that in place, scaffold the hub in one command:
+Found 2 git repositories next to this hub:
+  api  ../api  git@github.com:acme/api.git
+  web  ../web  git@github.com:acme/web.git
+
+Declare all as spokes? [Y/n/edit]
+```
+
+The repos beside the hub are proposed, never assumed: their remotes are read
+from their own configs, which is where you would otherwise have transcribed
+them from. Answer `Y` and that is the whole setup — manifest, specs
+directory, agent wiring in the hub and in every spoke, a commit in each, and
+a board. `edit` prints the same list as a command you can adjust, and `n`
+declares nothing.
+
+A run with nothing to answer it — a pipe, a CI job, `< /dev/null` — declares
+nothing and says so: `--yes` is how a script says yes. Naming the repos
+explicitly still works and skips the proposal entirely:
 
 ```sh
 truthboard init --workspace api=git@github.com:acme/api.git web=git@github.com:acme/web.git
 ```
+
+Because the hub directory did not exist, `truthboard` created it and ran
+`git init` in it — no history of yours to respect, and every derived status
+starts from git history. Point `--workspace` at a directory you already have
+and that stays your call: the wiring is written and a warning names the
+missing repository. An established repo can be the hub instead — run the
+command inside it, where the same proposal appears for its siblings.
+
+The flags in that line are each optional: `--hooks` adds the commit-msg
+trailer nudge, `--commit` records the wiring in every repo it landed in
+(without it the commands are printed), and `--ui` starts the detached board
+(`--port` when 1337 is taken).
 
 This writes a validated `.truthboard/workspace.yml`, creates
 `.truthboard/specs/`, and runs the same agent wiring as `init --agents` —
@@ -51,11 +76,11 @@ Every spoke with a local checkout is wired in the same run (see [Spoke
 adoption](#spoke-adoption)), so adopting a workspace costs exactly what
 adopting a single repo costs.
 
-If a repo in the workspace is already the natural home for intent — a
-planning repo, or the one everybody has checked out — run the same command
-inside it instead and skip the `mkdir`. The one thing that cannot be the
-hub is the workspace *folder*, unless it is itself a repository: `init`
-will write the wiring there and nothing will derive from it.
+A re-run offers only what the manifest does not already declare, so a repo
+cloned after setup is one confirmation away from being watched. The one
+thing that cannot be the hub is the workspace *folder*, unless it is itself
+a repository: `init` will write the wiring there and nothing will derive
+from it.
 
 Until a spoke has a local copy — a declared `path:` or the clone the board
 server makes (`truthboard ui --detach`) — `truthboard audit` reports that
