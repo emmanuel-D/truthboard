@@ -28,6 +28,17 @@ func workspaceFolder(t *testing.T, names ...string) (root, hub string) {
 	return root, filepath.Join(root, "hub")
 }
 
+// identify gives git an author for the length of the test, wherever it runs.
+func identify(t *testing.T) {
+	t.Helper()
+	for _, v := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"} {
+		t.Setenv(v, "Test")
+	}
+	for _, v := range []string{"GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(v, "test@example.com")
+	}
+}
+
 func run(t *testing.T, repo string, args ...string) string {
 	t.Helper()
 	out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput()
@@ -192,6 +203,12 @@ func TestAnExistingNonRepoDirectoryKeepsTheWarning(t *testing.T) {
 }
 
 func TestCommitFlagRecordsTheWiringEverywhereItLanded(t *testing.T) {
+	// The hub is created mid-run, so it cannot be configured beforehand and
+	// falls back to whatever identity the machine has. A developer laptop has
+	// one and a CI runner does not, which is a test that passes locally and
+	// fails on push. The environment supplies it instead, for every repo this
+	// run commits in.
+	identify(t)
 	root, hub := workspaceFolder(t, "api", "web")
 	out, code := capture(t, func() int { return runInit([]string{"--workspace", "--yes", "--commit", hub}) })
 	if code != 0 {
@@ -226,6 +243,30 @@ func TestAFlagValueIsNeverMistakenForTheRepoPath(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(hub, ".truthboard", "workspace.yml")); err != nil {
 		t.Errorf("the hub itself was not scaffolded: %v", err)
+	}
+}
+
+// One repo that cannot commit must not leave the others uncommitted — and
+// the run must still fail, because a commit that was asked for and did not
+// happen is not something to discover later.
+func TestOneRepoThatCannotCommitDoesNotStopTheRest(t *testing.T) {
+	identify(t)
+	root, hub := workspaceFolder(t, "api", "web")
+	// api refuses every commit made in it.
+	hook := filepath.Join(root, "api", ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := capture(t, func() int { return runInit([]string{"--workspace", "--yes", "--commit", hub}) })
+	if code != 1 {
+		t.Errorf("exit = %d, want 1 — a refused commit is not a success\n%s", code, out)
+	}
+	if n := run(t, filepath.Join(root, "web"), "rev-list", "--count", "--all"); n != "1" {
+		t.Errorf("web has %s commits — one repo's failure stopped the others", n)
+	}
+	if n := run(t, hub, "rev-list", "--count", "--all"); n != "1" {
+		t.Errorf("hub has %s commits — one repo's failure stopped the others", n)
 	}
 }
 
