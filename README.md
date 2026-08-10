@@ -393,9 +393,32 @@ follow [docs/deploy.md](docs/deploy.md).
 
 ### Multi-repo: one board over N repositories
 
-When a project spans several repos, one of them (or a dedicated planning
-repo) becomes the **hub**: it carries `.truthboard/` — every spec, plus a
-workspace manifest listing the other repos:
+When a project spans several repos, one of them becomes the **hub**: it
+carries `.truthboard/` — every spec, plus a workspace manifest listing the
+other repos. Usually there is no repo to volunteer, because the common
+layout is a workspace folder holding N checkouts and nothing else, so the
+hub is a small planning repo you create next to them:
+
+```sh
+cd ~/dev/acme                      # the folder holding api/ and web/
+mkdir hub && cd hub
+git init                           # every derived status starts from git history
+truthboard init --workspace \
+  api=git@github.com:acme/api.git --path api=../api \
+  web=git@github.com:acme/web.git --path web=../web \
+  --hooks
+truthboard ui --detach             # the board, over both repos
+```
+
+An established repo can be the hub instead — run the same
+`init --workspace` inside it and skip the first three lines. What cannot be
+the hub is the workspace folder itself, unless it happens to be a
+repository: `init` writes the wiring there quite happily and then nothing
+derives, which is why it warns when the directory has no `git init` behind
+it.
+
+That writes the manifest, which is intent like any spec — versioned,
+reviewed, edited by hand when it changes:
 
 ```yaml
 # .truthboard/workspace.yml
@@ -403,8 +426,10 @@ repos:
   api:
     remote: git@github.com:acme/api.git
     integration: main
+    path: ../api
   web:
     remote: git@github.com:acme/web.git
+    path: ../web
 ```
 
 Intent lives in the hub; proof is gathered from every declared spoke. The

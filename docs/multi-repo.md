@@ -16,7 +16,24 @@ A repo without a manifest is simply a workspace of one: nothing changes.
 
 ## Quick start
 
-Scaffold a hub in one command, from the repo that should carry intent:
+The hub is a git repository, and most workspaces do not have one yet: the
+usual starting point is a folder of checkouts — `api/`, `web/`, `infra/` —
+with no planning repo among them. So the first move is to make one, next to
+the repos it will watch:
+
+```sh
+cd ~/dev/acme                 # the folder holding api/ and web/
+mkdir hub && cd hub
+git init
+```
+
+`git init` is not ceremony: every status truthboard reports is derived from
+git history, so a hub with no history has nothing to derive from. `init`
+warns when it scaffolds into a directory that is not a repository, and
+`audit` there tells you the same — but reading it after you have committed
+to a layout is late.
+
+With that in place, scaffold the hub in one command:
 
 ```sh
 truthboard init --workspace api=git@github.com:acme/api.git web=git@github.com:acme/web.git
@@ -33,6 +50,12 @@ rewritten — change one by editing the file, like any intent.
 Every spoke with a local checkout is wired in the same run (see [Spoke
 adoption](#spoke-adoption)), so adopting a workspace costs exactly what
 adopting a single repo costs.
+
+If a repo in the workspace is already the natural home for intent — a
+planning repo, or the one everybody has checked out — run the same command
+inside it instead and skip the `mkdir`. The one thing that cannot be the
+hub is the workspace *folder*, unless it is itself a repository: `init`
+will write the wiring there and nothing will derive from it.
 
 Until a spoke has a local copy — a declared `path:` or the clone the board
 server makes (`truthboard ui --detach`) — `truthboard audit` reports that
