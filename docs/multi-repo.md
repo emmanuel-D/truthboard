@@ -132,6 +132,16 @@ A spoke keeps whatever it already had — other MCP servers, existing
 nothing. No `.truthboard/` directory is ever created in a spoke: that would
 make it a second, competing hub.
 
+Wiring only counts if the repo will keep it, so adoption checks each file it
+writes against that repo's own ignore rules and says so on the spot when one
+is excluded — naming the rule and the line, with an exception that works for
+that pattern's shape. A `.vscode/*` rule needs only `!.vscode/mcp.json`,
+while a `.vscode/` rule excludes the directory itself and needs
+`!.vscode/`, `.vscode/*` and `!.vscode/mcp.json`, because git never descends
+into an excluded directory. It is warn-only: truthboard writes the file and
+tells you what it knows, and editing `.gitignore` stays your call. Already
+tracked files are never warned about — ignore rules do not apply to them.
+
 Spokes that cannot be wired are named, never skipped in silence — no
 `path:` declared, not checked out yet, or a path holding a checkout of a
 different repository. Adoption never clones; check the repo out, then re-run
@@ -151,6 +161,12 @@ Unwired spokes (1): checked out and watched for proof, but agents there have no 
   - web (../web): no MCP registration (agents here have no board), no working
     agreement in AGENTS.md — re-run `truthboard init --workspace` in the hub
 ```
+
+Wiring that is present but *ignored* is reported here too, as its own
+finding: the file exists on the machine running the audit, so nothing looks
+wrong, while a teammate's clone of that spoke has no board. Its remedy is the
+`.gitignore` exception, never the re-run — re-running rewrites a file the
+repo already has and still throws away.
 
 The audit detects, it never wires. A spoke with **no local copy** is not a
 wiring finding — that is the unreadable-spoke report above, and saying the
