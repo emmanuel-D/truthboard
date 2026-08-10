@@ -400,22 +400,34 @@ layout is a workspace folder holding N checkouts and nothing else, so the
 hub is a small planning repo you create next to them:
 
 ```sh
-cd ~/dev/acme                      # the folder holding api/ and web/
-mkdir hub && cd hub
-git init                           # every derived status starts from git history
-truthboard init --workspace \
-  api=git@github.com:acme/api.git --path api=../api \
-  web=git@github.com:acme/web.git --path web=../web \
-  --hooks
-truthboard ui --detach             # the board, over both repos
+cd ~/dev/acme                                   # the folder holding api/ and web/
+truthboard init --workspace ./hub --hooks --commit --ui
 ```
 
-An established repo can be the hub instead — run the same
-`init --workspace` inside it and skip the first three lines. What cannot be
-the hub is the workspace folder itself, unless it happens to be a
-repository: `init` writes the wiring there quite happily and then nothing
-derives, which is why it warns when the directory has no `git init` behind
-it.
+```
+initialized hub/.truthboard/specs
+  git init: created the hub repository (every derived status starts from git history)
+
+Found 2 git repositories next to this hub:
+  api  ../api  git@github.com:acme/api.git
+  web  ../web  git@github.com:acme/web.git
+
+Declare all as spokes? [Y/n/edit]
+```
+
+One `Y` is the whole setup: manifest, specs directory, agent wiring in the
+hub and in every spoke, a commit in each, and a running board. The repos are
+**proposed, never assumed** — their remotes are read from their own configs,
+which is where you would otherwise have transcribed them from, and a
+workspace folder holds plenty that is no spoke. `--yes` answers for a
+script; naming `api=git@…` pairs explicitly skips the proposal entirely.
+
+The hub directory did not exist, so truthboard created it and ran `git init`
+in it. Point `--workspace` at a directory you already have and that stays
+your call — the wiring is written and a warning names the missing
+repository. An established repo can be the hub instead: run the command
+inside it. What cannot be the hub is the workspace folder itself, unless it
+happens to be a repository.
 
 That writes the manifest, which is intent like any spec — versioned,
 reviewed, edited by hand when it changes:

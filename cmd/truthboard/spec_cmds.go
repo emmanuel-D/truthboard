@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/audit"
+	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"github.com/emmanuel-D/truthboard/internal/spec"
 	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
@@ -27,11 +30,18 @@ func runInit(args []string) int {
 	hooks := fs.Bool("hooks", false, "with --agents: install a commit-msg hook that warns (never blocks) on missing Spec trailers")
 	wsFlag := fs.Bool("workspace", false, "scaffold a multi-repo hub: name=remote pairs become .truthboard/workspace.yml (implies --agents)")
 	noSpokes := fs.Bool("no-spokes", false, "wire only this repo: leave the declared spokes' checkouts untouched")
+	yes := fs.Bool("yes", false, "with --workspace: declare the discovered repositories without asking (for non-interactive runs)")
+	commit := fs.Bool("commit", false, "commit the wiring in the hub and every repo it wired")
+	withUI := fs.Bool("ui", false, "start the detached board when setup succeeds")
+	uiPort := fs.Int("port", 0, "with --ui: port for the board (default 1337 — a machine running several boards needs this)")
 	var pathFlags repeatedFlag
 	fs.Var(&pathFlags, "path", "with --workspace: name=dir declares a local checkout (repeatable; alone or alongside a name=remote pair)")
 
-	// stdlib flag stops at the first positional (the name=remote pairs),
-	// so lift flag tokens out first; only --path takes a value.
+	// stdlib flag stops at the first positional (the name=remote pairs), so
+	// lift flag tokens out first. A flag taking a separate value has to take
+	// its value with it, or the value lands in the positionals and is read as
+	// the repo path — which is how `--port 1399` once meant "init ./1399".
+	takesValue := map[string]bool{"--path": true, "-path": true, "--port": true, "-port": true}
 	var flagArgs, pos []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -40,7 +50,7 @@ func runInit(args []string) int {
 			continue
 		}
 		flagArgs = append(flagArgs, a)
-		if (a == "--path" || a == "-path") && i+1 < len(args) {
+		if takesValue[a] && i+1 < len(args) {
 			i++
 			flagArgs = append(flagArgs, args[i])
 		}
@@ -71,12 +81,26 @@ func runInit(args []string) int {
 		*agents = true
 	}
 
+	// Whether the hub directory existed before this run decides whether
+	// `git init` is ours to run: creating a repository inside a directory the
+	// adopter already had is their call (tb-a4ab), but a directory truthboard
+	// is making itself has no history to respect.
+	_, statErr := os.Stat(repo)
+	weCreateIt := os.IsNotExist(statErr)
+
 	dir := spec.Dir(repo)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
 	fmt.Printf("initialized %s\n", dir)
+	if weCreateIt {
+		if _, err := gitrepo.Run(repo, "init", "-b", "main"); err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 1
+		}
+		fmt.Println("  git init: created the hub repository (every derived status starts from git history)")
+	}
 
 	if *wsFlag {
 		// No pairs on a repo that is already a hub means "apply the
@@ -89,20 +113,41 @@ func runInit(args []string) int {
 			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 			return 2
 		}
+		// Nothing typed means nothing has to be typed: the repos are sitting
+		// next to the hub with their remotes in their own configs. Discovery
+		// proposes, the adopter decides — see confirmDiscovered.
+		declined := false
+		if len(spokes) == 0 {
+			found, derr := workspace.Discover(repo, declared)
+			if derr != nil {
+				fmt.Fprintf(os.Stderr, "truthboard: %v\n", derr)
+				return 2
+			}
+			spokes = confirmDiscovered(found, *yes)
+			// A proposal turned down is a deliberate no-op, not a usage
+			// error: the adopter was asked and answered. Only a first run
+			// with nothing to offer at all is still the error it was.
+			declined = len(found) > 0 && len(spokes) == 0
+		}
+
 		var log []string
-		if len(spokes) > 0 || declared == nil {
+		if len(spokes) > 0 || (declared == nil && !declined) {
 			if log, err = workspace.Declare(repo, spokes); err != nil {
 				fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 				return 2
 			}
 		}
-		fmt.Printf("workspace manifest: %s\n", workspace.File)
-		for _, line := range log {
-			fmt.Println("  " + line)
+		// Announcing a manifest that was declined would be the run's own
+		// output contradicting what it just did.
+		if declared != nil || len(spokes) > 0 {
+			fmt.Printf("workspace manifest: %s\n", workspace.File)
+			for _, line := range log {
+				fmt.Println("  " + line)
+			}
+			fmt.Println("  note: the audit reads spokes from declared paths or the board server's")
+			fmt.Println("  clones — until one exists, each spoke shows on the board as a loud")
+			fmt.Println("  unreadable finding (expected, not broken). truthboard ui --detach clones them.")
 		}
-		fmt.Println("  note: the audit reads spokes from declared paths or the board server's")
-		fmt.Println("  clones — until one exists, each spoke shows on the board as a loud")
-		fmt.Println("  unreadable finding (expected, not broken). truthboard ui --detach clones them.")
 	}
 
 	// Ecosystem detection: npm projects get the lifecycle as npm scripts.
@@ -140,11 +185,44 @@ func runInit(args []string) int {
 		}
 	}
 
+	// The wiring is intent and belongs in git, in every repo it landed in —
+	// a manifest that lives on one laptop is a workspace nobody else can
+	// read. Committed only when asked; otherwise the commands are printed.
+	if wired := wiredRepos(repo, *noSpokes); *commit {
+		for _, r := range wired {
+			msg, err := adopt.Commit(r)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "truthboard: %s: %v\n", r, err)
+				return 1
+			}
+			fmt.Printf("  %s: %s\n", r, msg)
+		}
+	} else {
+		for _, line := range adopt.CommitHint(wired) {
+			fmt.Println("  " + line)
+		}
+	}
+
 	// The git check comes last: the wiring above is correct on disk either
 	// way, but nothing it writes derives a status until a repository exists.
 	needsRepo := adopt.RepoWarning(repo)
 	for _, line := range needsRepo {
 		fmt.Println("  " + line)
+	}
+
+	// Chained last, so a board only ever starts over wiring that is already
+	// on disk and reported.
+	if *withUI {
+		if needsRepo != nil {
+			fmt.Fprintln(os.Stderr, "truthboard: --ui needs a git repository — run git init first")
+			return 1
+		}
+		fmt.Println()
+		ui := []string{"--detach"}
+		if *uiPort != 0 {
+			ui = append(ui, "--port", strconv.Itoa(*uiPort))
+		}
+		return runUI(append(ui, repo))
 	}
 
 	fmt.Println("\nNext:")
@@ -154,6 +232,111 @@ func runInit(args []string) int {
 	fmt.Println(`  truthboard spec new "Your first unit of work"   write intent once`)
 	fmt.Println("  truthboard audit                                 everything else is derived")
 	return 0
+}
+
+// wiredRepos lists the repositories this run wrote into: the hub, and every
+// spoke whose checkout adoption could reach. Each keeps its own commit —
+// they are separate repositories, and a spoke's wiring is only shared once
+// that spoke's own history carries it.
+func wiredRepos(hub string, noSpokes bool) []string {
+	repos := []string{hub}
+	if noSpokes {
+		return repos
+	}
+	ws, err := workspace.Load(hub)
+	if err != nil || ws == nil {
+		return repos
+	}
+	for _, r := range ws.Repos {
+		checkout, err := ws.Checkout(r)
+		if err != nil {
+			continue
+		}
+		repos = append(repos, checkout)
+	}
+	return repos
+}
+
+// confirmDiscovered shows what discovery found and returns what the adopter
+// agreed to declare. Nothing found, or a "no", returns no spokes and lets the
+// run carry on: a hub of one is a valid workspace.
+//
+// The prompt is the point. A workspace folder holds plenty that is not a
+// spoke, and a repo declared without being seen is a board gathering proof
+// from something nobody meant to watch — quietly, and with full confidence.
+// Showing the proposal also teaches the hub-and-spokes model at the one
+// moment it matters, which typing the pairs by hand required knowing first.
+func confirmDiscovered(found []workspace.Candidate, assumeYes bool) []workspace.Repo {
+	if len(found) == 0 {
+		return nil
+	}
+	fmt.Printf("\nFound %s next to this hub:\n", plural(len(found), "git repository", "git repositories"))
+	nameCol, pathCol := 0, 0
+	for _, c := range found {
+		nameCol, pathCol = max(nameCol, len(c.Name)), max(pathCol, len(c.Path))
+	}
+	for _, c := range found {
+		remote := c.Remote
+		if remote == "" {
+			remote = "(no origin — would be declared as a local checkout only)"
+		}
+		fmt.Printf("  %-*s  %-*s  %s\n", nameCol, c.Name, pathCol, c.Path, gitrepo.Redact(remote))
+	}
+
+	if !assumeYes {
+		fmt.Print("\nDeclare all as spokes? [Y/n/edit] ")
+		answer, asked := readLine()
+		if !asked {
+			// No answer available — a pipe, a CI job, `< /dev/null`. An empty
+			// line typed at a prompt means "the default"; reaching EOF means
+			// nobody was there to type one, and declaring repos nobody
+			// confirmed is the one outcome worse than declaring none.
+			fmt.Println("\nDeclared nothing: no answer available (not an interactive terminal).")
+			fmt.Println("Re-run with --yes to declare them, or pass name=remote pairs to choose.")
+			return nil
+		}
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "", "y", "yes":
+		case "e", "edit":
+			fmt.Println("\nDeclared nothing. Adjust and run:")
+			fmt.Printf("  truthboard init --workspace \\\n")
+			for i, c := range found {
+				cont := " \\"
+				if i == len(found)-1 {
+					cont = ""
+				}
+				if c.Remote == "" {
+					fmt.Printf("    --path %s=%s%s\n", c.Name, c.Path, cont)
+					continue
+				}
+				fmt.Printf("    %s=%s --path %s=%s%s\n", c.Name, c.Remote, c.Name, c.Path, cont)
+			}
+			return nil
+		default:
+			fmt.Println("Declared nothing.")
+			return nil
+		}
+	}
+	return workspace.Repos(found)
+}
+
+// readLine reads one answer. ok is false when the input ended without one:
+// stat-ing stdin cannot tell a terminal from `< /dev/null`, which is a
+// character device too, so the question is asked and the answer — or its
+// absence — is what decides.
+func readLine() (answer string, ok bool) {
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return "", false
+	}
+	return line, true
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, one)
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 // parseSpokes turns name=remote pairs and --path name=dir flags into spoke
