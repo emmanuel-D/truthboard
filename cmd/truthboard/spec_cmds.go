@@ -189,13 +189,24 @@ func runInit(args []string) int {
 	// a manifest that lives on one laptop is a workspace nobody else can
 	// read. Committed only when asked; otherwise the commands are printed.
 	if wired := wiredRepos(repo, *noSpokes); *commit {
+		// Every repo is attempted and each result reported: one repo that
+		// cannot commit — no identity configured, a hook refusing it — must
+		// not leave the others uncommitted, the same way one unusable spoke
+		// never stops the rest from being wired. The exit code still fails,
+		// because a commit that was asked for and did not happen is exactly
+		// the silence this tool exists to break.
+		failed := false
 		for _, r := range wired {
 			msg, err := adopt.Commit(r)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "truthboard: %s: %v\n", r, err)
-				return 1
+				failed = true
+				continue
 			}
 			fmt.Printf("  %s: %s\n", r, msg)
+		}
+		if failed {
+			return 1
 		}
 	} else {
 		for _, line := range adopt.CommitHint(wired) {
