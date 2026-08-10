@@ -238,6 +238,14 @@ func Agents(repo string, hooks bool) ([]string, error) {
 func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Workspace) ([]string, error) {
 	var log []string
 	step := func(format string, a ...any) { log = append(log, fmt.Sprintf(format, a...)) }
+	// Reported next to the line claiming the write, never as a trailing
+	// summary: a file that cannot be committed is news about *that* write,
+	// and a reader who has already moved on has stopped reading.
+	sayIfIgnored := func(rel string) {
+		for _, line := range ignoreWarning(repo, rel) {
+			step("%s", line)
+		}
+	}
 
 	// Only a hub gets a specs directory. Creating one in a spoke would make
 	// it look like a second hub — two competing sources of intent, which is
@@ -267,6 +275,7 @@ func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Works
 	} else {
 		step(".mcp.json: truthboard already registered")
 	}
+	sayIfIgnored(".mcp.json")
 
 	vscodeChanged, err := registerMCP(filepath.Join(repo, ".vscode", "mcp.json"), vscodeMCPKey,
 		map[string]any{"type": "stdio", "command": "truthboard", "args": mcpArgs})
@@ -278,6 +287,7 @@ func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Works
 	} else {
 		step(".vscode/mcp.json: truthboard already registered")
 	}
+	sayIfIgnored(".vscode/mcp.json")
 	if runtime.GOOS != "windows" {
 		exe, exeErr := os.Executable()
 		if exeErr != nil {
@@ -295,6 +305,7 @@ func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Works
 		return nil, err
 	}
 	step("AGENTS.md: working agreement %s", writtenWord(changed))
+	sayIfIgnored("AGENTS.md")
 	switch {
 	case hubArg != "":
 		step("AGENTS.md: names the hub (%s) as where intent lives", hubArg)
@@ -307,6 +318,7 @@ func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Works
 		return nil, err
 	}
 	step("CLAUDE.md: agreement import %s", writtenWord(changed))
+	sayIfIgnored("CLAUDE.md")
 
 	if hooks {
 		msg, err := installHook(repo)

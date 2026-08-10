@@ -37,6 +37,13 @@ func Gaps(hub string) []string {
 		if err != nil {
 			continue
 		}
+		// Wiring that is present but excluded gets its own finding: re-running
+		// adoption rewrites a file the repo already has and still throws away,
+		// so pooling it with the missing-wiring gaps would name the one fix
+		// that cannot work.
+		for _, line := range ignoredWiring(checkout) {
+			gaps = append(gaps, fmt.Sprintf("%s (%s): %s", r.Name, r.Path, line))
+		}
 		missing := spokeGaps(checkout, hub)
 		if len(missing) == 0 {
 			continue
