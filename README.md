@@ -144,11 +144,16 @@ product.
 `truthboard mcp` serves the spec layer over the Model Context Protocol
 (stdio, JSON-RPC 2.0), so agents stop shelling out. There is nothing
 Claude-specific in it: any MCP-capable client works — Claude Code is one
-of them, not the requirement. `truthboard adopt` registers the server in
-**both** committed config files — `.mcp.json` (Claude Code, and the shape
-Cursor and friends read) and `.vscode/mcp.json` (VS Code, and so GitHub
-Copilot) — so the two most common editors are wired by the same command.
-Other tools want the same one-liner in their own config:
+of them, not the requirement. Which *model* your client is driving —
+Claude, GPT, whatever the picker offers — is equally irrelevant: MCP is a
+property of the client, and the client hands your model the same six
+tools either way. `truthboard adopt` registers the server in **both**
+committed config files — `.mcp.json` (Claude Code, and the shape Cursor
+and friends read) and `.vscode/mcp.json` (VS Code, and so GitHub Copilot)
+— so the two most common editors are wired by the same command. Every
+other client wants the same one-liner in its own config, and one of them,
+JetBrains, keeps that config outside the repo where no command of ours can
+reach it:
 
 ```sh
 # Claude Code
@@ -158,6 +163,12 @@ claude mcp add truthboard -- truthboard mcp
 ```json
 // GitHub Copilot / VS Code — .vscode/mcp.json (written by init --agents)
 // Note the key: VS Code spells it "servers", not "mcpServers".
+{ "servers": { "truthboard": { "type": "stdio", "command": "truthboard", "args": ["mcp"] } } }
+```
+
+```json
+// GitHub Copilot / JetBrains — ~/.config/github-copilot/intellij/mcp.json
+// Same schema as VS Code, different home. Not written by any command.
 { "servers": { "truthboard": { "type": "stdio", "command": "truthboard", "args": ["mcp"] } } }
 ```
 
@@ -193,6 +204,27 @@ this machine's absolute paths do not belong in it. A path that is not a
 git repository fails at startup with the same message every other command
 gives, instead of starting and refusing every tool call afterwards.
 
+**JetBrains is the one editor no truthboard command can wire.** Copilot in
+IntelliJ IDEA (and the rest of the JetBrains family) does not read the
+repository's `.vscode/mcp.json` — its MCP config is a per-user,
+per-machine file at `~/.config/github-copilot/intellij/mcp.json`, reached
+in the IDE via the Copilot status-bar icon → Edit Settings → Model Context
+Protocol → Configure. So `truthboard init --agents` wires everything for a
+JetBrains shop *except* the connection itself: paste the snippet above
+once per machine. Three things follow from that file being yours rather
+than the repo's:
+
+- Absolute paths are fine here — encouraged, even. The no-machine-local-paths
+  rule exists because `.mcp.json` and `.vscode/mcp.json` are committed and
+  shared; this file is neither. For the `init --workspace` layout write
+  `"args": ["mcp", "/abs/path/to/hub"]` instead of the relative `./hub`.
+- The IDE is GUI-launched, so it never sees your shell profile's PATH. If
+  `truthboard` lives only in something like `~/go/bin`, the MCP connection
+  fails *silently* and the agent then works your repo with no board at all.
+  `truthboard init` warns about this and prints the symlink that fixes it.
+- MCP tools only surface in Copilot's **agent mode**. In ask or edit mode
+  the server is connected and unused, which looks identical to broken.
+
 The working agreement travels the same way: it lives in `AGENTS.md`, the
 cross-tool convention that Copilot, Codex, Cursor, Gemini CLI and friends
 already read — `CLAUDE.md` exists only to import it for Claude Code. Point
@@ -207,6 +239,13 @@ And its commits are made on GitHub's infrastructure, where your local
 costs you the board: give the agent a branch whose name carries the spec
 id and the work links anyway. That fallback is the reason linking has three
 signals instead of one.
+
+Neither caveat touches Copilot *in your editor*. IntelliJ and VS Code
+commit on your machine, so the `commit-msg` hook runs and the trailer nudge
+fires like it does for anyone else — which means MCP is a ceiling
+improvement there, never a prerequisite. A JetBrains developer who never
+pastes that config still lands on the board, via the branch name and the
+trailer, exactly like a developer using no AI tool at all.
 
 Tools: `list_specs`, `get_brief` (the context packet to start work),
 `next_spec` (the highest-priority *startable* story — an idle agent needs
