@@ -58,31 +58,31 @@ file-creation as a delivery.
 
 ## Acceptance
 
-- [ ] **Given** a commit that touches only files `governedFile` accepts and
+- [x] **Given** a commit that touches only files `governedFile` accepts and
   carries `Spec: <id>`, **when** it lands on the integration branch,
   **then** it is not elected as that spec's landing commit and the spec
   stays `planned`
-- [ ] **Given** the same commit, **then** it is still exempt from shadow
+- [x] **Given** the same commit, **then** it is still exempt from shadow
   work — filing a story must not become the other kind of lie, and the two
   behaviours must be driven by the *same* predicate, not two copies that
   can drift apart
-- [ ] **Given** a commit that edits a spec file *and* source files, **then**
+- [x] **Given** a commit that edits a spec file *and* source files, **then**
   it lands the spec exactly as it does today: the common case of the
   implementation carrying its own acceptance ticks must not regress
-- [ ] **Given** a spec with several trailered commits where only some are
+- [x] **Given** a spec with several trailered commits where only some are
   intent-only, **then** the newest non-intent commit is the landing
   commit, and its SHA is what evidence and CI checks are read against
-- [ ] **Given** a spec whose acceptance boxes are entirely unticked but
+- [x] **Given** a spec whose acceptance boxes are entirely unticked but
   whose implementation landed, **then** it still derives `done` — ticking
   is a human signal and never gates the derivation (regression guard for
   tb-a4ab, tb-fbb0, tb-eeb7 and every other 0-of-N done spec)
-- [ ] **Given** the digest, **then** a story whose only landed commit is
+- [x] **Given** the digest, **then** a story whose only landed commit is
   its own intent no longer appears in `Shipped` / "✓ … landed"
-- [ ] **Given** `next_spec` and an idle agent, **then** a story filed this
+- [x] **Given** `next_spec` and an idle agent, **then** a story filed this
   way is handed out as startable — the harm this bug does to the agent
   loop is the one that has to be proven fixed
-- [ ] **Given** tb-2c89 specifically, **then** re-running the audit on the
+- [x] **Given** tb-2c89 specifically, **then** re-running the audit on the
   current history reports it `planned`, with no history rewrite required
-- [ ] The README's linking-signals paragraph states that a commit touching
+- [x] The README's linking-signals paragraph states that a commit touching
   only intent files links a story without landing it, so the rule is
   documented where the three signals are already listed

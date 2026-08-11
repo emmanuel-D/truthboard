@@ -226,3 +226,134 @@ func TestSpecRoundTrip(t *testing.T) {
 		t.Errorf("branch after save = %q, want hotfix/*", again.Branch)
 	}
 }
+
+// commitContents writes each path=content pair and commits them with msg at
+// when — the intent/implementation distinction is about *which files* a
+// commit touches, which the shared fixture's one-file-per-commit helper
+// cannot express.
+func (f *fixture) commitContents(msg string, when time.Time, files map[string]string) {
+	f.t.Helper()
+	for rel, content := range files {
+		path := filepath.Join(f.dir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			f.t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			f.t.Fatal(err)
+		}
+	}
+	f.git("add", "-A")
+	f.gitAt(when, "commit", "-m", msg)
+}
+
+func specFile(id string) string {
+	return ".truthboard/specs/" + id + "-test.md"
+}
+
+func specBody(id, title string) string {
+	return "---\nid: " + id + "\ntitle: " + title + "\n---\n\n## Goal\nTest.\n\n## Acceptance\n\n- [ ] unticked on purpose\n"
+}
+
+// TestFilingAStoryIsNotLandingIt covers the defect where the commit that
+// creates a spec file — which necessarily carries that spec's own trailer —
+// was elected as the story's landing commit, deriving done for work nobody
+// had started.
+func TestFilingAStoryIsNotLandingIt(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -10))
+
+	// tb-aaaa: filed straight to main, the documented way to add intent.
+	f.commitContents("Story: something worth doing\n\nSpec: tb-aaaa", now.AddDate(0, 0, -5),
+		map[string]string{specFile("tb-aaaa"): specBody("tb-aaaa", "Filed, not built")})
+
+	// tb-bbbb: filed and delivered in one commit — the spec edit rides along
+	// with the implementation, which is how most stories actually land.
+	f.commitContents("feat: build it\n\nSpec: tb-bbbb", now.AddDate(0, 0, -4),
+		map[string]string{
+			specFile("tb-bbbb"): specBody("tb-bbbb", "Filed and built"),
+			"pkg/thing.go":      "package pkg",
+		})
+
+	// tb-cccc: filed first, delivered later. The landing commit must be the
+	// implementation, not the filing — CI checks are read against this SHA.
+	f.commitContents("Story: do it later\n\nSpec: tb-cccc", now.AddDate(0, 0, -3),
+		map[string]string{specFile("tb-cccc"): specBody("tb-cccc", "Filed then built")})
+	f.commitContents("feat: did it\n\nSpec: tb-cccc", now.AddDate(0, 0, -2),
+		map[string]string{"pkg/later.go": "package pkg"})
+	implSHA := f.git("rev-parse", "HEAD")
+
+	// An intent commit landing *after* the implementation must not unland it.
+	f.commitContents("Story: tick the boxes\n\nSpec: tb-cccc", now.AddDate(0, 0, -1),
+		map[string]string{specFile("tb-cccc"): specBody("tb-cccc", "Filed then built") + "\n- [x] done\n"})
+
+	res, err := Audit(f.dir, Options{Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := specByID(t, res, "tb-aaaa"); got.Status != Planned {
+		t.Errorf("a story that was only filed = %q (%s), want planned", got.Status, got.Evidence)
+	}
+	// Acceptance boxes are never load-bearing: this spec has none ticked and
+	// must still derive done from the code that landed.
+	if got := specByID(t, res, "tb-bbbb"); got.Status != Done {
+		t.Errorf("a story filed and built in one commit = %q (%s), want done", got.Status, got.Evidence)
+	} else if got.AcceptanceDone != 0 {
+		t.Fatalf("fixture drift: tb-bbbb should have no ticked boxes, got %d", got.AcceptanceDone)
+	}
+	got := specByID(t, res, "tb-cccc")
+	if got.Status != Done {
+		t.Errorf("a story filed then built = %q (%s), want done", got.Status, got.Evidence)
+	}
+	if got.Landed != implSHA {
+		t.Errorf("landing commit = %s, want the implementation %s", short(got.Landed), short(implSHA))
+	}
+
+	// The digest headline must not announce a story nobody has built.
+	for _, s := range res.Shipped {
+		if s.ID == "tb-aaaa" {
+			t.Errorf("a filed-only story reached the digest as shipped: %+v", s)
+		}
+	}
+}
+
+// TestNextHandsOutAFiledStory is the harm this defect did to the agent
+// loop: a story filed on the integration branch derived done, so the one
+// call an idle agent makes would never offer it.
+func TestNextHandsOutAFiledStory(t *testing.T) {
+	now := time.Now()
+	f := newFixture(t)
+	f.commit("chore: initial commit", now.AddDate(0, 0, -10))
+	f.commitContents("Story: the only story\n\nSpec: tb-aaaa", now.AddDate(0, 0, -5),
+		map[string]string{specFile("tb-aaaa"): specBody("tb-aaaa", "Filed, not built")})
+
+	next, _, _, err := Next(f.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next == nil || next.ID != "tb-aaaa" {
+		t.Fatalf("next = %+v, want tb-aaaa", next)
+	}
+}
+
+func TestIntentOnly(t *testing.T) {
+	cases := []struct {
+		name  string
+		files []string
+		want  bool
+	}{
+		{"spec file alone", []string{".truthboard/specs/tb-aaaa-x.md"}, true},
+		{"spec plus wiring", []string{".truthboard/specs/tb-aaaa-x.md", "AGENTS.md", ".vscode/mcp.json"}, true},
+		{"spec plus code", []string{".truthboard/specs/tb-aaaa-x.md", "main.go"}, false},
+		{"code alone", []string{"main.go"}, false},
+		{"blank lines only", []string{"", "  "}, false},
+		{"no files at all", nil, false},
+		{"trailing blank line", []string{"AGENTS.md", ""}, true},
+	}
+	for _, tc := range cases {
+		if got := intentOnly(tc.files); got != tc.want {
+			t.Errorf("%s: intentOnly(%q) = %v, want %v", tc.name, tc.files, got, tc.want)
+		}
+	}
+}
