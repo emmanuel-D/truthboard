@@ -482,6 +482,29 @@ func governedFile(f string) bool {
 	return strings.HasPrefix(f, ".truthboard/")
 }
 
+// intentOnly reports whether a commit changed nothing but governed files —
+// it wrote a story down, or wired the repo, without delivering anything.
+// Two derivations need this exact question and must never answer it
+// differently: shadow work exempts such a commit (grooming lands on the
+// integration branch by design), and landing rejects it (filing a story is
+// not delivering it). A commit listing no files at all — a merge, an empty
+// commit — is not intent: it is simply not evidence either way, and the
+// caller keeps whatever it would have concluded without this rule.
+func intentOnly(files []string) bool {
+	governed := false
+	for _, f := range files {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if !governedFile(f) {
+			return false
+		}
+		governed = true
+	}
+	return governed
+}
+
 // shadowWork returns non-merge commits landing directly on the integration
 // branch that don't look like a forge merge — work that bypassed any
 // branch/MR flow. Commits touching only governed files are exempt: writing
@@ -503,14 +526,7 @@ func shadowWork(repo, base string, days int) ([]Commit, error) {
 		if len(parts) != 4 || mrMergePattern.MatchString(parts[3]) {
 			continue
 		}
-		intentOnly := true
-		for _, f := range lines[1:] {
-			if f = strings.TrimSpace(f); f != "" && !governedFile(f) {
-				intentOnly = false
-				break
-			}
-		}
-		if intentOnly {
+		if intentOnly(lines[1:]) {
 			continue
 		}
 		commits = append(commits, Commit{Hash: parts[0], Date: parts[1], Author: parts[2], Subject: parts[3]})

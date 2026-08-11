@@ -220,19 +220,30 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 
 	// Landings are unbounded on purpose: a spec that landed long ago must
 	// still derive as done, so this walk cannot take an -n limit the way
-	// the unmerged one can.
+	// the unmerged one can. --name-only rides along because the trailer
+	// alone cannot tell delivery from filing: the commit that creates a
+	// spec file carries the very trailer it is describing.
 	for _, ctx := range ctxs {
-		out, ok := gitrepo.Try(ctx.path, "log", "--grep", "Spec:", ctx.base, "--format=%H%x00%B%x1e")
+		out, ok := gitrepo.Try(ctx.path, "log", "--grep", "Spec:", ctx.base, "--format=%x1e%H%x00%B%x00", "--name-only")
 		if !ok || out == "" {
 			continue
 		}
 		newest := map[string]string{}
 		for _, record := range strings.Split(out, "\x1e") {
-			sha, body, found := strings.Cut(record, "\x00")
+			sha, rest, found := strings.Cut(record, "\x00")
+			if !found {
+				continue
+			}
+			body, files, found := strings.Cut(rest, "\x00")
 			if !found {
 				continue
 			}
 			sha = strings.TrimSpace(sha)
+			// Writing a story down is not landing it. Skipping the commit
+			// rather than the id keeps a later, real landing electable.
+			if intentOnly(strings.Split(files, "\n")) {
+				continue
+			}
 			for _, m := range trailerPattern.FindAllStringSubmatch(body, -1) {
 				// git log walks newest first, so the first sighting wins.
 				if known[m[1]] && newest[m[1]] == "" {

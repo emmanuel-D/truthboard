@@ -132,7 +132,11 @@ versioned with your code. Backlog structure is intent too:
   one is deleting the line — there is no "unhold".
 
 Linking signals, strongest first: a `Spec: tb-4f2a`
-commit trailer, the id in a branch name, the spec's branch glob. Derived
+commit trailer, the id in a branch name, the spec's branch glob. A commit
+that touches nothing but intent — spec files, the wiring adoption writes —
+links a story without landing it: filing one is not delivering it, so you
+can add stories straight to the integration branch and they stay in the
+backlog where you put them. Derived
 statuses: `planned → in-progress → in-review → done` (plus `stalled`), and a
 done spec loudly becomes `regressed` when its landed work is reverted or CI
 goes red on the landing commit — without CI data the tool says nothing
