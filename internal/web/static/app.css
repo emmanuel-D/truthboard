@@ -384,9 +384,12 @@
   .md ul { margin: .3rem 0 .3rem 1.1rem; padding: 0; }
   .md li { margin: .18rem 0; }
   .md li.task { list-style: none; margin-left: -1.1rem; }
-  .md li.task input { accent-color: var(--done); margin-right: .35rem; vertical-align: -1px; }
+  .md li.task input { accent-color: var(--done); flex: none; }
   .md li.task input[data-ti] { cursor: pointer; }
-  .md li.task label { cursor: default; }
+  /* A flex row, so a criterion too long for one line wraps against itself
+     instead of sliding back under its own checkbox — the box has to stay
+     the leftmost thing in the row for the list to read as a list. */
+  .md li.task label { cursor: default; display: flex; gap: .35rem; align-items: baseline; }
   .md li.task label:has(input[data-ti]) { cursor: pointer; }
   .md li.task label:has(input[data-ti]):hover { color: var(--ink); }
   .md code { background: var(--inset); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 .3em; }
@@ -417,14 +420,23 @@
   .truth .unset { color: var(--muted); font-style: italic; }
   .truth .tag { font-size: .68rem; }
 
-  /* editor form */
-  .ed label { display: block; font-size: .72rem; color: var(--ink-2); margin: .6rem 0 .18rem; }
-  .ed input, .ed select, .ed textarea {
+  /* editor form.
+
+     Every rule here stops at :not(.md *), because the Preview pane is
+     rendered markdown living inside the form. Without that, field styling
+     reached content it was never written for: a sign-off checkbox
+     inherited width:100% and stretched the width of the pane, and the
+     criterion beside it — a <label>, like every field caption here —
+     turned into a block of muted 11px text on the line below. The story
+     preview has to look like the story, so the rule is that .md is
+     content and everything outside it is chrome. */
+  .ed label:not(.md *) { display: block; font-size: .72rem; color: var(--ink-2); margin: .6rem 0 .18rem; }
+  .ed :is(input, select, textarea):not(.md *) {
     width: 100%; background: var(--page); color: var(--ink);
     border: 1px solid var(--hairline); border-radius: 8px; padding: .42rem .6rem;
     font: inherit; font-size: .85rem;
   }
-  .ed input:focus, .ed select:focus, .ed textarea:focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
+  .ed :is(input, select, textarea):not(.md *):focus { outline: 2px solid var(--in-progress); outline-offset: -1px; }
   .ed textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.55; min-height: 14rem; resize: vertical; }
   /* Repo chips reuse the filter bar's .fchip so the same concept looks the
      same in both places; only the wrapping and hit area differ, because
