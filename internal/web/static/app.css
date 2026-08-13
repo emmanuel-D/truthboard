@@ -433,6 +433,9 @@
   .chipset .fchip { padding: .3rem .7rem; font-size: .76rem; }
   .chipset .fchip:focus-visible { outline: 2px solid var(--in-progress); outline-offset: 1px; }
   .ed .note { padding: .25rem 0 0; display: block; }
+  /* display:block above outranks the UA rule for [hidden], whatever the
+     specificity — a note that can be toggled has to say so itself. */
+  .ed .note[hidden] { display: none; }
   .ed .row3 { display: grid; grid-template-columns: 1fr 1fr 7rem; gap: .6rem; }
   .ed .row3 .wide { grid-column: 1 / -1; }
   .tabs { display: flex; gap: .2rem; margin: .7rem 0 .3rem; border-bottom: 1px solid var(--hairline); }
@@ -441,6 +444,14 @@
     padding: .3rem .7rem; cursor: pointer; border-bottom: 2px solid transparent;
   }
   .tabs button.on { color: var(--ink); border-bottom-color: var(--in-progress); }
+  .tabs button:focus-visible { outline: 2px solid var(--in-progress); outline-offset: -2px; border-radius: 6px; }
+  /* Pushed to the trailing edge and given an outline, so it reads as an
+     action on the pane instead of a third tab. */
+  .tabs .tabact {
+    margin: 0 0 .25rem auto; align-self: center; color: var(--ink-2);
+    border: 1px solid var(--hairline); border-radius: 999px; padding: .2rem .6rem;
+  }
+  .tabs .tabact:hover { color: var(--ink); background: var(--inset); }
   #ed-preview { min-height: 14rem; border: 1px dashed var(--hairline); border-radius: 8px; padding: .6rem .9rem; }
   .err { color: var(--regressed); font-size: .76rem; padding: .3rem 1.25rem 0; min-height: 1.1em; }
 

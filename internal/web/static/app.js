@@ -1099,12 +1099,110 @@ function setTab(preview) {
   document.getElementById("tab-write").classList.toggle("on", !preview);
   document.getElementById("tab-preview").classList.toggle("on", preview);
   document.getElementById("ed-b").hidden = preview;
+  document.getElementById("ed-b-hint").hidden = preview;
   const pv = document.getElementById("ed-preview");
   pv.hidden = !preview;
   if (preview) pv.innerHTML = md(document.getElementById("ed-b").value) || `<p style="color:var(--muted)">Nothing to preview.</p>`;
 }
 document.getElementById("tab-write").addEventListener("click", () => setTab(false));
 document.getElementById("tab-preview").addEventListener("click", () => setTab(true));
+
+/* ---------- the acceptance list writes itself ----------
+
+   The checkbox list is the part of the body the board counts, and it was
+   also the part authors had to type marker and all — five characters of
+   punctuation per criterion, which is exactly the friction that gets a
+   story written with one criterion instead of four. Two affordances, no
+   new concepts: Enter continues whatever list the caret is in, and one
+   button extends the acceptance list from anywhere in the form. */
+
+// One list item, split into indent / marker / whatever was written after
+// it. The marker is kept whole so a continuation can reuse it: a checklist
+// begets a checklist, a bullet begets a bullet.
+const LIST_ITEM = /^([ \t]*)([-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d+[.)][ \t]+)(.*)$/;
+const CRITERION = "- [ ] ";
+const HEADING = /^[ \t]*#{1,6}[ \t]/;
+const ACCEPTANCE_HEAD = /^[ \t]*#{1,6}[ \t]*acceptance\b/i;
+
+// typeInto writes through execCommand because it is still the only
+// insertion the browser's own undo stack knows about: assigning .value or
+// calling setRangeText silently discards everything typed before it, so a
+// helpful auto-inserted marker would cost the author their Ctrl-Z history.
+function typeInto(ta, text) {
+  ta.focus();
+  const ok = text ? document.execCommand("insertText", false, text)
+                  : document.execCommand("delete");
+  if (!ok) ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end");
+}
+
+function nextMarker(marker) {
+  // Always an unchecked box, even after a signed-off one: these boxes are
+  // the sign-off record, and nobody has verified a criterion that does not
+  // exist yet.
+  if (marker.includes("[")) return marker.replace(/\[[ xX]\]/, "[ ]");
+  const n = /^(\d+)([.)][ \t]+)$/.exec(marker);
+  return n ? Number(n[1]) + 1 + n[2] : marker;
+}
+
+document.getElementById("ed-b").addEventListener("keydown", e => {
+  // Shift+Enter stays a plain newline — the escape hatch for a wrapped
+  // criterion — and a modified or composing Enter is not ours to read.
+  if (e.key !== "Enter" || e.isComposing) return;
+  if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+  const ta = e.currentTarget;
+  if (ta.selectionStart !== ta.selectionEnd) return; // Enter over a selection replaces it
+
+  const start = ta.value.slice(0, ta.selectionStart).lastIndexOf("\n") + 1;
+  const nl = ta.value.indexOf("\n", ta.selectionStart);
+  const line = ta.value.slice(start, nl === -1 ? ta.value.length : nl);
+  const m = LIST_ITEM.exec(line);
+  if (!m) return;
+
+  e.preventDefault();
+  if (m[3].trim()) {
+    typeInto(ta, "\n" + m[1] + nextMarker(m[2]));
+    return;
+  }
+  // Enter on an item nobody filled in ends the list instead of laying down
+  // another empty marker — the way out that needs no mouse.
+  ta.setSelectionRange(start, start + line.length);
+  typeInto(ta, "");
+});
+
+// addCriterion appends an empty criterion to the acceptance list and puts
+// the caret on it, writing where the author would have: the end of the
+// list under the Acceptance heading, or a whole new Acceptance section
+// when the body has none. Never in the middle of the goal, and never over
+// anything already written.
+function addCriterion() {
+  const ta = document.getElementById("ed-b");
+  setTab(false); // the button is offered from the Preview tab too
+  const lines = ta.value.split("\n");
+  const head = lines.findIndex(l => ACCEPTANCE_HEAD.test(l));
+
+  let at, text;
+  if (head === -1) {
+    const body = ta.value.replace(/\s+$/, "");
+    at = body.length;
+    text = (body ? "\n\n" : "") + "## Acceptance\n\n" + CRITERION;
+  } else {
+    // The section runs to the next heading; trailing blank lines inside it
+    // belong to the gap before that heading, not to the list.
+    let end = lines.findIndex((l, i) => i > head && HEADING.test(l));
+    if (end === -1) end = lines.length;
+    while (end > head + 1 && !lines[end - 1].trim()) end--;
+
+    const prev = lines[end - 1];
+    const item = LIST_ITEM.exec(prev);
+    at = lines.slice(0, end).join("\n").length;
+    // A list item continues the list; a heading or a paragraph needs the
+    // blank line that makes the list a list at all.
+    text = item ? "\n" + item[1] + CRITERION : "\n\n" + CRITERION;
+  }
+  ta.setSelectionRange(at, at);
+  typeInto(ta, text);
+}
+document.getElementById("ed-add-ac").addEventListener("click", addCriterion);
 
 document.getElementById("new-story").addEventListener("click", () => openEditor(null));
 
