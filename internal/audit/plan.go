@@ -17,7 +17,11 @@ import (
 //
 // Deliberately absent: a velocity trend. One prior sprint is one data
 // point, and the rollup says which sprint it came from so nobody reads it
-// as a line through history.
+// as a line through history. Real history now exists next door — Flow times
+// every landed story from its commits — but it stays next door: a plan
+// reports what a team committed to and what one prior sprint landed, and
+// projecting either from a median would be inventing the one number this
+// tool exists to stop people inventing.
 type PlanRollup struct {
 	Sprint string `json:"sprint,omitempty"` // target slug; empty when no sprint is being planned into
 	Start  string `json:"start,omitempty"`  // from the target's intent file, when it has one

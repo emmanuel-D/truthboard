@@ -14,8 +14,12 @@ concise, honest planning summary in markdown: what rolls over and why it is
 not done, what is already committed to the sprint, which candidates are ready
 to pull in next and which are blocked and on what. If a load reference is
 given, compare the commitment to it plainly and say it is a single prior
-sprint, not a trend — never project a velocity. No invented work, no
-encouragement padding, no facts beyond those given. 150-300 words.
+sprint, not a trend. Where timed flow history is given, you may say what it
+shows — always with the window and the number of stories behind it — but
+never extrapolate it into a forecast, a velocity or a completion date, and
+where the facts call the sample too small to describe, report the figures
+and stop there. No invented work, no encouragement padding, no facts beyond
+those given. 150-300 words.
 
 %s`
 
@@ -89,6 +93,7 @@ func planFacts(res *audit.Result, sprint string) (string, error) {
 		fmt.Fprintf(&b, "Load reference: sprint %s landed %d points. This is one prior sprint, not a velocity — there is no history behind it.\n",
 			pl.ReferenceSprint, pl.Reference)
 	}
+	b.WriteString(flowFacts(res))
 	if n := len(res.Drift.StalePromises); n > 0 {
 		fmt.Fprintf(&b, "Drift worth naming before committing: %d branch(es) stopped without landing\n", n)
 	}

@@ -132,6 +132,7 @@ type Result struct {
 	Digest       []Commit       `json:"digest"`
 	Shipped      []ShippedSpec  `json:"shipped,omitempty"` // specs landed within the digest window
 	Sprints      []SprintRollup `json:"sprints,omitempty"` // per-sprint arithmetic over derived statuses
+	Flow         *Flow          `json:"flow,omitempty"`    // how long stories take and how much lands, timed by git
 	Plan         *PlanRollup    `json:"plan,omitempty"`    // the sprint about to start: rollover, candidates, load
 	Summary      *Summary       `json:"summary,omitempty"` // the same facts in plain language, for readers who do not read git
 	Specs        []SpecStatus   `json:"specs,omitempty"`
@@ -145,7 +146,11 @@ type Result struct {
 type Options struct {
 	StaleDays  int
 	DigestDays int
-	Now        time.Time // zero value means time.Now()
+	// FlowDays is how far back the flow rollup looks. It is deliberately
+	// much wider than the digest window: two weeks of throughput is a
+	// handful of stories, and a median over a handful is an anecdote.
+	FlowDays int
+	Now      time.Time // zero value means time.Now()
 }
 
 type branchTip struct {
@@ -164,6 +169,9 @@ func (o Options) normalized() Options {
 	}
 	if o.DigestDays <= 0 {
 		o.DigestDays = 14
+	}
+	if o.FlowDays <= 0 {
+		o.FlowDays = 90
 	}
 	return o
 }
@@ -273,12 +281,13 @@ func Audit(repo string, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	linkSpecs(ctxs, res, specs, opts)
+	idx := linkSpecs(ctxs, res, specs, opts)
 	deriveWaiting(res)
 	attributeDigest(res)
 	deriveHolds(res)
 	deriveUnverifiedAcceptance(res, specs)
 	rollupSprints(res, sprintIntents, opts.Now)
+	deriveFlow(res, idx, opts) // after sprints: sprint buckets borrow their windows
 	rollupPlan(res)
 	summariseAll(res)
 	for _, u := range res.Units {

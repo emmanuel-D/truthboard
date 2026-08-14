@@ -251,6 +251,7 @@ func runAudit(args []string) int {
 	fs := flag.NewFlagSet("audit", flag.ExitOnError)
 	staleDays := fs.Int("stale-days", 7, "days without commits before a branch counts as stalled")
 	digestDays := fs.Int("digest-days", 14, "window for the digest and shadow-work scan")
+	flowDays := fs.Int("flow-days", 90, "window for cycle time, throughput and work in flight")
 	format := fs.String("format", "term", "output format: term, md, json")
 	noColor := fs.Bool("no-color", false, "disable ANSI colors")
 	noForge := fs.Bool("no-forge", false, "skip tracker enrichment")
@@ -261,7 +262,7 @@ func runAudit(args []string) int {
 		repo = fs.Arg(0)
 	}
 
-	opts := audit.Options{StaleDays: *staleDays, DigestDays: *digestDays}
+	opts := audit.Options{StaleDays: *staleDays, DigestDays: *digestDays, FlowDays: *flowDays}
 	res, err := audit.Audit(repo, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
