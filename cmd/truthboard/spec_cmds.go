@@ -528,6 +528,11 @@ func runNext(args []string) int {
 	return 0
 }
 
+func dirExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
+}
+
 // runCheck records that an acceptance criterion came true — the one part of
 // "done" git cannot derive, and the part that kept going unwritten because
 // the only way to write it was rewriting the whole story.
@@ -571,6 +576,17 @@ derives. Run it with no criterion to see the numbered checklist.
 		done, total := spec.Progress(s.Body)
 		fmt.Printf("%s — %s (%d/%d ticked)\n\n%s", s.ID, s.Title, done, total, spec.Checklist(cs))
 		return 0
+	}
+
+	// Every other spec command takes the repo as a trailing argument, so
+	// `truthboard check tb-1234 .` is a habit waiting to happen — and here
+	// a path is a substring selector that could quietly tick the wrong
+	// criterion. Refuse it rather than guess.
+	for _, sel := range fs.Args()[1:] {
+		if sel == "." || sel == ".." || strings.ContainsAny(sel, "/\\") && dirExists(sel) {
+			fmt.Fprintf(os.Stderr, "truthboard: %q looks like a path — check takes criteria (a number, a unique substring, or \"all\"); the repository goes in --repo\n", sel)
+			return 2
+		}
 	}
 
 	changed, err := s.SetAcceptance(fs.Args()[1:], !*uncheck)

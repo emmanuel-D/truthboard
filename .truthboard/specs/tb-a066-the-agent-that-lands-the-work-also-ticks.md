@@ -42,12 +42,12 @@ invisible.
 
 ## Acceptance
 
-- [ ] `check_acceptance` (MCP) and `truthboard check <id>` tick criteria by index or unique substring, editing only those checkbox lines — no body rewrite
-- [ ] Both accept several criteria at once, an `all` form, and an uncheck form; an ambiguous, unknown or out-of-range selector fails loudly and prints the numbered checklist it saw
-- [ ] `get_brief` and `next_spec` render the acceptance checklist with per-criterion indices and tick state, and close with the explicit step: tick what you satisfied, commit it with the trailer
-- [ ] `next_spec` warns, before handing out new work, when the story the agent most recently landed still carries unticked criteria — naming it and the count
-- [ ] Unverified acceptance is drift: a spec derived done whose criteria are not all ticked appears in `truthboard audit`, the markdown report, the TUI, `get_board` JSON and the web board
-- [ ] A done spec with no checklist at all is not drift — there is nothing to verify, and old specs must not turn the board red
-- [ ] The working agreement `adopt` writes carries the tick step in its marker block, and re-running `init --agents` on an already-wired repo replaces that block rather than duplicating it
-- [ ] Statuses stay derived end to end: no code path here sets, gates or downgrades a status, and a done spec with 0/N ticks still reads done
-- [ ] `go test ./...` passes
+- [x] `check_acceptance` (MCP) and `truthboard check <id>` tick criteria by index or unique substring, editing only those checkbox lines — no body rewrite
+- [x] Both accept several criteria at once, an `all` form, and an uncheck form; an ambiguous, unknown or out-of-range selector fails loudly and prints the numbered checklist it saw
+- [x] `get_brief` and `next_spec` render the acceptance checklist with per-criterion indices and tick state, and close with the explicit step: tick what you satisfied, commit it with the trailer
+- [x] `next_spec` warns, before handing out new work, when the story the agent most recently landed still carries unticked criteria — naming it and the count
+- [x] Unverified acceptance is drift: a spec derived done whose criteria are not all ticked appears in `truthboard audit`, the markdown report, the TUI, `get_board` JSON and the web board
+- [x] A done spec with no checklist at all is not drift — there is nothing to verify, and old specs must not turn the board red
+- [x] The working agreement `adopt` writes carries the tick step in its marker block, and re-running `init --agents` on an already-wired repo replaces that block rather than duplicating it
+- [x] Statuses stay derived end to end: no code path here sets, gates or downgrades a status, and a done spec with 0/N ticks still reads done
+- [x] `go test ./...` passes
