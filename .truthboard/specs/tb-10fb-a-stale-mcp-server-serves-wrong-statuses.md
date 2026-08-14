@@ -8,6 +8,8 @@ priority: 1
 type: bug
 paths:
   - internal/mcp/**
+  - internal/lifecycle/**
+  - cmd/truthboard/**
   - README.md
 ---
 

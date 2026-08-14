@@ -219,6 +219,19 @@ this machine's absolute paths do not belong in it. A path that is not a
 git repository fails at startup with the same message every other command
 gives, instead of starting and refusing every tool call afterwards.
 
+**An upgrade does not reach a server that is already running.** Your client
+spawns `truthboard mcp` once and keeps that process for the session, so
+after a `brew upgrade` the agent is still talking to the build it started
+with — deriving statuses by rules a later release may have corrected, and
+sounding exactly as confident about it. Restarting the client is what picks
+up the new one. Truthboard says so rather than leaving you to find out: a
+superseded server attaches a warning naming both versions to every answer
+that carries a derived status (`get_board`, `next_spec`, `list_specs`,
+`get_brief`), and `truthboard status` lists any MCP server on this machine
+older than the installed binary, next to the detached boards it already
+reports. Both are warnings — a stale server keeps answering, because one
+that refused would strand the session that needed it.
+
 **JetBrains is the one editor no truthboard command can wire.** Copilot in
 IntelliJ IDEA (and the rest of the JetBrains family) does not read the
 repository's `.vscode/mcp.json` — its MCP config is a per-user,
