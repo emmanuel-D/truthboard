@@ -1,16 +1,16 @@
 ---
 id: tb-10fb
 title: A stale MCP server serves wrong statuses and never says so
-branch: '*/tb-10fb-*'
 owner: emmanuel
+branch: '*/tb-10fb-*'
+paths:
+    - internal/mcp/**
+    - internal/lifecycle/**
+    - cmd/truthboard/**
+    - README.md
 epic: agent-loop
 priority: 1
 type: bug
-paths:
-  - internal/mcp/**
-  - internal/lifecycle/**
-  - cmd/truthboard/**
-  - README.md
 ---
 
 ## Goal
@@ -50,27 +50,27 @@ session that hit it.
 
 ## Acceptance
 
-- [ ] **Given** an MCP server whose build is older than the `truthboard` on
+- [x] **Given** an MCP server whose build is older than the `truthboard` on
   PATH, **when** any status-bearing tool answers (`get_board`, `next_spec`,
   `list_specs`, `get_brief`), **then** the result carries a warning naming
   both versions and the fix — restart the client so the server respawns
-- [ ] **Given** the server is the same version as the binary on PATH, or
+- [x] **Given** the server is the same version as the binary on PATH, or
   newer, **then** nothing is added to any result — silence is the default,
   the same courtesy every other truthboard warning extends
-- [ ] **Given** no `truthboard` on PATH, or one that cannot be run,
+- [x] **Given** no `truthboard` on PATH, or one that cannot be run,
   **then** the server answers normally and says nothing: an unanswerable
   comparison is never a warning, and never an error
-- [ ] **Given** a stale server, **then** it still answers every tool
+- [x] **Given** a stale server, **then** it still answers every tool
   normally — a version gap warns, never refuses, because a board that
   stopped answering strands the session that needed it
-- [ ] The version comparison is a pure function over two version strings,
+- [x] The version comparison is a pure function over two version strings,
   unit-tested for: older, equal, newer, a dev/unset build, and an
   unparseable version on either side — no test may shell out to PATH
-- [ ] **Given** the check itself costs a process spawn, **then** it runs at
+- [x] **Given** the check itself costs a process spawn, **then** it runs at
   most once per server lifetime, not once per tool call
-- [ ] `truthboard status` reports running MCP server processes older than
+- [x] `truthboard status` reports running MCP server processes older than
   the installed binary, next to the detached boards it already reports —
   one place that answers "what on this machine is serving old truth?"
-- [ ] The README's MCP section notes that the server is spawned once and
+- [x] The README's MCP section notes that the server is spawned once and
   outlives an upgrade, and that restarting the client is what picks up a new
   one — the failure is invisible otherwise
