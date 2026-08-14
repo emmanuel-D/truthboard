@@ -410,6 +410,61 @@ function sprintsPanel(b) {
   return `<section class="panel"><h2>Sprints — derived, a sprint finishes when its stories land</h2>${rows}</section>`;
 }
 
+// Flow is the only panel whose headline sentence is written server-side.
+// The terminal, the markdown report and this board all print b.flow.headline
+// verbatim, so a repo cannot be described three different ways depending on
+// where you happen to be looking at it.
+function flowPanel(b) {
+  const f = b.flow;
+  if (!f || (!f.stories?.length && !f.unmeasurable?.length && !f.open_now)) return "";
+
+  const stat = (name, s) => {
+    if (!s || !s.stories) return "";
+    return `<div class="fmrow"><span class="fmname">${esc(name)}</span>
+      <span class="fmbig">${esc(dur(s.median_hours))}</span>
+      <span class="fmn">median · ${esc(dur(s.p85_hours))} at the 85th · ${esc(dur(s.min_hours))}–${esc(dur(s.max_hours))} · <b>${s.stories}</b> ${s.stories === 1 ? "story" : "stories"}</span></div>`;
+  };
+
+  // Weekly throughput and WIP share one scale-to-peak bar so the two series
+  // can be read against each other rather than each against itself.
+  const series = (title, points, label, value) => {
+    if (!points.length) return "";
+    const peak = Math.max(...points.map(value), 1);
+    // A week nothing landed in draws no bar at all, not a short one: a
+    // stall and a slow week are different facts.
+    const bars = points.slice(-14).map(p =>
+      `<span class="fbar" title="${esc(label(p))}: ${value(p)}">
+         ${value(p) ? `<i style="height:${Math.max(4, Math.round(100 * value(p) / peak))}%"></i>` : ""}
+         <em>${value(p)}</em></span>`).join("");
+    return `<div class="fseries"><h3>${esc(title)}</h3><div class="fbars">${bars}</div>
+      <div class="fspan"><span>${esc(label(points[Math.max(0, points.length - 14)]))}</span><span>${esc(label(points[points.length - 1]))}</span></div></div>`;
+  };
+
+  const untimed = (f.unmeasurable || []).length ? `<details class="funtimed"><summary>${f.unmeasurable.length} landed ${f.unmeasurable.length === 1 ? "story" : "stories"} the history cannot time</summary>
+    ${f.unmeasurable.map(u => `<div class="furow"><code>${esc(u.id)}</code> <span>${esc(u.title)}</span><em>${esc(u.reason)}</em></div>`).join("")}</details>` : "";
+
+  return `<section class="panel flow"><h2>Flow — timed from commits, never typed</h2>
+    <p class="fhead">${esc(f.headline)}</p>
+    ${stat("cycle: first work commit → landed", f.cycle)}
+    ${stat("lead: filed → landed", f.lead)}
+    <div class="grid2">
+      ${series("Landed per week", f.weeks || [], p => p.label, p => p.stories)}
+      ${series("In flight", f.wip || [], p => p.date, p => p.stories)}
+    </div>
+    ${untimed}
+    <p class="fnote">Window: ${esc(f.from)} → ${esc(f.to)} (${f.days} days). Sprint totals cover each sprint's own window.</p>
+  </section>`;
+}
+
+// dur mirrors audit.Duration — the same thresholds, because a board showing
+// "0.1h" beside a terminal showing "6m" is two answers to one question.
+function dur(hours) {
+  if (!(hours > 1 / 60)) return "under a minute";
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  if (hours < 48) return `${hours.toFixed(1)}h`;
+  return `${(hours / 24).toFixed(1)}d`;
+}
+
 function drift(b) {
   const d = b.drift || {};
   const out = [];
@@ -537,7 +592,7 @@ function render(b) {
     // A spoke whose forge stayed dark is a quieter truth: git still speaks.
     else if (r.forge_note) html += `<div class="warn">◦ workspace repo ${esc(r.name)}: ${esc(r.forge_note)}</div>`;
   }
-  html += tiles(b) + kanban(b) + summaryPanel(b) + planPanel(b) + sprintsPanel(b);
+  html += tiles(b) + kanban(b) + summaryPanel(b) + planPanel(b) + sprintsPanel(b) + flowPanel(b);
   html += `<div class="grid2">` + drift(b) + claims(b) + `</div>`;
   html += `<div class="grid2">` + branches(b) + digest(b) + `</div>`;
   document.getElementById("app").innerHTML = html;

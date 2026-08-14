@@ -39,6 +39,7 @@ const (
 	viewDetail
 	viewDrift
 	viewDigest
+	viewFlow
 )
 
 // cycle is one rotating filter (epic, sprint, owner): idx -1 means off.
@@ -297,6 +298,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = viewDrift
 		case "g":
 			m.mode = viewDigest
+		case "f":
+			m.mode = viewFlow
 		case "e":
 			m.epics.next()
 			m.rebuild()
@@ -331,6 +334,8 @@ func (m model) View() string {
 		body = m.viewDrift()
 	case viewDigest:
 		body = m.viewDigest()
+	case viewFlow:
+		body = m.viewFlow()
 	default:
 		body = m.viewBoard()
 	}
@@ -368,7 +373,7 @@ func (m model) footer() string {
 	if len(m.repos.values) > 0 {
 		help += "r repo · "
 	}
-	help += "b board · d drift · g digest · q quit"
+	help += "b board · d drift · g digest · f flow · q quit"
 	return dim.Padding(0, 1).Render(help)
 }
 
@@ -491,6 +496,75 @@ func (m model) viewDetail() string {
 		Border(lipgloss.RoundedBorder()).BorderForeground(statusColor[s.Status]).
 		Padding(1, 2).
 		Render(head + "\n" + dim.Render(strings.Join(meta, " · ")) + "\n\n" + body)
+}
+
+// viewFlow shows how long work takes, from the same commits the board
+// derives statuses from. It renders the shared headline rather than
+// composing its own sentence, so the terminal, the report and the web board
+// cannot end up quoting different numbers for the same repo.
+func (m model) viewFlow() string {
+	f := m.res.Flow
+	var b strings.Builder
+	if !f.Measured() {
+		fmt.Fprintf(&b, "%s\n\n%s\n", boldText.Render("Flow"),
+			dim.Render("nothing has landed yet — a story is timed once a commit carries its trailer"))
+		return lipgloss.NewStyle().Padding(1, 2).Render(b.String())
+	}
+
+	fmt.Fprintf(&b, "%s\n", boldText.Render("Flow — timed from commits, never typed"))
+	fmt.Fprintf(&b, "  %s\n\n", f.Headline)
+
+	stat := func(name string, s audit.Stat) {
+		if s.Empty() {
+			return
+		}
+		fmt.Fprintf(&b, "  %-28s %s median · %s at the 85th · %s fastest · %s slowest %s\n",
+			name, audit.Duration(s.MedianHours), audit.Duration(s.P85Hours),
+			audit.Duration(s.MinHours), audit.Duration(s.MaxHours),
+			dim.Render(fmt.Sprintf("(%d stories)", s.Stories)))
+	}
+	stat("cycle: work → landed", f.Cycle)
+	stat("lead: filed → landed", f.Lead)
+
+	if len(f.Weeks) > 0 {
+		fmt.Fprintf(&b, "\n%s\n", boldText.Render("Landed per week"))
+		for _, wk := range lastN(f.Weeks, 8) {
+			fmt.Fprintf(&b, "  %s  %-3d %s\n", dim.Render(wk.Label), wk.Stories, bar(wk.Stories))
+		}
+	}
+	if len(f.WIP) > 0 {
+		fmt.Fprintf(&b, "\n%s\n", boldText.Render("In flight, week by week"))
+		for _, p := range lastN(f.WIP, 8) {
+			fmt.Fprintf(&b, "  %s  %-3d %s\n", dim.Render(p.Date), p.Stories, bar(p.Stories))
+		}
+	}
+	if len(f.Unmeasurable) > 0 {
+		fmt.Fprintf(&b, "\n%s\n", boldText.Render(fmt.Sprintf("Not timeable (%d) — landed, history cannot say how long", len(f.Unmeasurable))))
+		for i, u := range f.Unmeasurable {
+			if i == 8 {
+				fmt.Fprintf(&b, "  %s\n", dim.Render(fmt.Sprintf("… and %d more", len(f.Unmeasurable)-8)))
+				break
+			}
+			fmt.Fprintf(&b, "  %s  %s\n", u.ID, dim.Render(truncate(u.Reason, max(20, m.width-16))))
+		}
+	}
+	return lipgloss.NewStyle().Padding(1, 2).MaxHeight(max(8, m.height-4)).Render(b.String())
+}
+
+// lastN keeps the most recent n entries of a series, which is all a pane
+// this size can honestly show.
+func lastN[T any](in []T, n int) []T {
+	if len(in) <= n {
+		return in
+	}
+	return in[len(in)-n:]
+}
+
+func bar(n int) string {
+	if n > 40 {
+		return strings.Repeat("█", 40) + "…"
+	}
+	return strings.Repeat("█", n)
 }
 
 func (m model) viewDrift() string {

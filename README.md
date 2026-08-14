@@ -315,9 +315,42 @@ json` carries a `plan` object — what rolls over from the closing sprint
 with each story's derived status, what is already committed, ready versus
 blocked candidates in backlog order with their blockers named, and the
 committed points against what the last sprint actually landed. That
-reference is **one prior sprint and says so**: Truthboard keeps no
-velocity history and will not project one. `truthboard plan` (below) only
-turns those same numbers into prose.
+reference is **one prior sprint and says so**. `truthboard plan` (below)
+only turns those same numbers into prose — it will not project a velocity
+from them, and neither will anything else here.
+
+## Flow — how long work actually takes, timed by git
+
+Every other status answers "where does this story stand now". Flow
+answers "how long did it take", from the same evidence:
+
+```sh
+truthboard audit                  # a FLOW section, with a per-week sparkline
+truthboard audit --flow-days 30   # narrow the window (default: 90 days)
+```
+
+- **Cycle time** — the first commit carrying the story's trailer that
+  changed more than the story itself, to the **merge** that put it on the
+  integration branch. Not the last commit written on the branch: a story
+  finished on Friday and merged on Wednesday took those five days, and
+  review queues are part of how long work takes.
+- **Lead time** — from the commit that wrote the story down to the same
+  landing. The difference between the two is time spent in the backlog.
+- **Throughput** per week and per sprint, and **work in flight** sampled
+  week by week, so a growing pile of half-finished stories is visible.
+
+Nothing here is typed, and nothing is guessed. A story git cannot time —
+linked by branch name with no trailer anywhere, or landed through a
+history that was rewritten — is listed as **not timeable with the reason**
+and takes no part in any aggregate; it is never quietly counted as zero.
+Every figure travels with its window and the number of stories behind it,
+so three stories cannot read like thirty. And no measurement here sets,
+gates or downgrades a status: flow observes the board, it never moves it.
+
+The same rollup appears in `audit --format json`, the markdown report, the
+TUI (`f`), the web board and `get_board` over MCP — all quoting one
+sentence rendered once, so no two surfaces can describe the same repo
+differently.
 
 ## Terminal board — the same truth, no browser
 
@@ -327,7 +360,7 @@ truthboard board
 
 A read-only Bubbletea TUI: kanban columns, arrow/vim navigation, enter
 for a story's goal and acceptance, `e`/`s`/`a` to cycle epic, sprint, and
-owner filters, `d`/`g` for the drift report and digest. Refreshes itself;
+owner filters, `d`/`g`/`f` for the drift report, digest and flow. Refreshes itself;
 `q` quits. No keybinding writes anything, because there is nothing to set.
 
 ## LLM assist — optional, explicit, never a source of truth

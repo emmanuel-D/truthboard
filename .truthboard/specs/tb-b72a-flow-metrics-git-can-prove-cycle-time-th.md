@@ -40,11 +40,11 @@ confident number, and nothing here may feed back into a derived status.
 
 ## Acceptance
 
-- [ ] Per-story cycle time is derived from git alone — first commit carrying the trailer to the merge onto the integration branch — with no field to type and no field to maintain
-- [ ] A story whose history cannot support a measurement is reported as unmeasurable, naming why, and is excluded from aggregates rather than counted as zero or guessed
-- [ ] Throughput (stories and points landed per week and per sprint) and work in progress over time are derived from the same evidence
-- [ ] The measurements appear in `truthboard audit`, `audit --format json`, the markdown report, the TUI and the web board, consistently and from one code path
-- [ ] `truthboard plan` and `truthboard review` narrate real history where it exists, and keep declining to invent a trend where it does not
-- [ ] Aggregates state the window they cover and the number of stories behind them, so a figure from three stories cannot read like a figure from thirty
-- [ ] No status is set, gated or downgraded by any of this; metrics observe the board, they never move it
-- [ ] `go test ./...` passes
+- [x] Per-story cycle time is derived from git alone — first commit carrying the trailer to the merge onto the integration branch — with no field to type and no field to maintain
+- [x] A story whose history cannot support a measurement is reported as unmeasurable, naming why, and is excluded from aggregates rather than counted as zero or guessed
+- [x] Throughput (stories and points landed per week and per sprint) and work in progress over time are derived from the same evidence
+- [x] The measurements appear in `truthboard audit`, `audit --format json`, the markdown report, the TUI and the web board, consistently and from one code path
+- [x] `truthboard plan` and `truthboard review` narrate real history where it exists, and keep declining to invent a trend where it does not
+- [x] Aggregates state the window they cover and the number of stories behind them, so a figure from three stories cannot read like a figure from thirty
+- [x] No status is set, gated or downgraded by any of this; metrics observe the board, they never move it
+- [x] `go test ./...` passes

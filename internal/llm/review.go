@@ -11,8 +11,12 @@ const reviewPrompt = `You are writing a sprint review for a software team.
 Below are the derived facts from their git repository — statuses come from
 commits and merges, not from anyone's claims. Write a concise, honest
 narrative review in markdown: what landed and why it matters, what is still
-open and appears to roll over, and any drift worth naming. No invented
-work, no praise padding, no facts beyond those given. 150-300 words.
+open and appears to roll over, and any drift worth naming. Where timed flow
+history is given, you may say what it shows — always with the window and the
+number of stories behind it — but never extrapolate it into a forecast or a
+velocity, and where the facts call the sample too small to describe, report
+the figures and stop there. No invented work, no praise padding, no facts
+beyond those given. 150-300 words.
 
 %s`
 
@@ -79,5 +83,8 @@ func reviewFacts(res *audit.Result, sprint string) (string, error) {
 	if b.Len() == 0 {
 		return "", fmt.Errorf("nothing to review — no landed work or open stories in scope")
 	}
+	// Appended after the emptiness guard on purpose: flow is context for a
+	// review, never the reason there is one.
+	b.WriteString(flowFacts(res))
 	return b.String(), nil
 }

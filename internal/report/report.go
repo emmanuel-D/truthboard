@@ -82,6 +82,43 @@ func commitTag(cm audit.Commit) string {
 	return cm.Repo + ": "
 }
 
+// flowUnmeasurableCap is how many untimeable stories the terminal names
+// before it summarises the rest — a repo adopting the trailer late has a
+// backlog of them, and the count is the point.
+const flowUnmeasurableCap = 5
+
+var sparkBlocks = []rune("▁▂▃▄▅▆▇█")
+
+// sparkline draws weekly throughput as one line, oldest week to newest. A
+// week nothing landed in is drawn as a gap rather than a low bar: a stall
+// and a slow week are different facts, and a smoothed curve through the
+// middle of them would be neither.
+func sparkline(f *audit.Flow) string {
+	weeks := f.Weeks
+	if len(weeks) > 26 { // half a year at a glance; older weeks are in the JSON
+		weeks = weeks[len(weeks)-26:]
+	}
+	peak := 0
+	for _, b := range weeks {
+		if b.Stories > peak {
+			peak = b.Stories
+		}
+	}
+	if peak == 0 {
+		return ""
+	}
+	var line strings.Builder
+	for _, b := range weeks {
+		if b.Stories == 0 {
+			line.WriteRune('·')
+			continue
+		}
+		i := (b.Stories*len(sparkBlocks) - 1) / peak
+		line.WriteRune(sparkBlocks[i])
+	}
+	return fmt.Sprintf("%s %s %s  peak %d", weeks[0].Start, line.String(), weeks[len(weeks)-1].End, peak)
+}
+
 // sprintPoints renders " · 5/13 pts (2 unestimated)" when the sprint has
 // estimated stories; empty otherwise so point-free repos see no change.
 func sprintPoints(sp audit.SprintRollup) string {
@@ -216,6 +253,24 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			for _, o := range sp.Open {
 				fmt.Fprintf(w, "    %s %s %s\n",
 					c(ansi[o.Status], fmt.Sprintf("%-12s", strings.ToUpper(string(o.Status)))), o.ID, o.Title)
+			}
+		}
+	}
+
+	if f := res.Flow; f.Measured() {
+		fmt.Fprintf(w, "\n%s\n", c(ansiBold, "FLOW (timed from commits — first work commit to the merge that landed it)"))
+		fmt.Fprintf(w, "  %s\n", f.Headline)
+		if len(f.Weeks) > 0 {
+			fmt.Fprintf(w, "  %s %s\n", c(ansiDim, "landed/week"), sparkline(f))
+		}
+		if len(f.Unmeasurable) > 0 {
+			fmt.Fprintf(w, "  %s\n", c(ansiYellow, fmt.Sprintf("  not timeable (%d): landed, but the history cannot say how long it took", len(f.Unmeasurable))))
+			for i, u := range f.Unmeasurable {
+				if i == flowUnmeasurableCap {
+					fmt.Fprintf(w, "    %s\n", c(ansiDim, fmt.Sprintf("… and %d more", len(f.Unmeasurable)-flowUnmeasurableCap)))
+					break
+				}
+				fmt.Fprintf(w, "    - %s %s — %s\n", u.ID, truncate(u.Title, 40), u.Reason)
 			}
 		}
 	}
@@ -457,6 +512,39 @@ func Markdown(w io.Writer, res *audit.Result) error {
 			fmt.Fprintln(w)
 		}
 		fmt.Fprintln(w)
+	}
+
+	if f := res.Flow; f.Measured() {
+		fmt.Fprintf(w, "### Flow (timed from commits — nothing here was typed)\n\n")
+		fmt.Fprintf(w, "_%s_\n\n", f.Headline)
+		if !f.Cycle.Empty() {
+			fmt.Fprintf(w, "| Measure | Median | 85th | Fastest | Slowest | Stories |\n|---|---|---|---|---|---|\n")
+			row := func(name string, s audit.Stat) {
+				if s.Empty() {
+					return
+				}
+				fmt.Fprintf(w, "| %s | %s | %s | %s | %s | %d |\n", name,
+					audit.Duration(s.MedianHours), audit.Duration(s.P85Hours),
+					audit.Duration(s.MinHours), audit.Duration(s.MaxHours), s.Stories)
+			}
+			row("Cycle (first work commit → landed)", f.Cycle)
+			row("Lead (filed → landed)", f.Lead)
+			fmt.Fprintln(w)
+		}
+		if len(f.Sprints) > 0 {
+			fmt.Fprintf(w, "| Sprint | Stories landed | Points | Unestimated |\n|---|---|---|---|\n")
+			for _, b := range f.Sprints {
+				fmt.Fprintf(w, "| %s | %d | %d | %d |\n", b.Label, b.Stories, b.Points, b.Unestimated)
+			}
+			fmt.Fprintln(w)
+		}
+		if len(f.Unmeasurable) > 0 {
+			fmt.Fprintf(w, "**Not timeable (%d)** — landed, but the history cannot say how long they took:\n\n", len(f.Unmeasurable))
+			for _, u := range f.Unmeasurable {
+				fmt.Fprintf(w, "- `%s` %s — %s\n", u.ID, u.Title, u.Reason)
+			}
+			fmt.Fprintln(w)
+		}
 	}
 
 	fmt.Fprintf(w, "### Board (derived, never typed)\n\n")

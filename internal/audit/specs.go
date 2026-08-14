@@ -5,7 +5,9 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
 	"github.com/emmanuel-D/truthboard/internal/spec"
@@ -72,7 +74,10 @@ func acceptanceProgress(body string) (done, total int) { return spec.Progress(bo
 // appearing in a branch name, the spec's branch glob. The id namespace is
 // global because intent is central, so the same signals work unchanged in
 // every repo.
-func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
+// It returns the trailer index it built, because the flow rollup needs the
+// same commit-level facts and re-deriving them would mean a second walk of
+// every repo's history — and a second chance to disagree with the board.
+func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) *trailers {
 	byName := map[string]repoCtx{}
 	for _, ctx := range ctxs {
 		byName[ctx.name] = ctx
@@ -142,6 +147,7 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) {
 		}
 		return res.Specs[i].ID < res.Specs[j].ID
 	})
+	return idx
 }
 
 // rank treats priority 0 (unset) as lowest, not highest.
@@ -163,6 +169,78 @@ type trailers struct {
 	unmerged map[string]map[string]bool
 	// landed maps a repo name to spec id → newest landing SHA on its base.
 	landed map[string]map[string]string
+	// times maps a spec id to when git saw it happen. Keyed by id alone,
+	// not by repo: a story that spans a workspace starts at the earliest
+	// commit anywhere and lands when the last repo has it, which is exactly
+	// what the declared-repos rule already means by done.
+	times map[string]*specTimes
+}
+
+// specTimes is one story's clock, read off commits. Every field is a
+// committer date, so nothing here can be typed or backdated by hand.
+type specTimes struct {
+	filed     time.Time // oldest commit carrying the trailer at all
+	started   time.Time // oldest such commit that changed more than intent
+	openSince time.Time // oldest unmerged commit carrying it, on any branch
+	landingAt time.Time // the landing commit's own date
+	mergedAt  time.Time // when the integration branch got it, when a merge says so
+}
+
+// startedAt is when work began: the first commit that carried the trailer
+// and did more than write the story down, wherever it lives. Work in flight
+// has no landed commit, so its branch is the only witness.
+func (t *specTimes) startedAt() time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	if !t.started.IsZero() && (t.openSince.IsZero() || t.started.Before(t.openSince)) {
+		return t.started
+	}
+	return t.openSince
+}
+
+// landedAt prefers the merge that carried the work onto the integration
+// branch over the last commit written on the branch. The difference is
+// review time, which is part of how long a story took and must not be
+// quietly dropped.
+func (t *specTimes) landedAt() time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	if !t.mergedAt.IsZero() {
+		return t.mergedAt
+	}
+	return t.landingAt
+}
+
+// at returns the clock for id, creating it on first sight.
+func (idx *trailers) at(id string) *specTimes {
+	t := idx.times[id]
+	if t == nil {
+		t = &specTimes{}
+		idx.times[id] = t
+	}
+	return t
+}
+
+// noteEarliest keeps the oldest of two dates, treating zero as unset.
+func noteEarliest(dst *time.Time, when time.Time) {
+	if when.IsZero() {
+		return
+	}
+	if dst.IsZero() || when.Before(*dst) {
+		*dst = when
+	}
+}
+
+// commitTime parses a %ct unix timestamp. An unparseable stamp yields the
+// zero time, which every consumer already reads as "not known".
+func commitTime(s string) time.Time {
+	secs, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.Unix(secs, 0).UTC()
 }
 
 // trailerPattern reads the id out of a "Spec: <id>" mention. Deliberately
@@ -184,6 +262,7 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 	idx := &trailers{
 		unmerged: make(map[string]map[string]bool, len(units)),
 		landed:   make(map[string]map[string]string, len(ctxs)),
+		times:    make(map[string]*specTimes, len(specs)),
 	}
 	byName := make(map[string]repoCtx, len(ctxs))
 	for _, ctx := range ctxs {
@@ -196,15 +275,26 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 		if !ok {
 			continue
 		}
+		// The commit date rides along: unmerged work is the only witness to
+		// when a story that has not landed yet was started.
 		out, ok := gitrepo.Try(ctx.path, "log", "-n", "200", "--grep", "Spec:",
-			ctx.base+".."+u.Tip, "--format=%B%x1e")
+			ctx.base+".."+u.Tip, "--format=%ct%x00%B%x1e")
 		if !ok || out == "" {
 			continue
 		}
 		ids := map[string]bool{}
-		for _, m := range trailerPattern.FindAllStringSubmatch(out, -1) {
-			if known[m[1]] {
+		for _, record := range strings.Split(out, "\x1e") {
+			stamp, body, found := strings.Cut(strings.TrimSpace(record), "\x00")
+			if !found {
+				continue
+			}
+			when := commitTime(stamp)
+			for _, m := range trailerPattern.FindAllStringSubmatch(body, -1) {
+				if !known[m[1]] {
+					continue
+				}
 				ids[m[1]] = true
+				noteEarliest(&idx.at(m[1]).openSince, when)
 			}
 		}
 		idx.unmerged[unitKey(u)] = ids
@@ -216,7 +306,7 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 	// alone cannot tell delivery from filing: the commit that creates a
 	// spec file carries the very trailer it is describing.
 	for _, ctx := range ctxs {
-		out, ok := gitrepo.Try(ctx.path, "log", "--grep", "Spec:", ctx.base, "--format=%x1e%H%x00%B%x00", "--name-only")
+		out, ok := gitrepo.Try(ctx.path, "log", "--grep", "Spec:", ctx.base, "--format=%x1e%H%x00%ct%x00%B%x00", "--name-only")
 		if !ok || out == "" {
 			continue
 		}
@@ -226,26 +316,89 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 			if !found {
 				continue
 			}
+			stamp, rest, found := strings.Cut(rest, "\x00")
+			if !found {
+				continue
+			}
 			body, files, found := strings.Cut(rest, "\x00")
 			if !found {
 				continue
 			}
 			sha = strings.TrimSpace(sha)
+			when := commitTime(stamp)
 			// Writing a story down is not landing it. Skipping the commit
 			// rather than the id keeps a later, real landing electable.
-			if intentOnly(strings.Split(files, "\n")) {
-				continue
-			}
+			filing := intentOnly(strings.Split(files, "\n"))
 			for _, m := range trailerPattern.FindAllStringSubmatch(body, -1) {
+				if !known[m[1]] {
+					continue
+				}
+				// Both clocks run over every trailer commit: filing is when
+				// the promise was made, started is when something other than
+				// the promise changed.
+				t := idx.at(m[1])
+				noteEarliest(&t.filed, when)
+				if filing {
+					continue
+				}
+				noteEarliest(&t.started, when)
 				// git log walks newest first, so the first sighting wins.
-				if known[m[1]] && newest[m[1]] == "" {
-					newest[m[1]] = sha
+				if newest[m[1]] == "" {
+					newest[m[1]], t.landingAt = sha, when
 				}
 			}
 		}
 		idx.landed[ctx.name] = newest
+		indexMerges(ctx, idx, newest, known)
 	}
 	return idx
+}
+
+// indexMerges finds, for every story that landed in this repo, the moment
+// the integration branch actually got it. That moment is the merge commit,
+// not the last commit written on the branch: a story finished on Friday and
+// merged the following Wednesday took five more days, and calling the
+// Friday commit "landed" would quietly delete every review queue from the
+// numbers.
+//
+// The first-parent spine is walked once, not once per story. A merge names
+// the branch it merged ("Merge branch 'feature/tb-1234-slug'"), so the id
+// is in the message; the oldest spine commit that mentions a story at or
+// after its landing commit is the merge that carried it. Flows that leave
+// no such commit — a squash, a direct commit, a fast-forward — put the work
+// on the spine itself, where the landing commit's own date is already the
+// right answer, so nothing is claimed for them.
+func indexMerges(ctx repoCtx, idx *trailers, landed map[string]string, known map[string]bool) {
+	if len(landed) == 0 {
+		return
+	}
+	out, ok := gitrepo.Try(ctx.path, "log", "--first-parent", ctx.base, "--format=%x1e%ct%x00%B")
+	if !ok || out == "" {
+		return
+	}
+	for _, record := range strings.Split(out, "\x1e") {
+		stamp, body, found := strings.Cut(strings.TrimSpace(record), "\x00")
+		if !found {
+			continue
+		}
+		when := commitTime(stamp)
+		if when.IsZero() {
+			continue
+		}
+		for id := range landed {
+			if !known[id] || !strings.Contains(body, id) {
+				continue
+			}
+			t := idx.at(id)
+			// Walking newest first, every later mention is overwritten by
+			// the older one, leaving the earliest merge that could have
+			// carried the landing commit — and never one that predates it.
+			if !t.landingAt.IsZero() && when.Before(t.landingAt) {
+				continue
+			}
+			t.mergedAt = when
+		}
+	}
 }
 
 func unitMatchesSpec(idx *trailers, s *spec.Spec, u *Unit) bool {

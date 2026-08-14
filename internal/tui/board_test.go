@@ -187,3 +187,51 @@ func visibleIDs(m model) []string {
 	}
 	return ids
 }
+
+// TestFlowPaneQuotesTheSharedHeadline covers the TUI's half of "one code
+// path": the pane must print the sentence the audit rendered, not compose
+// its own — a terminal and a web board quoting different medians for one
+// repo is exactly the disagreement this whole tool exists to remove.
+func TestFlowPaneQuotesTheSharedHeadline(t *testing.T) {
+	m := fakeModel()
+	m.res.Flow = &audit.Flow{
+		From: "2026-05-16", To: "2026-08-14", Days: 90,
+		Headline: "cycle time 2.2d median, 7.9d at the 85th (20 stories in 90 days)",
+		Cycle:    audit.Stat{Stories: 20, MedianHours: 52, P85Hours: 190, MinHours: 3, MaxHours: 240},
+		Weeks:    []audit.Bucket{{Label: "2026-W32", Stories: 3}, {Label: "2026-W33", Stories: 0}},
+		WIP:      []audit.WIPPoint{{Date: "2026-08-14", Stories: 2}},
+		Unmeasurable: []audit.Unmeasured{
+			{ID: "tb-0009", Title: "Old one", Reason: "no commit carries Spec: tb-0009 — it is linked by branch name alone"},
+		},
+	}
+	v := key(m, "f").View()
+	for _, want := range []string{
+		"cycle time 2.2d median, 7.9d at the 85th (20 stories in 90 days)",
+		"cycle: work → landed",
+		"2.2d median",
+		"(20 stories)",
+		"Landed per week",
+		"2026-W32",
+		"In flight",
+		"Not timeable (1)",
+		"tb-0009",
+	} {
+		if !strings.Contains(v, want) {
+			t.Errorf("flow pane missing %q:\n%s", want, v)
+		}
+	}
+	if !strings.Contains(fakeModel().footer(), "f flow") {
+		t.Error("the footer must name the key that opens the pane")
+	}
+}
+
+// TestFlowPaneSaysNothingRatherThanZero guards the empty case: a repo that
+// has landed nothing must read as "nothing landed", never as a pace of zero.
+func TestFlowPaneSaysNothingRatherThanZero(t *testing.T) {
+	m := fakeModel()
+	m.res.Flow = &audit.Flow{From: "2026-05-16", To: "2026-08-14", Days: 90}
+	v := key(m, "f").View()
+	if !strings.Contains(v, "nothing has landed yet") {
+		t.Errorf("empty flow pane must say so:\n%s", v)
+	}
+}
