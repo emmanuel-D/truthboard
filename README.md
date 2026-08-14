@@ -226,8 +226,16 @@ per-machine file at `~/.config/github-copilot/intellij/mcp.json`, reached
 in the IDE via the Copilot status-bar icon → Edit Settings → Model Context
 Protocol → Configure. So `truthboard init --agents` wires everything for a
 JetBrains shop *except* the connection itself: paste the snippet above
-once per machine. Three things follow from that file being yours rather
-than the repo's:
+once per machine.
+
+Adoption says so itself rather than leaving you to find out. A `.idea/`
+directory in the repo — read from disk, so a gitignored one counts — makes
+`init --agents` name that file and print the snippet, next to the wiring it
+just wrote, with the hub spelled absolutely for you. It stays quiet when the
+config already registers a truthboard server, and on any repo with no
+`.idea/` in it. It never writes that file: everything adoption writes lands
+inside the repo it was pointed at, reviewable in the diff and committed for
+the team, and this one is yours. Three things follow from that:
 
 - Absolute paths are fine here — encouraged, even. The no-machine-local-paths
   rule exists because `.mcp.json` and `.vscode/mcp.json` are committed and

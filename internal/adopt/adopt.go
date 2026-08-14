@@ -295,6 +295,14 @@ func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Works
 		step(".vscode/mcp.json: truthboard already registered")
 	}
 	sayIfIgnored(".vscode/mcp.json")
+	// Reported here, against the MCP registrations it is news about, and so —
+	// in a workspace — inside the step log of the spoke that carries the
+	// .idea/, never as a trailing summary about "some repo".
+	if cfg, ok := jetbrainsConfig(); ok {
+		for _, line := range cfg.warning(repo, hubPath(repo, hubArg)) {
+			step("%s", line)
+		}
+	}
 	if runtime.GOOS != "windows" {
 		exe, exeErr := os.Executable()
 		if exeErr != nil {
@@ -335,6 +343,19 @@ func wire(repo string, hooks bool, hubArg, agreement string, ws *workspace.Works
 		step("commit-msg hook: %s", msg)
 	}
 	return log, nil
+}
+
+// hubPath renders the repository the MCP server must serve as an absolute
+// path: hubArg is relative to the repo being wired, and empty when that repo
+// carries `.truthboard/` itself. Only the machine-local config wants this
+// spelling — the committed files keep the relative form, which is what states
+// the side-by-side layout a workspace assumes.
+func hubPath(repo, hubArg string) string {
+	abs, err := filepath.Abs(filepath.Join(repo, hubArg))
+	if err != nil {
+		return filepath.Clean(filepath.Join(repo, hubArg))
+	}
+	return abs
 }
 
 func writtenWord(changed bool) string {
