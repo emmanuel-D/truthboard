@@ -2,8 +2,10 @@
 id: tb-10fb
 title: A stale MCP server serves wrong statuses and never says so
 branch: '*/tb-10fb-*'
+owner: emmanuel
 epic: agent-loop
-priority: p1
+priority: 1
+type: bug
 paths:
   - internal/mcp/**
   - README.md
