@@ -55,37 +55,37 @@ of them. Answer that before speccing the write.
 
 ## Acceptance
 
-- [ ] **Given** a repo containing a `.idea/` directory, **when** I run
+- [x] **Given** a repo containing a `.idea/` directory, **when** I run
   `truthboard init --agents`, **then** the log carries a warning naming
   `~/.config/github-copilot/intellij/mcp.json` as the one MCP config no
   truthboard command writes, and prints the `servers`/`type: "stdio"`
   snippet to paste there
-- [ ] **Given** no `.idea/` anywhere in the repo, **then** nothing about
+- [x] **Given** no `.idea/` anywhere in the repo, **then** nothing about
   JetBrains is printed — silence is the default, and this warning never
   becomes noise every adopter learns to skim past
-- [ ] **Given** `.idea/` is listed in `.gitignore`, **then** the warning
+- [x] **Given** `.idea/` is listed in `.gitignore`, **then** the warning
   still fires: the check reads the filesystem, because an ignored `.idea/`
   is still a developer using IntelliJ
-- [ ] **Given** the global config already registers a truthboard server,
+- [x] **Given** the global config already registers a truthboard server,
   **then** the warning does not fire — a wired machine is not nagged on
   every re-run, the same courtesy `spawnWarning` extends
-- [ ] **Given** the global config is absent, unreadable, or malformed JSON,
+- [x] **Given** the global config is absent, unreadable, or malformed JSON,
   **then** the warning fires and adoption still succeeds: this step can
   never fail a wiring, and never rewrites a file it could not parse
-- [ ] **Given** a workspace hub with spokes, **when** adoption wires a
+- [x] **Given** a workspace hub with spokes, **when** adoption wires a
   spoke that carries `.idea/`, **then** that spoke's own step log carries
   the warning — reported next to the repo it is true about, like
   `ignoreWarning`, not as a trailing summary
-- [ ] **Given** the workspace layout, **then** the printed snippet uses an
+- [x] **Given** the workspace layout, **then** the printed snippet uses an
   absolute path to the hub rather than `./hub`, because that file is not
   committed and the relative-path rule does not govern it
-- [ ] The detection is a pure function over a repo path and a config
+- [x] The detection is a pure function over a repo path and a config
   location, unit-tested for: `.idea/` present, absent, present in a
   subdirectory, already-registered, malformed config — no test may touch
   the real `$HOME`
-- [ ] **Given** Windows, **then** the warning either names the correct
+- [x] **Given** Windows, **then** the warning either names the correct
   platform path or stays silent, and never prints a Unix path to a Windows
   user — `spawnWarning`'s precedent of skipping the platform it cannot
   advise on is an acceptable answer here
-- [ ] The README notes that adoption detects this case and says so, so the
+- [x] The README notes that adoption detects this case and says so, so the
   docs and the tool agree about who is responsible for the JetBrains file
