@@ -62,17 +62,9 @@ type RepoLanding struct {
 	Branch string `json:"branch,omitempty"` // strongest live branch otherwise
 }
 
-var checkboxPattern = regexp.MustCompile(`(?m)^\s*[-*] \[([ xX])\]`)
-
-func acceptanceProgress(body string) (done, total int) {
-	for _, m := range checkboxPattern.FindAllStringSubmatch(body, -1) {
-		total++
-		if m[1] != " " {
-			done++
-		}
-	}
-	return done, total
-}
+// Progress is counted by the spec package, so the board's numbers and the
+// tick verbs read the same checkbox dialect and can never disagree.
+func acceptanceProgress(body string) (done, total int) { return spec.Progress(body) }
 
 // linkSpecs matches every spec against repo reality — the hub and every
 // resolvable spoke — and appends derived spec statuses to the result.

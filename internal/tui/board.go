@@ -511,6 +511,10 @@ func (m model) viewDrift() string {
 	for _, h := range d.ContradictedHolds {
 		fmt.Fprintf(&b, "  %s  %s\n", h.ID, dim.Render(fmt.Sprintf("%q — but %s", h.Hold, h.Why)))
 	}
+	section("Unverified acceptance — landed work whose criteria were never ticked", len(d.UnverifiedAcceptance))
+	for _, ua := range d.UnverifiedAcceptance {
+		fmt.Fprintf(&b, "  %s  %s\n", ua.ID, dim.Render(ua.Summary()))
+	}
 	section("Unknown repos — repos: intent the workspace does not declare", len(d.UnknownRepos))
 	for _, ur := range d.UnknownRepos {
 		fmt.Fprintf(&b, "  %s\n", ur)

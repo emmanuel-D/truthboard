@@ -491,18 +491,23 @@ func runNext(args []string) int {
 		repo = fs.Arg(0)
 	}
 
-	next, stalled, waiting, err := audit.Next(repo)
+	up, err := audit.Next(repo)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
-	if next == nil {
+	// Printed before the next task even when there is none: the work you
+	// already landed is the work nobody will come back to.
+	if reminder := audit.SignoffReminder(up.Unverified); reminder != "" {
+		fmt.Printf("%s\n\n", reminder)
+	}
+	if up.Spec == nil {
 		msg := "nothing is startable — every story has work in flight or landed."
-		for _, w := range waiting {
+		for _, w := range up.Waiting {
 			msg += fmt.Sprintf(" %s waits on %s.", w.ID, strings.Join(w.Waiting, ", "))
 		}
-		if stalled > 0 {
-			msg += fmt.Sprintf(" %d stalled — worth resuming? See truthboard audit.", stalled)
+		if up.Stalled > 0 {
+			msg += fmt.Sprintf(" %d stalled — worth resuming? See truthboard audit.", up.Stalled)
 		}
 		msg += ` New intent: truthboard spec new "Title"`
 		fmt.Fprintln(os.Stderr, msg)
@@ -510,16 +515,83 @@ func runNext(args []string) int {
 	}
 
 	pri := ""
-	if next.Priority > 0 {
-		pri = fmt.Sprintf(" (priority %d)", next.Priority)
+	if up.Spec.Priority > 0 {
+		pri = fmt.Sprintf(" (priority %d)", up.Spec.Priority)
 	}
-	fmt.Printf("next up: %s — %s%s\n\n", next.ID, next.Title, pri)
-	text, err := audit.Brief(repo, next.ID)
+	fmt.Printf("next up: %s — %s%s\n\n", up.Spec.ID, up.Spec.Title, pri)
+	text, err := audit.Brief(repo, up.Spec.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
 	}
 	fmt.Print(text)
+	return 0
+}
+
+// runCheck records that an acceptance criterion came true — the one part of
+// "done" git cannot derive, and the part that kept going unwritten because
+// the only way to write it was rewriting the whole story.
+func runCheck(args []string) int {
+	fs := flag.NewFlagSet("check", flag.ExitOnError)
+	repo := fs.String("repo", ".", "repository path")
+	uncheck := fs.Bool("uncheck", false, "untick instead — a criterion that stopped being true")
+	fs.Usage = func() {
+		fmt.Fprint(os.Stderr, `usage: truthboard check <spec-id> <criterion>... [--uncheck]
+
+A criterion is its number, a unique substring of its text, or "all":
+
+  truthboard check tb-1234 2
+  truthboard check tb-1234 "renders like the story"
+  truthboard check tb-1234 all
+
+Ticking is a claim, not a status: it never sets, blocks or changes what git
+derives. Run it with no criterion to see the numbered checklist.
+`)
+		fs.PrintDefaults()
+	}
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		fs.Usage()
+		return 2
+	}
+	id := fs.Arg(0)
+
+	s, err := spec.Find(*repo, id)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	// No selector is a question, not a mistake: show what there is to tick.
+	if fs.NArg() == 1 {
+		cs := s.Acceptance()
+		if len(cs) == 0 {
+			fmt.Printf("%s has no acceptance criteria — add a '## Acceptance' checklist first\n", s.ID)
+			return 0
+		}
+		done, total := spec.Progress(s.Body)
+		fmt.Printf("%s — %s (%d/%d ticked)\n\n%s", s.ID, s.Title, done, total, spec.Checklist(cs))
+		return 0
+	}
+
+	changed, err := s.SetAcceptance(fs.Args()[1:], !*uncheck)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	verb := "ticked"
+	if *uncheck {
+		verb = "unticked"
+	}
+	if len(changed) == 0 {
+		fmt.Printf("nothing to do — already %s\n", verb)
+		return 0
+	}
+	for _, c := range changed {
+		fmt.Printf("%s %d. %s\n", verb, c.N, c.Text)
+	}
+	done, total := spec.Progress(s.Body)
+	fmt.Printf("\n%s: %d/%d criteria ticked — commit it with %q so the sign-off travels with the work\n",
+		s.ID, done, total, s.Trailer())
 	return 0
 }
 

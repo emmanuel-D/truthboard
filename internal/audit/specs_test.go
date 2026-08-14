@@ -328,12 +328,12 @@ func TestNextHandsOutAFiledStory(t *testing.T) {
 	f.commitContents("Story: the only story\n\nSpec: tb-aaaa", now.AddDate(0, 0, -5),
 		map[string]string{specFile("tb-aaaa"): specBody("tb-aaaa", "Filed, not built")})
 
-	next, _, _, err := Next(f.dir)
+	up, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == nil || next.ID != "tb-aaaa" {
-		t.Fatalf("next = %+v, want tb-aaaa", next)
+	if up.Spec == nil || up.Spec.ID != "tb-aaaa" {
+		t.Fatalf("next = %+v, want tb-aaaa", up.Spec)
 	}
 }
 

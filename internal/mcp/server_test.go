@@ -90,14 +90,14 @@ func TestHandshakeAndToolList(t *testing.T) {
 		t.Errorf("initialize result = %v", init)
 	}
 	tools := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 7 {
-		t.Errorf("got %d tools, want 7", len(tools))
+	if len(tools) != 8 {
+		t.Errorf("got %d tools, want 8", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tl := range tools {
 		names[tl.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"list_specs", "get_brief", "next_spec", "create_spec", "update_spec", "delete_spec", "get_board"} {
+	for _, want := range []string{"list_specs", "get_brief", "check_acceptance", "next_spec", "create_spec", "update_spec", "delete_spec", "get_board"} {
 		if !names[want] {
 			t.Errorf("missing tool %q", want)
 		}
@@ -294,5 +294,50 @@ func TestAgentDecomposesCrossRepoStory(t *testing.T) {
 	// next_spec hands out the api half; the hub half waits on it.
 	if text, isErr := toolText(t, responses[3]); isErr || !strings.Contains(text, "Next up: tb-mcp1") || strings.Contains(text, child.ID+" —") {
 		t.Errorf("next_spec must hand out the unblocked half, got %.200s (err=%v)", text, isErr)
+	}
+}
+
+// TestCheckAcceptanceRecordsTheHalfGitCannotDerive covers the tick verb an
+// agent reaches for while it still has the context: one call, one line
+// changed, and an error that teaches rather than guesses.
+func TestCheckAcceptanceRecordsTheHalfGitCannotDerive(t *testing.T) {
+	repo := fixtureRepo(t)
+	specPath := filepath.Join(repo, ".truthboard", "specs", "tb-mcp2-test.md")
+	specMD := "---\nid: tb-mcp2\ntitle: Tickable\n---\n\n## Goal\nTest.\n\n" +
+		"## Acceptance\n\n- [ ] the board renders\n- [ ] the docs say so\n"
+	if err := os.WriteFile(specPath, []byte(specMD), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	responses := drive(t, repo,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"check_acceptance","arguments":{"id":"tb-mcp2","criteria":["docs say"]}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"check_acceptance","arguments":{"id":"tb-mcp2","criteria":["the"]}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"check_acceptance","arguments":{"id":"tb-mcp2","criteria":["all"],"status":"done"}}}`,
+	)
+
+	text, isErr := toolText(t, responses[0])
+	if isErr {
+		t.Fatalf("check_acceptance failed: %s", text)
+	}
+	for _, want := range []string{"ticked", "1/2", "the docs say so", "Spec: tb-mcp2"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("check_acceptance = %q, want it to mention %q", text, want)
+		}
+	}
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "- [ ] the board renders\n- [x] the docs say so") {
+		t.Errorf("only the named criterion may change:\n%s", raw)
+	}
+
+	// An ambiguous selector must ask rather than guess, and show the choice.
+	if text, isErr := toolText(t, responses[1]); !isErr || !strings.Contains(text, "matches 2 criteria") {
+		t.Errorf("ambiguous selector = %q (err=%v), want a refusal listing the criteria", text, isErr)
+	}
+	// Statuses are derived: the tool must reject any attempt to set one.
+	if text, isErr := toolText(t, responses[2]); !isErr || !strings.Contains(text, "statuses are derived") {
+		t.Errorf("passing a status = %q (err=%v), want a loud refusal", text, isErr)
 	}
 }

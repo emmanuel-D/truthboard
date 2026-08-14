@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
@@ -199,6 +200,19 @@ func tools() []toolDef {
 			}, "id"),
 		},
 		{
+			Name:        "check_acceptance",
+			Description: "Record that acceptance criteria came true: ticks (or unticks) them in the story file, editing only those checkbox lines. Call it as each criterion becomes verifiable — it is part of finishing the work, not paperwork after it, and a landed story whose criteria are unticked is reported as drift. Never tick what you have not verified. This is a claim, not a status: it cannot set, block or change what git derives.",
+			InputSchema: objSchema(map[string]any{
+				"id": map[string]any{"type": "string", "description": "Spec id, e.g. tb-4f2a"},
+				"criteria": map[string]any{
+					"type": "array", "items": map[string]any{"type": "string"},
+					"description": "Which criteria: 1-based indices (\"2\"), a unique substring of a criterion's text, or \"all\". Anything ambiguous fails and returns the numbered checklist.",
+				},
+				"uncheck": map[string]any{"type": "boolean", "description": "Untick instead — a criterion that stopped being true"},
+				"repo":    repoProp,
+			}, "id", "criteria"),
+		},
+		{
 			Name:        "next_spec",
 			Description: "The story an idle agent should pick up: the highest-priority planned spec (planned = no branch or commit yet, so unclaimed), returned as the same ready-to-work packet as get_brief. Deterministic — same repo state, same answer. When nothing is planned it says so; never invents work.",
 			InputSchema: objSchema(map[string]any{"repo": repoProp}),
@@ -267,6 +281,46 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		}
 		return audit.Brief(orDefault(a.Repo, defaultRepo), a.ID)
 
+	case "check_acceptance":
+		var a struct {
+			Repo     string   `json:"repo"`
+			ID       string   `json:"id"`
+			Criteria []string `json:"criteria"`
+			Uncheck  bool     `json:"uncheck"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
+		if a.ID == "" {
+			return "", fmt.Errorf("check_acceptance requires an id")
+		}
+		s, err := spec.Find(orDefault(a.Repo, defaultRepo), a.ID)
+		if err != nil {
+			return "", err
+		}
+		changed, err := s.SetAcceptance(a.Criteria, !a.Uncheck)
+		if err != nil {
+			return "", err
+		}
+		verb := "ticked"
+		if a.Uncheck {
+			verb = "unticked"
+		}
+		done, total := spec.Progress(s.Body)
+		if len(changed) == 0 {
+			return fmt.Sprintf("No change — already %s. %s is at %d/%d criteria.", verb, s.ID, done, total), nil
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "%s %d criterion(s) on %s — now %d/%d:\n\n", verb, len(changed), s.ID, done, total)
+		for _, c := range changed {
+			fmt.Fprintf(&b, "  %d. %s\n", c.N, c.Text)
+		}
+		// The tick lives in a file; a file only becomes evidence once it is
+		// committed, and the trailer is what carries it onto the board.
+		fmt.Fprintf(&b, "\nCommit %s with the trailer %q so the sign-off travels with the work. The status stays git's.",
+			filepath.Base(s.File), s.Trailer())
+		return b.String(), nil
+
 	case "next_spec":
 		var a struct {
 			Repo string `json:"repo"`
@@ -275,31 +329,38 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			return "", err
 		}
 		repo := orDefault(a.Repo, defaultRepo)
-		next, stalled, waiting, err := audit.Next(repo)
+		up, err := audit.Next(repo)
 		if err != nil {
 			return "", err
 		}
-		if next == nil {
+		// The reminder leads: an agent that landed work without ticking its
+		// acceptance is about to do it again, and this is the one moment it
+		// is still holding the context to fix it.
+		reminder := audit.SignoffReminder(up.Unverified)
+		if reminder != "" {
+			reminder += "\n\n"
+		}
+		if up.Spec == nil {
 			// An empty backlog is an answer, not an error — and it must
 			// not tempt the caller into inventing work.
 			msg := "Nothing is startable — every story has work in flight or landed."
-			for _, w := range waiting {
+			for _, w := range up.Waiting {
 				msg += fmt.Sprintf(" %s waits on %s.", w.ID, strings.Join(w.Waiting, ", "))
 			}
-			if stalled > 0 {
-				msg += fmt.Sprintf(" %d stalled stories may be worth resuming (see get_board).", stalled)
+			if up.Stalled > 0 {
+				msg += fmt.Sprintf(" %d stalled stories may be worth resuming (see get_board).", up.Stalled)
 			}
-			return msg + " If you have new intent, create_spec it; do not invent work.", nil
+			return reminder + msg + " If you have new intent, create_spec it; do not invent work.", nil
 		}
 		pri := ""
-		if next.Priority > 0 {
-			pri = fmt.Sprintf(" (priority %d)", next.Priority)
+		if up.Spec.Priority > 0 {
+			pri = fmt.Sprintf(" (priority %d)", up.Spec.Priority)
 		}
-		brief, err := audit.Brief(repo, next.ID)
+		brief, err := audit.Brief(repo, up.Spec.ID)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Next up: %s — %s%s\n\n%s", next.ID, next.Title, pri, brief), nil
+		return fmt.Sprintf("%sNext up: %s — %s%s\n\n%s", reminder, up.Spec.ID, up.Spec.Title, pri, brief), nil
 
 	case "create_spec":
 		var a struct {

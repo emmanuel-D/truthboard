@@ -94,6 +94,19 @@ type Drift struct {
 	// Hold notes the evidence disagrees with — a human reason that has
 	// outlived the pause it explained.
 	ContradictedHolds []ContradictedHold `json:"contradicted_holds,omitempty"`
+
+	// Landed work whose acceptance criteria were never ticked: done by git,
+	// unverified by anyone. A report, never a status.
+	UnverifiedAcceptance []UnverifiedAcceptance `json:"unverified_acceptance,omitempty"`
+}
+
+// Clean reports whether the board matches reality on every signal. Every
+// surface that prints "clean" asks this one question, so a signal added
+// later cannot be announced in one report and forgotten in another.
+func (d Drift) Clean() bool {
+	return len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 &&
+		len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.UnwiredRepos) == 0 &&
+		len(d.ContradictedHolds) == 0 && len(d.UnverifiedAcceptance) == 0
 }
 
 // RepoHealth is one workspace spoke as the audit saw it. A spoke that could
@@ -264,6 +277,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 	deriveWaiting(res)
 	attributeDigest(res)
 	deriveHolds(res)
+	deriveUnverifiedAcceptance(res, specs)
 	rollupSprints(res, sprintIntents, opts.Now)
 	rollupPlan(res)
 	summariseAll(res)

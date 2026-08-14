@@ -542,3 +542,29 @@ func TestInstallHookCurrentNudgeIsANoOp(t *testing.T) {
 		t.Errorf("hook has %d markers, want exactly the begin/end pair", n)
 	}
 }
+
+// TestAgreementAsksForTheAcceptanceTick guards the step whose absence let
+// stories land with an untouched checklist: the agreement every adopted
+// repo carries must name the verb, and re-running adopt must not stutter.
+func TestAgreementAsksForTheAcceptanceTick(t *testing.T) {
+	repo := t.TempDir()
+	if _, err := Agents(repo, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Agents(repo, false); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(repo, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	for _, want := range []string{"check_acceptance", "truthboard check tb-1234", "Never tick what you did not\n   verify"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("agreement missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Count(got, "check_acceptance") != 1 {
+		t.Error("re-running adopt duplicated the tick step instead of replacing the block")
+	}
+}
