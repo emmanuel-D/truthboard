@@ -240,7 +240,7 @@ func TestDeclaredReposStalledBranchShows(t *testing.T) {
 	}
 	s := specByID(t, res, "tb-eeee")
 	if s.Status != Stalled {
-		t.Fatalf("stalled branch in the declared repo must derive stalled, got %s (%s)", s.Status, s.Evidence)
+		t.Fatalf("a stalled branch in the declared repo must derive stalled, got %s (%s)", s.Status, s.Evidence)
 	}
 	if !strings.Contains(s.Evidence, "api — stalled (feature/tb-eeee-api)") {
 		t.Fatalf("evidence must name the stalled branch, got %q", s.Evidence)
@@ -392,15 +392,15 @@ func TestNextRespectsCrossRepoNeeds(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	next, _, waiting, err := Next(hub.dir)
+	up, err := Next(hub.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == nil || next.ID != "tb-aaa1" {
-		t.Fatalf("next should be the api half, got %+v", next)
+	if up.Spec == nil || up.Spec.ID != "tb-aaa1" {
+		t.Fatalf("next should be the api half, got %+v", up.Spec)
 	}
-	if len(waiting) != 1 || waiting[0].ID != "tb-bbb2" {
-		t.Fatalf("web half should be waiting on the api landing, got %+v", waiting)
+	if len(up.Waiting) != 1 || up.Waiting[0].ID != "tb-bbb2" {
+		t.Fatalf("web half should be waiting on the api landing, got %+v", up.Waiting)
 	}
 
 	spoke.git("checkout", "-b", "feature/tb-aaa1-api")
@@ -410,11 +410,11 @@ func TestNextRespectsCrossRepoNeeds(t *testing.T) {
 		"-m", "Merge branch 'feature/tb-aaa1-api'", "feature/tb-aaa1-api")
 	spoke.git("branch", "-D", "feature/tb-aaa1-api")
 
-	next, _, waiting, err = Next(hub.dir)
+	up, err = Next(hub.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == nil || next.ID != "tb-bbb2" {
-		t.Fatalf("after the spoke landing the web half must be next, got %+v (waiting %+v)", next, waiting)
+	if up.Spec == nil || up.Spec.ID != "tb-bbb2" {
+		t.Fatalf("after the spoke landing the web half must be next, got %+v (waiting %+v)", up.Spec, up.Waiting)
 	}
 }

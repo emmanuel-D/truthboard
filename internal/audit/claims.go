@@ -178,6 +178,8 @@ func enrichRepoForge(res *Result, ctx repoCtx, data *forge.Data, opts Options) {
 				}
 			}
 		}
+		// A landing CI just regressed is no longer waiting on a sign-off.
+		pruneUnverifiedAcceptance(res)
 	}
 
 	for _, u := range res.Units {

@@ -80,21 +80,21 @@ func TestNextSkipsWaitingStories(t *testing.T) {
 	writeSpecNeeds(t, f.dir, "tb-free", "Startable", 2)
 	f.commit("chore: backlog", now.AddDate(0, 0, -1))
 
-	next, _, waiting, err := Next(f.dir)
+	up, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == nil || next.ID == "tb-wait" {
-		t.Fatalf("Next = %+v — an agent must never be handed a waiting story", next)
+	if up.Spec == nil || up.Spec.ID == "tb-wait" {
+		t.Fatalf("Next = %+v — an agent must never be handed a waiting story", up.Spec)
 	}
 	found := false
-	for _, w := range waiting {
+	for _, w := range up.Waiting {
 		if w.ID == "tb-wait" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("waiting list %v does not name tb-wait", waiting)
+		t.Errorf("waiting list %v does not name tb-wait", up.Waiting)
 	}
 }
 
@@ -118,12 +118,12 @@ func TestDependencyCycleIsALoudFinding(t *testing.T) {
 		t.Errorf("cycle = %q, want a rendered chain naming both specs", cy)
 	}
 	// Nothing in the cycle is ever startable.
-	next, _, _, err := Next(f.dir)
+	up, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next != nil {
-		t.Errorf("Next = %+v, want nil — cycle members must wait, loudly, not run", next)
+	if up.Spec != nil {
+		t.Errorf("Next = %+v, want nil — cycle members must wait, loudly, not run", up.Spec)
 	}
 }
 

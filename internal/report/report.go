@@ -303,7 +303,19 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "    - %s %s — held for %q, but %s\n", h.ID, truncate(h.Title, 46), h.Hold, h.Why)
 		}
 	}
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.UnwiredRepos) == 0 && len(d.ContradictedHolds) == 0 {
+	if len(d.UnverifiedAcceptance) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Unverified acceptance (%d): landed work whose criteria were never ticked", len(d.UnverifiedAcceptance))))
+		for i, ua := range d.UnverifiedAcceptance {
+			// A repo adopting this signal late has a backlog of them; the
+			// count is the point, the full list is what audit --format md is for.
+			if i == 10 {
+				fmt.Fprintf(w, "    %s\n", c(ansiDim, fmt.Sprintf("… and %d more — truthboard check <id> as you verify each", len(d.UnverifiedAcceptance)-10)))
+				break
+			}
+			fmt.Fprintf(w, "    - %s %s — %s\n", ua.ID, truncate(ua.Title, 46), ua.Summary())
+		}
+	}
+	if d.Clean() {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
 
@@ -469,7 +481,7 @@ func Markdown(w io.Writer, res *audit.Result) error {
 
 	d := res.Drift
 	fmt.Fprintf(w, "### Drift\n\n")
-	if len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 && len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.UnwiredRepos) == 0 && len(d.ContradictedHolds) == 0 {
+	if d.Clean() {
 		fmt.Fprintf(w, "✅ Clean — the board matches reality.\n\n")
 	}
 	if len(d.DependencyCycles) > 0 {
@@ -520,6 +532,22 @@ func Markdown(w io.Writer, res *audit.Result) error {
 		fmt.Fprintf(w, "**Contradicted holds (%d)** — a paused reason the evidence disagrees with:\n\n", len(d.ContradictedHolds))
 		for _, h := range d.ContradictedHolds {
 			fmt.Fprintf(w, "- `%s` %s — held for %q, but %s\n", h.ID, h.Title, h.Hold, h.Why)
+		}
+		fmt.Fprintln(w)
+	}
+	if len(d.UnverifiedAcceptance) > 0 {
+		fmt.Fprintf(w, "**Unverified acceptance (%d)** — landed work whose criteria were never ticked:\n\n", len(d.UnverifiedAcceptance))
+		for _, ua := range d.UnverifiedAcceptance {
+			fmt.Fprintf(w, "- `%s` %s — %s\n", ua.ID, ua.Title, ua.Summary())
+			// The open criteria are the useful part of this section: they
+			// are the questions nobody has answered yet.
+			for i, t := range ua.Unticked {
+				if i == 5 {
+					fmt.Fprintf(w, "  - … and %d more\n", len(ua.Unticked)-5)
+					break
+				}
+				fmt.Fprintf(w, "  - [ ] %s\n", t)
+			}
 		}
 		fmt.Fprintln(w)
 	}

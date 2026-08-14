@@ -8,6 +8,26 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
 
+// acceptanceInstructions is the half of the definition of done that git
+// cannot derive. The body above already shows the checklist as markdown;
+// this repeats it numbered, because a criterion you can name in one word
+// ("check 3") is a criterion that gets recorded, and adds the closing step
+// itself — the one step every landed-but-0/3 story on this board skipped.
+func acceptanceInstructions(s *spec.Spec) string {
+	cs := s.Acceptance()
+	if len(cs) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "\nAcceptance criteria, numbered as the tick verbs address them:\n\n%s", spec.Checklist(cs))
+	fmt.Fprintf(&b, "\nAs each one becomes true, record it — this is part of the task, not paperwork\n")
+	fmt.Fprintf(&b, "after it: check_acceptance (MCP) or `truthboard check %s <n|substring|all>`, then\n", s.ID)
+	fmt.Fprintf(&b, "commit the tick with the same trailer. Do not tick what you did not verify:\n")
+	fmt.Fprintf(&b, "an unticked criterion is a question, a wrongly ticked one is a false answer.\n")
+	fmt.Fprintf(&b, "The status is git's either way — ticking never sets it, and never blocks it.\n")
+	return b.String()
+}
+
 // Brief renders the context packet an agent (or human) needs to start
 // working a spec: the intent, the linking instructions, and the current
 // derived status.
@@ -30,6 +50,7 @@ func Brief(repo, id string) (string, error) {
 	fmt.Fprintf(&b, "Work on a branch matching %q (or any branch containing %q).\n", s.Branch, s.ID)
 	fmt.Fprintf(&b, "End every commit message with the trailer:\n\n    %s\n\n", s.Trailer())
 	fmt.Fprintf(&b, "Satisfy the acceptance criteria while maintaining code health.\n")
+	b.WriteString(acceptanceInstructions(s))
 
 	// In a workspace, the split-or-declare choice belongs in the brief:
 	// the agent picking up a fat story is the one who should decompose it,

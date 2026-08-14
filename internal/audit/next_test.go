@@ -43,12 +43,12 @@ func TestNextPicksHighestPriorityPlannedOnly(t *testing.T) {
 	// (otherwise uncommitted) spec files away with them.
 	f.commit("chore: backlog", now.AddDate(0, 0, -2))
 
-	next, _, _, err := Next(f.dir)
+	up, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == nil || next.ID != "tb-bbbb" {
-		t.Fatalf("Next = %+v, want tb-bbbb (highest-priority planned)", next)
+	if up.Spec == nil || up.Spec.ID != "tb-bbbb" {
+		t.Fatalf("Next = %+v, want tb-bbbb (highest-priority planned)", up.Spec)
 	}
 
 	// The moment someone claims it with a branch, the answer moves on —
@@ -57,12 +57,12 @@ func TestNextPicksHighestPriorityPlannedOnly(t *testing.T) {
 	f.commit("feat: claimed too", now)
 	f.git("checkout", "main")
 
-	next, _, _, err = Next(f.dir)
+	up, err = Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == nil || next.ID != "tb-cccc" {
-		t.Fatalf("Next after claim = %+v, want tb-cccc", next)
+	if up.Spec == nil || up.Spec.ID != "tb-cccc" {
+		t.Fatalf("Next after claim = %+v, want tb-cccc", up.Spec)
 	}
 }
 
@@ -77,14 +77,14 @@ func TestNextEmptyBacklogReportsStalled(t *testing.T) {
 	f.git("checkout", "main")
 	writeSpecPri(t, f.dir, "tb-old", "Abandoned work", 1)
 
-	next, stalled, _, err := Next(f.dir)
+	up, err := Next(f.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next != nil {
-		t.Fatalf("Next = %+v, want nil (nothing planned)", next)
+	if up.Spec != nil {
+		t.Fatalf("Next = %+v, want nil (nothing planned)", up.Spec)
 	}
-	if stalled != 1 {
-		t.Errorf("stalled = %d, want 1", stalled)
+	if up.Stalled != 1 {
+		t.Errorf("stalled = %d, want 1", up.Stalled)
 	}
 }

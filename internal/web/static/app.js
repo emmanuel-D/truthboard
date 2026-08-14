@@ -215,7 +215,7 @@ function tiles(b) {
   const d = b.drift || {};
   const drift = (d.stale_promises?.length||0) + (d.shadow_work?.length||0) +
                 (d.scope_creep?.length||0) + (d.unknown_repos?.length||0) + (d.unwired_repos?.length||0) +
-                (b.claims?.length||0) + n("regressed");
+                (d.unverified_acceptance?.length||0) + (b.claims?.length||0) + n("regressed");
   const tile = (num, label, color) =>
     `<div class="tile"><div class="num">${num}</div>
       <div class="lbl"><span class="mark" style="background:${color}"></span>${label}</div></div>`;
@@ -433,6 +433,13 @@ function drift(b) {
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">!</span>
       <span class="what"><b>Contradicted hold</b> — <code>${esc(h.id)}</code> ${esc(h.title)}:
       held for “${esc(h.hold)}”, but ${esc(h.why)}</span></div>`);
+  // Landed and unverified: git proved the work, nobody read the promise
+  // back. The card still says done — this only stops the omission being
+  // invisible, which is the whole reason it kept happening.
+  for (const ua of d.unverified_acceptance || [])
+    out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">☐</span>
+      <span class="what"><b>Unverified acceptance</b> — <code>${esc(ua.id)}</code> ${esc(ua.title)}:
+      landed with ${ua.done}/${ua.total} criteria ticked</span></div>`);
   for (const u of (d.stale_promises || []).filter(u => repoOn(unitRepo(u))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⏸</span>
       <span class="what"><b>Stale promise</b> — <code>${esc(unitLabel(u))}</code>: ${esc(u.evidence)}</span></div>`);

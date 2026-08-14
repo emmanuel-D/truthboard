@@ -93,6 +93,9 @@ Usage:
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard next [repo]                    the highest-priority planned story, as a brief —
                                             deterministic, so "start the next story" is one call
+  truthboard check <spec-id> <n|text|all>   tick the acceptance criteria that came true (the
+                                            half of done git cannot derive); --uncheck reverts,
+                                            no criterion prints the numbered checklist
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
   truthboard mcp [repo]                     serve specs/board over MCP (stdio) for AI agents;
                                             repo defaults to the current directory, which the
@@ -153,6 +156,8 @@ func main() {
 		os.Exit(runBrief(os.Args[2:]))
 	case "next":
 		os.Exit(runNext(os.Args[2:]))
+	case "check":
+		os.Exit(runCheck(os.Args[2:]))
 	case "link":
 		os.Exit(runLink(os.Args[2:]))
 	case "mcp":

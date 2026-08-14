@@ -99,6 +99,8 @@ truthboard spec new "Add email verification" --owner emmanuel
 truthboard brief tb-4f2a                    # context packet for an AI agent (or a human)
 truthboard next                             # highest-priority planned story, as a brief —
                                             # "start the next story" is one deterministic call
+truthboard check tb-4f2a 2                  # a criterion came true — tick it (also: a unique
+                                            # substring, or "all"; --uncheck reverts)
 truthboard audit                            # spec board + drift + digest, all derived
 truthboard link tb-4f2a "hotfix/*"          # fix a linking miss — fixes the input, never the status
 ```
@@ -130,6 +132,15 @@ versioned with your code. Backlog structure is intent too:
   **contradicted** everywhere the note appears and lands in the drift
   report. A reason can be wrong; it cannot be wrong silently. Clearing
   one is deleting the line — there is no "unhold".
+- **Acceptance criteria** are the other half of done, and the half git
+  cannot derive: a commit proves work landed, never that what was asked
+  for came true. So ticking a criterion (`truthboard check tb-4f2a 2`, or
+  `check_acceptance` over MCP) is intent as well — one line changed in the
+  story file, committed with the same trailer. It sets nothing: a landed
+  story reads done at 0/5. But a done story whose criteria were never
+  ticked is reported as **unverified acceptance** in the drift report, on
+  the board, and to the next agent that asks for work — because a promise
+  nobody read back is the quietest way for a board to start lying.
 
 Linking signals, strongest first: a `Spec: tb-4f2a`
 commit trailer, the id in a branch name, the spec's branch glob. A commit
@@ -254,7 +265,8 @@ trailer, exactly like a developer using no AI tool at all.
 Tools: `list_specs`, `get_brief` (the context packet to start work),
 `next_spec` (the highest-priority *startable* story — an idle agent needs
 no human to pick, and is never handed a story whose dependencies haven't
-landed), `create_spec`, `update_spec`, `get_board`. Deliberately absent:
+landed), `create_spec`, `update_spec`, `check_acceptance` (tick the
+criteria that came true, as they come true), `get_board`. Deliberately absent:
 any tool that sets a status — an agent's work shows up on the board the
 same way a human's does, through commits with the spec trailer.
 

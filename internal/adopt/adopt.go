@@ -49,7 +49,14 @@ Before any coding task:
 3. Work on a branch containing the spec id (e.g. ` + "`feature/tb-1234-slug`" + `).
 4. End **every** commit message with the trailer line: ` + "`Spec: tb-1234`" + `.
    That trailer is how your work appears on the board with zero extra effort.
-5. When acceptance criteria are met, merge — the board flips to done by
+5. Tick each acceptance criterion as it comes true: ` + "`check_acceptance`" + `
+   (CLI: ` + "`truthboard check tb-1234 <n|text|all>`" + `), committed with the same
+   trailer. This is part of doing the work — git can prove your commit
+   landed, it cannot know whether what was asked for is true, so an
+   unticked criterion stays an open question and a landed story with
+   unticked criteria is reported as drift. Never tick what you did not
+   verify.
+6. When acceptance criteria are met, merge — the board flips to done by
    itself. Reverts and red CI flip it to regressed by themselves too.
 `
 
