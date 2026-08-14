@@ -58,6 +58,9 @@ func Serve(in io.Reader, out io.Writer, defaultRepo, version string) error {
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 	enc := json.NewEncoder(out)
+	// One probe for the life of the server: this process's own build cannot
+	// change under it, so the answer cannot either.
+	var stale staleness
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 {
@@ -67,7 +70,7 @@ func Serve(in io.Reader, out io.Writer, defaultRepo, version string) error {
 		if err := json.Unmarshal(line, &req); err != nil {
 			continue // not a parseable frame; nothing to respond to
 		}
-		if resp := handle(req, defaultRepo, version); resp != nil {
+		if resp := handle(req, defaultRepo, version, stale.warning); resp != nil {
 			if err := enc.Encode(resp); err != nil {
 				return err
 			}
@@ -76,7 +79,10 @@ func Serve(in io.Reader, out io.Writer, defaultRepo, version string) error {
 	return scanner.Err()
 }
 
-func handle(req request, defaultRepo, version string) *response {
+// handle answers one frame. staleWarning is asked, for status-bearing tools
+// only, whether this build has been superseded — a func rather than a string
+// so the probe it costs is never paid by a session that only writes intent.
+func handle(req request, defaultRepo, version string, staleWarning func(string) string) *response {
 	if req.ID == nil {
 		return nil // notification — never answered
 	}
@@ -116,9 +122,16 @@ func handle(req request, defaultRepo, version string) *response {
 			}
 			break
 		}
-		resp.Result = map[string]any{
-			"content": []map[string]any{{"type": "text", "text": text}},
+		// A second content block, never a prefix: the first block is JSON for
+		// get_board and list_specs, and a banner glued to the front of it is
+		// a board no client can parse.
+		content := []map[string]any{{"type": "text", "text": text}}
+		if statusBearing[p.Name] && staleWarning != nil {
+			if warn := staleWarning(version); warn != "" {
+				content = append(content, map[string]any{"type": "text", "text": warn})
+			}
 		}
+		resp.Result = map[string]any{"content": content}
 	default:
 		resp.Error = &rpcError{Code: -32601, Message: "method not found: " + req.Method}
 	}

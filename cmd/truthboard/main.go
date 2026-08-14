@@ -178,7 +178,18 @@ func main() {
 		os.Exit(runPreflight(os.Args[2:]))
 	case "status":
 		os.Exit(runLifecycle("status", func(repo string) (string, error) {
-			return lifecycle.Status(repo, version)
+			line, err := lifecycle.Status(repo, version)
+			if err != nil {
+				return line, err
+			}
+			// A detached board and an MCP server go stale the same way and
+			// for the same reason — a process outliving the release that
+			// started it. One command answers for both, or the one nobody
+			// thought to check is the one serving old truth.
+			for _, s := range lifecycle.StaleServers() {
+				line += "\n" + s
+			}
+			return line, nil
 		}, os.Args[2:]))
 	case "stop":
 		os.Exit(runLifecycle("stop", lifecycle.Stop, os.Args[2:]))
