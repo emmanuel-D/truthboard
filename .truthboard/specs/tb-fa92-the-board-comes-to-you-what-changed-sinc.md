@@ -34,11 +34,11 @@ No API key should be involved: this is the plain-facts path that
 
 ## Acceptance
 
-- [ ] `truthboard since <ref|date>` reports what changed on the board between that point and now — stories that entered or left each derived status, acceptance ticked, drift opened and closed — and says plainly when nothing changed
-- [ ] The comparison is derived from git, needs no stored snapshot or state file, and gives the same answer whoever runs it and whenever
-- [ ] The same difference can be posted to the existing `--notify` webhook on an interval, alongside the transitions that already go there
-- [ ] A scheduled digest includes landed stories still carrying unticked acceptance criteria, naming them and the counts
-- [ ] Repeated runs do not repost what was already sent, and a run that finds nothing worth reporting stays silent rather than posting an empty digest
-- [ ] It works without `ANTHROPIC_API_KEY` or `OLLAMA_HOST` — derived facts, plain language, no narration
-- [ ] Credentials in a webhook URL never reach the logs, holding the line `tb-5266` drew
-- [ ] `go test ./...` passes
+- [x] `truthboard since <ref|date>` reports what changed on the board between that point and now — stories that entered or left each derived status, acceptance ticked, drift opened and closed — and says plainly when nothing changed
+- [x] The comparison is derived from git, needs no stored snapshot or state file, and gives the same answer whoever runs it and whenever
+- [x] The same difference can be posted to the existing `--notify` webhook on an interval, alongside the transitions that already go there
+- [x] A scheduled digest includes landed stories still carrying unticked acceptance criteria, naming them and the counts
+- [x] Repeated runs do not repost what was already sent, and a run that finds nothing worth reporting stays silent rather than posting an empty digest
+- [x] It works without `ANTHROPIC_API_KEY` or `OLLAMA_HOST` — derived facts, plain language, no narration
+- [x] Credentials in a webhook URL never reach the logs, holding the line `tb-5266` drew
+- [x] `go test ./...` passes
