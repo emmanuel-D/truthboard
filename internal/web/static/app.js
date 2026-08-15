@@ -18,6 +18,19 @@ const CLAIM_HEADS = {
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const sv = st => `var(--${esc(st)})`;
 
+/* An id is the board's one durable handle — what drift names, what the
+   digest lists, what a `needs` points at — so every id the board prints
+   opens its story. A <button> and not an <a>: there is no URL for a
+   story, and a button is what a keyboard and a screen reader already
+   know how to operate. data-spec is the same hook a card carries, so
+   one delegated listener serves both.
+
+   Only ever call this on an actual spec id. Branch names, repo names
+   and commit hashes are printed in the same monospace <code> and look
+   the same; they stay <code>, because a link that opens nothing is
+   worse than text that never claimed to. */
+const sid = (id, cls) => `<button type="button" class="sid${cls ? " " + esc(cls) : ""}" data-spec="${esc(id)}" title="Open ${esc(id)}">${esc(id)}</button>`;
+
 /* Epic identity: color follows the name (stable hash into 8 categorical
    slots), so filtering or new epics never repaint existing ones. */
 function epicColor(name) {
@@ -245,7 +258,7 @@ function cardHTML(s, st) {
   const prog = total ? `<span class="prog"><span class="bar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span><span class="n">${done}/${total}</span>${seal}</span>` : `<span class="prog"></span>`;
   return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}; view-transition-name: c-${esc(s.id)}">
     <div class="title">${esc(s.title)}</div>
-    <div class="chips"><code>${esc(s.id)}</code>${
+    <div class="chips">${sid(s.id)}${
       s.priority ? `<span class="tag pri">p${esc(s.priority)}</span>` : ""}${
       s.points ? `<span class="tag pts">${esc(s.points)}pt</span>` : ""}${typeTag(s.type)}${
       s.waiting?.length ? `<span class="tag wait" title="waiting on ${esc(s.waiting.join(", "))}">⧗ ${esc(s.waiting.join(" "))}</span>` : ""}${epicTag(s.epic)}${
@@ -298,7 +311,7 @@ function planStory(it, extra = "") {
   const st = it.status || "planned";
   return `<span class="pstory" data-status="${esc(st)}">
     <span class="pico" style="color:${sv(st)}" title="${esc((STATUS[st]||{}).label || st)}">${(STATUS[st]||{}).ico || "·"}</span>
-    <code class="pid">${esc(it.id)}</code>
+    ${sid(it.id, "pid")}
     <span class="ptitle">${esc(it.title)}</span>${extra}${
       it.epic ? `<span class="pepic"><i class="dot" style="background:${epicColor(it.epic)}"></i>${esc(it.epic)}</span>` : ""}${
       it.points ? `<span class="ppts">${it.points}</span>` : `<span class="ppts none">no estimate</span>`}
@@ -361,7 +374,7 @@ function planPanel(b) {
     ${band("Already committed", p.committed, `${(p.committed||[]).length} · ${committed} pts`)}
     ${band("Ready to pull in", p.ready, `${(p.ready||[]).length} · backlog order`)}
     ${band("Blocked", p.blocked, `${(p.blocked||[]).length}`,
-      it => it.waiting?.length ? `<span class="pblock">needs ${it.waiting.map(w => `<code>${esc(w)}</code>`).join(" ")}</span>` : "")}
+      it => it.waiting?.length ? `<span class="pblock">needs ${it.waiting.map(w => sid(w)).join(" ")}</span>` : "")}
   </section>`;
 }
 
@@ -406,7 +419,7 @@ function sprintsPanel(b) {
     // its title beside the next story's icon. The chip's own inset is the
     // separator — a gap alone left them running together.
     const open = (sp.open || []).map(o =>
-      `<span class="spstory"><span class="spico" style="color:${sv(o.status)}" title="${esc((STATUS[o.status]||{}).label || o.status)}">${(STATUS[o.status]||{}).ico || ""}</span><code>${esc(o.id)}</code><span class="spopen">${esc(o.title)}</span></span>`
+      `<span class="spstory"><span class="spico" style="color:${sv(o.status)}" title="${esc((STATUS[o.status]||{}).label || o.status)}">${(STATUS[o.status]||{}).ico || ""}</span>${sid(o.id)}<span class="spopen">${esc(o.title)}</span></span>`
     ).join("");
     let window = "";
     if (sp.state) {
@@ -451,7 +464,7 @@ function flowPanel(b) {
   };
 
   const untimed = (f.unmeasurable || []).length ? `<details class="funtimed"><summary>${f.unmeasurable.length} landed ${f.unmeasurable.length === 1 ? "story" : "stories"} the history cannot time</summary>
-    ${f.unmeasurable.map(u => `<div class="furow"><code>${esc(u.id)}</code> <span>${esc(u.title)}</span><em>${esc(u.reason)}</em></div>`).join("")}</details>` : "";
+    ${f.unmeasurable.map(u => `<div class="furow">${sid(u.id)} <span>${esc(u.title)}</span><em>${esc(u.reason)}</em></div>`).join("")}</details>` : "";
 
   return `<section class="panel flow"><h2>Flow — timed from commits, never typed</h2>
     <p class="fhead">${esc(f.headline)}</p>
@@ -480,9 +493,9 @@ function drift(b) {
   const out = [];
   // A tick whose proof is gone: the claim outlived the thing supporting it.
   (d.broken_proofs || []).forEach(p => out.push(
-    `<div class="drow"><span class="dkind">Broken evidence</span> <code>${esc(p.id)}</code> ${esc(p.title)}: criterion ${p.n} claims <code>${esc(p.ref)}</code> — ${esc(p.why)}</div>`));
+    `<div class="drow"><span class="dkind">Broken evidence</span> ${sid(p.id)} ${esc(p.title)}: criterion ${p.n} claims <code>${esc(p.ref)}</code> — ${esc(p.why)}</div>`));
   (d.unchecked_proofs || []).forEach(p => out.push(
-    `<div class="drow trust"><span class="dkind">Taken on trust</span> <code>${esc(p.id)}</code> ${esc(p.title)}: criterion ${p.n} rests on <code>${esc(p.ref)}</code> — ${esc(p.why)}</div>`));
+    `<div class="drow trust"><span class="dkind">Taken on trust</span> ${sid(p.id)} ${esc(p.title)}: criterion ${p.n} rests on <code>${esc(p.ref)}</code> — ${esc(p.why)}</div>`));
   // Unknown repos belong to no chip by definition — always shown.
   for (const ur of d.unknown_repos || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--regressed, #e5534b)">✗</span>
@@ -494,21 +507,21 @@ function drift(b) {
       <span class="what"><b>Unwired spoke</b> — ${esc(ur)}</span></div>`);
   for (const sc of (d.scope_creep || []).filter(sc => repoOn(branchRepo(sc.branch))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⇢</span>
-      <span class="what"><b>Scope creep</b> — <code>${esc(sc.spec)}</code> / <code>${esc(sc.branch)}</code>:
+      <span class="what"><b>Scope creep</b> — ${sid(sc.spec)} / <code>${esc(sc.branch)}</code>:
       ${Math.round(100*sc.outside_files/sc.total_files)}% of the diff outside spec paths (mostly ${esc(sc.top_dirs)})</span></div>`);
   // A hold note the evidence disagrees with is drift in the same sense as
   // a stale promise: the board would otherwise repeat a reason that has
   // stopped being true.
   for (const h of d.contradicted_holds || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">!</span>
-      <span class="what"><b>Contradicted hold</b> — <code>${esc(h.id)}</code> ${esc(h.title)}:
+      <span class="what"><b>Contradicted hold</b> — ${sid(h.id)} ${esc(h.title)}:
       held for “${esc(h.hold)}”, but ${esc(h.why)}</span></div>`);
   // Landed and unverified: git proved the work, nobody read the promise
   // back. The card still says done — this only stops the omission being
   // invisible, which is the whole reason it kept happening.
   for (const ua of d.unverified_acceptance || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">☐</span>
-      <span class="what"><b>Unverified acceptance</b> — <code>${esc(ua.id)}</code> ${esc(ua.title)}:
+      <span class="what"><b>Unverified acceptance</b> — ${sid(ua.id)} ${esc(ua.title)}:
       landed with ${ua.done}/${ua.total} criteria ticked</span></div>`);
   for (const u of (d.stale_promises || []).filter(u => repoOn(unitRepo(u))))
     out.push(`<div class="finding"><span class="ico" style="color:var(--stalled)">⏸</span>
@@ -575,7 +588,7 @@ function digest(b) {
   const shipped = byType.map(s =>
     `<div class="r"><time>${esc(s.date)}</time>
       <span style="color:var(--done)">✓</span>
-      <span><b>${esc(s.title)}</b> ${typeTag(s.type)} <span style="color:var(--muted)"><code>${esc(s.id)}</code>${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
+      <span><b>${esc(s.title)}</b> ${typeTag(s.type)} <span style="color:var(--muted)">${sid(s.id)}${s.epic ? " · " + esc(s.epic) : ""}</span></span></div>`).join("");
   const rest = (b.digest || []).filter(c => !c.spec && repoOn(c.repo || "hub")).slice(0, 12).map(c =>
     `<div class="r"><time>${esc(c.date)}</time><span class="ev2">${c.repo ? `<code>${esc(c.repo)}</code> ` : ""}${esc(c.subject)}</span></div>`).join("");
   const divider = shipped && rest ? `<div class="r"><span class="ev2" style="font-size:.7rem">also landed</span></div>` : "";
@@ -853,7 +866,9 @@ function openDetail(full) {
     ["Needs", full.needs?.length ? full.needs.map(id => {
       const dep = (lastBoard?.specs || []).find(x => x.id === id);
       const dst = dep ? dep.status : "missing";
-      return `<code>${esc(id)}</code> <span style="color:${sv(dst)}">${(STATUS[dst]||{}).ico || "?"} ${esc(dst)}</span>`;
+      // A dependency the board has never heard of cannot be opened, so it
+      // stays text — the id is the finding, not a destination.
+      return `${dep ? sid(id) : `<code>${esc(id)}</code>`} <span style="color:${sv(dst)}">${(STATUS[dst]||{}).ico || "?"} ${esc(dst)}</span>`;
     }).join(" · ") : NOT_SET],
     ["Scope", full.paths?.length ? codeList(full.paths) : NOT_SET],
     ["Branch glob", full.branch ? `<code>${esc(full.branch)}</code>` : NOT_SET],
@@ -889,13 +904,25 @@ function openDetail(full) {
   detailDlg.showModal();
 }
 
-document.getElementById("app").addEventListener("click", async e => {
-  const card = e.target.closest("[data-spec]");
-  if (!card) return;
+/* One listener for every id on the page, cards included. It is on the
+   document rather than on #app because ids are printed inside the detail
+   dialog too — a story's Needs row points at the stories that must land
+   first, and reaching them was the whole reason those ids are links.
+
+   Opening from inside the detail dialog replaces what is on screen: two
+   stacked <dialog>s would trap focus in the wrong one, and the story
+   underneath is the one you just navigated away from. */
+document.addEventListener("click", async e => {
+  const hit = e.target.closest("[data-spec]");
+  if (!hit) return;
+  const id = hit.dataset.spec;
+  if (detailDlg.open && detailSpec?.id === id) return; // already reading it
   try {
-    const r = await fetch("/api/specs/" + encodeURIComponent(card.dataset.spec));
+    const r = await fetch("/api/specs/" + encodeURIComponent(id));
     if (!r.ok) throw new Error(await r.text());
-    openDetail(await r.json());
+    const full = await r.json();
+    if (detailDlg.open) detailDlg.close();
+    openDetail(full);
   } catch (err) { console.error(err); }
 });
 document.getElementById("dt-assign").addEventListener("change", async e => {

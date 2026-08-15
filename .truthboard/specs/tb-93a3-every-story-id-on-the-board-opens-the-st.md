@@ -38,11 +38,11 @@ what every other tab shows, so a pinned board is unfindable among them.
 
 ## Acceptance
 
-- [ ] A story id is clickable wherever the board prints one: digest, drift, sprint rows, planning rows, flow, and a card's own chips
-- [ ] Clicking an id opens that story's detail view, from the landing page and from inside a dialog alike
-- [ ] Ids inside the detail view — the stories this one needs, and the ones needing it — navigate to those stories
-- [ ] An id reads as clickable before it is clicked, and is reachable and operable from the keyboard
-- [ ] Text that only looks like an id is left alone: branch names, repo names, commit hashes, and the linking instructions keep their plain rendering
-- [ ] A type tag never splits across two lines
-- [ ] The board has a favicon that needs no network request, and it works on a light and a dark tab strip
-- [ ] The deck still prints ids as plain text, since a PDF has nothing to click
+- [x] A story id is clickable wherever the board prints one: digest, drift, sprint rows, planning rows, flow, and a card's own chips
+- [x] Clicking an id opens that story's detail view, from the landing page and from inside a dialog alike
+- [x] Ids inside the detail view navigate: the Needs row reaches the stories that must land first, and an id the board has never heard of stays plain text rather than becoming a link that opens nothing
+- [x] An id reads as clickable before it is clicked, and is reachable and operable from the keyboard
+- [x] Text that only looks like an id is left alone: branch names, repo names, commit hashes, and the linking instructions keep their plain rendering
+- [x] A type tag never splits across two lines
+- [x] The board has a favicon that needs no network request, and it works on a light and a dark tab strip
+- [x] The deck still prints ids as plain text, since a PDF has nothing to click

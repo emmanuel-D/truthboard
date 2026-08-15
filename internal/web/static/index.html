@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Truthboard</title>
+<!-- The mark is the board itself: three story rails, the top one landed
+     green because that status was derived rather than typed. Inlined as a
+     data: URI, so it costs no request and no route — a board served from a
+     laptop behind a VPN has nothing to fetch it from.
+
+     Both colours are literal. currentColor was the first attempt and is
+     wrong here: a favicon is loaded as its own document, so it inherits
+     nothing from the tab strip and resolves to black, which left the two
+     grey rails invisible on a dark one. #898781 is the board's --muted,
+     the one value the palette holds identical in light and dark, so it
+     reads on either strip; #0ca30c is --done, likewise shared. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M6 8h20' stroke='%230ca30c'/%3E%3Cpath d='M6 16h14' stroke='%23898781'/%3E%3Cpath d='M6 24h17' stroke='%23898781'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/app.css">
 <!-- The deck's page geometry, kept inert until a deck is on screen: @page
      cannot be scoped to a selector, and printing the board itself must
