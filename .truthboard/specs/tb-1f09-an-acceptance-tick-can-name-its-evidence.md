@@ -42,10 +42,10 @@ derives done.
 
 ## Acceptance
 
-- [ ] A criterion may carry evidence — a test name, a CI check name, or a path — written in the markdown and readable by hand, without breaking specs that carry none
-- [ ] `check_acceptance` (MCP) and `truthboard check` record evidence when given it, editing only the lines they touch, and still accept a bare tick
-- [ ] Every audit re-derives evidence-backed ticks: a named test or path that no longer exists is reported as drift, naming the story, the criterion and what went missing
-- [ ] Evidence that cannot be verified in the current checkout is reported as unverifiable, distinctly from evidence that was checked and failed
-- [ ] The distinction between an unticked criterion, a ticked-by-hand criterion and a ticked-with-evidence criterion is visible in `get_brief`, `truthboard audit`, `get_board` JSON, the TUI and the web board
-- [ ] Nothing here sets, gates or downgrades a status: a done story with broken evidence still reads done, and appears in drift
-- [ ] `go test ./...` passes
+- [x] A criterion may carry evidence — a test name, a CI check name, or a path — written in the markdown and readable by hand, without breaking specs that carry none — proof: `internal/spec/acceptance.go`
+- [x] `check_acceptance` (MCP) and `truthboard check` record evidence when given it, editing only the lines they touch, and still accept a bare tick — proof: `TestTickRecordsEvidenceOnTheLineItTouches`
+- [x] Every audit re-derives evidence-backed ticks: a named test or path that no longer exists is reported as drift, naming the story, the criterion and what went missing — proof: `TestEvidenceIsRederivedNotRemembered`
+- [x] Evidence that cannot be verified in the current checkout is reported as unverifiable, distinctly from evidence that was checked and failed — proof: `TestEvidenceIsRederivedNotRemembered`
+- [x] The distinction between an unticked criterion, a ticked-by-hand criterion and a ticked-with-evidence criterion is visible in `get_brief`, `truthboard audit`, `get_board` JSON, the TUI and the web board — proof: `internal/web/static/app.js`
+- [x] Nothing here sets, gates or downgrades a status: a done story with broken evidence still reads done, and appears in drift — proof: `TestEvidenceIsRederivedNotRemembered`
+- [x] `go test ./...` passes — proof: `ci:build`

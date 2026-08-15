@@ -589,6 +589,10 @@ func (m model) viewDrift() string {
 	for _, ua := range d.UnverifiedAcceptance {
 		fmt.Fprintf(&b, "  %s  %s\n", ua.ID, dim.Render(ua.Summary()))
 	}
+	section("Broken evidence — a tick whose proof is gone", len(d.BrokenProofs))
+	for _, bp := range d.BrokenProofs {
+		fmt.Fprintf(&b, "  %s  %s\n", bp.ID, dim.Render(bp.Summary()))
+	}
 	section("Unknown repos — repos: intent the workspace does not declare", len(d.UnknownRepos))
 	for _, ur := range d.UnknownRepos {
 		fmt.Fprintf(&b, "  %s\n", ur)

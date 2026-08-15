@@ -370,6 +370,18 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 			fmt.Fprintf(w, "    - %s %s — %s\n", ua.ID, truncate(ua.Title, 46), ua.Summary())
 		}
 	}
+	if len(d.BrokenProofs) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiYellow, fmt.Sprintf("  Broken evidence (%d): a tick whose proof is gone", len(d.BrokenProofs))))
+		for _, b := range d.BrokenProofs {
+			fmt.Fprintf(w, "    - %s %s — %s\n", b.ID, truncate(b.Title, 40), b.Summary())
+		}
+	}
+	if len(d.UncheckedProofs) > 0 {
+		fmt.Fprintf(w, "%s\n", c(ansiDim, fmt.Sprintf("  Taken on trust (%d): evidence this checkout cannot see", len(d.UncheckedProofs))))
+		for _, u := range d.UncheckedProofs {
+			fmt.Fprintf(w, "    - %s %s — %s\n", u.ID, truncate(u.Title, 40), u.Summary())
+		}
+	}
 	if d.Clean() {
 		fmt.Fprintf(w, "%s\n", c(ansiGreen, "  clean — board matches reality"))
 	}
@@ -636,6 +648,13 @@ func Markdown(w io.Writer, res *audit.Result) error {
 				}
 				fmt.Fprintf(w, "  - [ ] %s\n", t)
 			}
+		}
+		fmt.Fprintln(w)
+	}
+	if len(d.BrokenProofs) > 0 {
+		fmt.Fprintf(w, "**Broken evidence (%d)** — a tick whose proof is gone:\n\n", len(d.BrokenProofs))
+		for _, b := range d.BrokenProofs {
+			fmt.Fprintf(w, "- `%s` %s — %s\n", b.ID, b.Title, b.Summary())
 		}
 		fmt.Fprintln(w)
 	}

@@ -232,7 +232,11 @@ function tiles(b) {
 function cardHTML(s, st) {
   const total = s.acceptance_total || 0, done = s.acceptance_done || 0;
   const pct = total ? Math.round(100 * done / total) : 0;
-  const prog = total ? `<span class="prog"><span class="bar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span><span class="n">${done}/${total}</span></span>` : `<span class="prog"></span>`;
+  // A tick backed by evidence is a different claim from a tick alone —
+  // the board says which, without spending a second line on it.
+  const proved = s.acceptance_proved || 0;
+  const seal = proved ? `<span class="proved" title="${proved} of ${done} ticked criteria name evidence that is re-checked on every audit">⛨${proved}</span>` : "";
+  const prog = total ? `<span class="prog"><span class="bar"><i class="${pct===100?"full":""}" style="width:${pct}%"></i></span><span class="n">${done}/${total}</span>${seal}</span>` : `<span class="prog"></span>`;
   return `<div class="card" data-spec="${esc(s.id)}" style="border-left-color:${sv(st)}; view-transition-name: c-${esc(s.id)}">
     <div class="title">${esc(s.title)}</div>
     <div class="chips"><code>${esc(s.id)}</code>${
@@ -468,6 +472,11 @@ function dur(hours) {
 function drift(b) {
   const d = b.drift || {};
   const out = [];
+  // A tick whose proof is gone: the claim outlived the thing supporting it.
+  (d.broken_proofs || []).forEach(p => out.push(
+    `<div class="drow"><span class="dkind">Broken evidence</span> <code>${esc(p.id)}</code> ${esc(p.title)}: criterion ${p.n} claims <code>${esc(p.ref)}</code> — ${esc(p.why)}</div>`));
+  (d.unchecked_proofs || []).forEach(p => out.push(
+    `<div class="drow trust"><span class="dkind">Taken on trust</span> <code>${esc(p.id)}</code> ${esc(p.title)}: criterion ${p.n} rests on <code>${esc(p.ref)}</code> — ${esc(p.why)}</div>`));
   // Unknown repos belong to no chip by definition — always shown.
   for (const ur of d.unknown_repos || [])
     out.push(`<div class="finding"><span class="ico" style="color:var(--regressed, #e5534b)">✗</span>
@@ -852,7 +861,11 @@ function openDetail(full) {
 
   const rows = [["Status", `${esc(onBoard.evidence || "no matching branch or commit yet")}`]];
   const total = onBoard.acceptance_total || 0;
-  if (total) rows.push(["Acceptance", `${onBoard.acceptance_done || 0} of ${total} signed off`]);
+  if (total) {
+    const proved = onBoard.acceptance_proved || 0;
+    rows.push(["Acceptance", `${onBoard.acceptance_done || 0} of ${total} signed off` +
+      (proved ? ` · ${proved} naming evidence that is re-checked every audit` : "")]);
+  }
   if (onBoard.branches?.length) rows.push(["Branches", codeList(onBoard.branches)]);
   if (onBoard.landed) rows.push(["Landed", `<code>${esc(onBoard.landed.slice(0,7))}</code>` +
     ` in <code>${esc(onBoard.landed_repo || "hub")}</code>`]);

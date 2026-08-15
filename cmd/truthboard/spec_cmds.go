@@ -542,6 +542,9 @@ func runCheck(args []string) int {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	repo := fs.String("repo", ".", "repository path")
 	uncheck := fs.Bool("uncheck", false, "untick instead — a criterion that stopped being true")
+	proof := fs.String("proof", "",
+		"what proves it, so the tick can be re-derived: a test name (TestFoo), a path (internal/x/y.go), or a forge check (ci:build)")
+	args = hoistFlags(args, map[string]bool{"proof": true, "repo": true})
 	fs.Usage = func() {
 		fmt.Fprint(os.Stderr, `usage: truthboard check <spec-id> <criterion>... [--uncheck]
 
@@ -550,6 +553,13 @@ A criterion is its number, a unique substring of its text, or "all":
   truthboard check tb-1234 2
   truthboard check tb-1234 "renders like the story"
   truthboard check tb-1234 all
+
+Name what proves it, and the tick is re-checked on every audit instead of
+taken on trust — a test name, a path, or a forge check:
+
+  truthboard check tb-1234 2 --proof TestTheThingIsTrue
+  truthboard check tb-1234 3 --proof internal/report/report.go
+  truthboard check tb-1234 4 --proof ci:build
 
 Ticking is a claim, not a status: it never sets, blocks or changes what git
 derives. Run it with no criterion to see the numbered checklist.
@@ -591,7 +601,7 @@ derives. Run it with no criterion to see the numbered checklist.
 		}
 	}
 
-	changed, err := s.SetAcceptance(fs.Args()[1:], !*uncheck)
+	changed, err := s.SetAcceptanceWithProof(fs.Args()[1:], !*uncheck, *proof)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
 		return 1
@@ -690,6 +700,41 @@ func runFind(args []string) int {
 		fmt.Println()
 	}
 	return 0
+}
+
+// hoistFlags moves flags in front of the positional arguments so they are
+// still seen by the flag package, which stops parsing at the first
+// non-flag word. Without this, `truthboard check tb-1234 2 --proof TestX`
+// reads "--proof" as a criterion selector and fails with a checklist —
+// which is exactly the shape of command the working agreement tells agents
+// to write, so the natural order has to work.
+//
+// valued names the flags that consume the word after them; everything else
+// is a boolean and travels alone.
+func hoistFlags(args []string, valued map[string]bool) []string {
+	var flags, rest []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			rest = append(rest, args[i+1:]...)
+			break
+		}
+		if !strings.HasPrefix(a, "-") || a == "-" {
+			rest = append(rest, a)
+			continue
+		}
+		name := strings.TrimLeft(a, "-")
+		if eq := strings.Index(name, "="); eq >= 0 {
+			flags = append(flags, a) // --flag=value carries its own value
+			continue
+		}
+		flags = append(flags, a)
+		if valued[name] && i+1 < len(args) {
+			i++
+			flags = append(flags, args[i])
+		}
+	}
+	return append(flags, rest...)
 }
 
 // runSince answers "what changed while I was away" — the standup question.
