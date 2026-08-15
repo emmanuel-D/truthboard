@@ -319,53 +319,25 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 
 	// Landings are unbounded on purpose: a spec that landed long ago must
 	// still derive as done, so this walk cannot take an -n limit the way
-	// the unmerged one can. --name-only rides along because the trailer
-	// alone cannot tell delivery from filing: the commit that creates a
-	// spec file carries the very trailer it is describing.
+	// the unmerged one can.
 	for _, ctx := range ctxs {
-		out, ok := gitrepo.Try(ctx.path, "log", "--grep", "Spec:", ctx.base, "--format=%x1e%H%x00%ct%x00%B%x00", "--name-only")
-		if !ok || out == "" {
-			continue
-		}
 		newest := map[string]string{}
-		for _, record := range strings.Split(out, "\x1e") {
-			sha, rest, found := strings.Cut(record, "\x00")
-			if !found {
-				continue
+		walkTrailerCommits(ctx.path, ctx.base, known, func(c trailerCommit) {
+			// Both clocks run over every trailer commit: filing is when the
+			// promise was made, started is when something other than the
+			// promise changed.
+			t := idx.at(c.id)
+			noteEarliest(&t.filed, c.when)
+			noteLatest(&t.lastSeen, c.when)
+			if c.filing {
+				return
 			}
-			stamp, rest, found := strings.Cut(rest, "\x00")
-			if !found {
-				continue
+			noteEarliest(&t.started, c.when)
+			// The walk yields newest first, so the first sighting wins.
+			if newest[c.id] == "" {
+				newest[c.id], t.landingAt = c.sha, c.when
 			}
-			body, files, found := strings.Cut(rest, "\x00")
-			if !found {
-				continue
-			}
-			sha = strings.TrimSpace(sha)
-			when := commitTime(stamp)
-			// Writing a story down is not landing it. Skipping the commit
-			// rather than the id keeps a later, real landing electable.
-			filing := intentOnly(strings.Split(files, "\n"))
-			for _, m := range trailerPattern.FindAllStringSubmatch(body, -1) {
-				if !known[m[1]] {
-					continue
-				}
-				// Both clocks run over every trailer commit: filing is when
-				// the promise was made, started is when something other than
-				// the promise changed.
-				t := idx.at(m[1])
-				noteEarliest(&t.filed, when)
-				noteLatest(&t.lastSeen, when)
-				if filing {
-					continue
-				}
-				noteEarliest(&t.started, when)
-				// git log walks newest first, so the first sighting wins.
-				if newest[m[1]] == "" {
-					newest[m[1]], t.landingAt = sha, when
-				}
-			}
-		}
+		})
 		idx.landed[ctx.name] = newest
 		indexMerges(ctx, idx, newest, known)
 	}
@@ -829,4 +801,56 @@ func short(sha string) string {
 		return sha[:8]
 	}
 	return sha
+}
+
+// trailerCommit is one sighting of a spec id in a commit message reachable
+// from some ref: which story, which commit, when, and whether that commit
+// did anything but write the story down.
+type trailerCommit struct {
+	id     string
+	sha    string
+	when   time.Time
+	filing bool // touched only governed files — intent, not delivery
+}
+
+// walkTrailerCommits streams every commit reachable from base whose message
+// carries a known spec trailer, newest first. One implementation, because
+// two derivations depend on these exact rules and must never disagree: the
+// board's "did this land", and `since`'s "had it landed *then*". A second
+// walk written by hand would be a second definition of delivery.
+//
+// --name-only rides along because the trailer alone cannot tell delivery
+// from filing: the commit that creates a spec file carries the very trailer
+// it is describing.
+func walkTrailerCommits(path, base string, known map[string]bool, visit func(trailerCommit)) {
+	out, ok := gitrepo.Try(path, "log", "--grep", "Spec:", base, "--format=%x1e%H%x00%ct%x00%B%x00", "--name-only")
+	if !ok || out == "" {
+		return
+	}
+	for _, record := range strings.Split(out, "\x1e") {
+		sha, rest, found := strings.Cut(record, "\x00")
+		if !found {
+			continue
+		}
+		stamp, rest, found := strings.Cut(rest, "\x00")
+		if !found {
+			continue
+		}
+		body, files, found := strings.Cut(rest, "\x00")
+		if !found {
+			continue
+		}
+		c := trailerCommit{
+			sha:    strings.TrimSpace(sha),
+			when:   commitTime(stamp),
+			filing: intentOnly(strings.Split(files, "\n")),
+		}
+		for _, m := range trailerPattern.FindAllStringSubmatch(body, -1) {
+			if !known[m[1]] {
+				continue
+			}
+			c.id = m[1]
+			visit(c)
+		}
+	}
 }

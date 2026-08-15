@@ -102,6 +102,9 @@ Usage:
   truthboard check <spec-id> <n|text|all>   tick the acceptance criteria that came true (the
                                             half of done git cannot derive); --uncheck reverts,
                                             no criterion prints the numbered checklist
+  truthboard since <ref|commit|date>        what changed on the board since then: landed, filed,
+                                            reverted, signed off — derived from two commits, so
+                                            nothing had to be running and no state is kept
   truthboard find "text" [--limit n]        has this already been filed? searches ids, titles,
                                             epics and story text — one cheap answer, not the board
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
@@ -126,6 +129,9 @@ Usage:
                 --host 0.0.0.0              share the board beyond this machine (read-only)
                 --notify <url>              post stalled/regressed transitions to a webhook
                                             (Slack-compatible; recoveries are news too)
+                --digest 24h                also post a what-changed digest on this interval:
+                                            landed, signed off, and landed work whose acceptance
+                                            is still unread. Silent when nothing changed
   truthboard preflight [--remote URL] [repo]
                                             prove a deploy can reach what it derives from:
                                             git's environment, the remote, every spoke, and
@@ -170,6 +176,8 @@ func main() {
 		os.Exit(runLink(os.Args[2:]))
 	case "find":
 		os.Exit(runFind(os.Args[2:]))
+	case "since":
+		os.Exit(runSince(os.Args[2:]))
 	case "mcp":
 		os.Exit(runMcp(os.Args[2:], os.Stdin, os.Stdout))
 	case "board":
@@ -334,6 +342,8 @@ func runUI(args []string) int {
 		"arm POST /webhook: a forge push webhook with this secret triggers an immediate fetch (env TRUTHBOARD_WEBHOOK_SECRET)")
 	notify := fs.String("notify", os.Getenv("TRUTHBOARD_NOTIFY_URL"),
 		"post stalled/regressed transitions to this webhook URL (Slack-compatible JSON; env TRUTHBOARD_NOTIFY_URL)")
+	digest := fs.Duration("digest", 0,
+		"post a what-changed digest to --notify on this interval (e.g. 24h): landed, signed off, and landed work whose acceptance is still unread")
 	editToken := fs.String("edit-token", os.Getenv("TRUTHBOARD_EDIT_TOKEN"),
 		"arm intent editing on a shared board: requests carrying this token may create/edit stories, and each edit is committed and pushed to origin (env TRUTHBOARD_EDIT_TOKEN)")
 	fs.Parse(args)
@@ -344,7 +354,8 @@ func runUI(args []string) int {
 	}
 	opts := web.Options{Port: *port, Host: *host, Forge: *useForge,
 		FetchEvery: *fetch, OpenBrowser: !*noOpen, Version: version,
-		WebhookSecret: *webhookSecret, NotifyURL: *notify, EditToken: *editToken}
+		WebhookSecret: *webhookSecret, NotifyURL: *notify, EditToken: *editToken,
+		DigestEvery: *digest}
 	if *detach {
 		state, err := lifecycle.Detach(repo, opts)
 		if err != nil {

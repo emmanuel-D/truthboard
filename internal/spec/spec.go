@@ -119,7 +119,11 @@ func ValidateRepos(repo string, repos []string) error {
 	return nil
 }
 
-func Dir(repo string) string { return filepath.Join(repo, ".truthboard", "specs") }
+func Dir(repo string) string { return filepath.Join(repo, RelDir) }
+
+// RelDir is the spec directory as git spells it — repo-relative, for the
+// commands that read intent out of a commit rather than off disk.
+const RelDir = ".truthboard/specs"
 
 var frontmatterPattern = regexp.MustCompile(`(?s)\A---\n(.*?)\n---\n?(.*)\z`)
 
@@ -167,6 +171,14 @@ func parseFile(path string) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
+	return Parse(path, raw)
+}
+
+// Parse reads one spec from its bytes. Exported because intent can be read
+// from a commit as well as from disk — `since` rebuilds the board as it
+// stood at an old commit — and both paths must apply the same validation,
+// or a story would be a story in one and not in the other.
+func Parse(path string, raw []byte) (Spec, error) {
 	m := frontmatterPattern.FindSubmatch(raw)
 	if m == nil {
 		return Spec{}, fmt.Errorf("%s: missing YAML frontmatter (--- ... ---)", path)

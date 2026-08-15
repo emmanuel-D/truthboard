@@ -706,3 +706,51 @@ func truncate(s string, n int) string {
 	}
 	return s[:n]
 }
+
+// Since renders what changed on the board between two commits. It leads
+// with the shared headline and then names every story behind it: a digest
+// that only counted would be a number nobody could act on.
+func Since(w io.Writer, d *audit.Diff, color bool) {
+	c := func(code, s string) string {
+		if !color {
+			return s
+		}
+		return code + s + ansiOff
+	}
+
+	fmt.Fprintf(w, "\n%s  %s..%s\n", c(ansiBold, "WHAT CHANGED"), d.FromSHA, d.ToSHA)
+	fmt.Fprintf(w, "%s\n", c(ansiDim, fmt.Sprintf("since %s (%s) — derived from two commits, nothing stored", d.From, d.FromDate)))
+	if d.Quiet() {
+		fmt.Fprintf(w, "\n  %s\n\n", c(ansiGreen, d.Headline()))
+		return
+	}
+	fmt.Fprintf(w, "\n  %s\n", d.Headline())
+
+	section := func(title, code string, changes []audit.Change) {
+		if len(changes) == 0 {
+			return
+		}
+		fmt.Fprintf(w, "\n%s\n", c(ansiBold, fmt.Sprintf("  %s (%d)", title, len(changes))))
+		for _, ch := range changes {
+			line := fmt.Sprintf("    %s %s", c(code, ch.ID), truncate(ch.Title, 64))
+			if ch.Detail != "" {
+				line += " " + c(ansiDim, "— "+ch.Detail)
+			}
+			fmt.Fprintln(w, line)
+		}
+	}
+	section("Landed", ansiGreen, d.Landed)
+	section("Came undone — landed then, not now", ansiRed, d.Unlanded)
+	section("Signed off", ansiGreen, d.Verified)
+	section("Acceptance ticked", ansiCyan, d.Ticked)
+	section("Promises withdrawn", ansiYellow, d.Unticked)
+	section("Landed unverified — nobody read the acceptance back", ansiYellow, d.Unverified)
+	section("Filed", ansiCyan, d.Filed)
+	section("Retired", ansiDim, d.Retired)
+
+	// The limit is stated, not hidden: a reader who thinks this covers
+	// everything would be misled about the one thing it cannot see.
+	fmt.Fprintf(w, "\n%s\n\n", c(ansiDim,
+		"  Commits remember delivery, filing and sign-off. They do not remember which branches were\n"+
+			"  moving on a past day, so \"was in progress then\" is not derivable and is not reported."))
+}

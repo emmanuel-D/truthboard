@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,20 @@ import (
 )
 
 var notifyClient = &http.Client{Timeout: 10 * time.Second}
+
+// safeError renders a failed post without disclosing where it was posting.
+// Stripping embedded credentials is not enough for a webhook: in every
+// common scheme — Slack, Discord, Teams — the secret *is* the path, so the
+// whole URL is a credential and the only safe amount of it to log is none.
+// A transport error quotes the URL it failed on, which is exactly how one
+// reaches a log file on a shared box.
+func safeError(err error, url string) string {
+	msg := gitrepo.Redact(err.Error())
+	if url != "" {
+		msg = strings.ReplaceAll(msg, url, "<webhook>")
+	}
+	return msg
+}
 
 // notifier remembers each spec's last derived status and posts changes
 // worth interrupting someone for. State lives under .git/truthboard/ —
@@ -119,7 +134,7 @@ func (n *notifier) post(tr transition) {
 	})
 	resp, err := notifyClient.Post(n.url, "application/json", bytes.NewReader(payload))
 	if err != nil {
-		log.Printf("notify: post %s: %v", tr.ID, err)
+		log.Printf("notify: post %s: %s", tr.ID, safeError(err, n.url))
 		return
 	}
 	resp.Body.Close()
