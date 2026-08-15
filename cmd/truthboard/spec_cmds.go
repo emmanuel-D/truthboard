@@ -12,6 +12,7 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/mirror"
 	"github.com/emmanuel-D/truthboard/internal/report"
 	"github.com/emmanuel-D/truthboard/internal/spec"
 	"github.com/emmanuel-D/truthboard/internal/workspace"
@@ -768,5 +769,73 @@ func runSince(args []string) int {
 		return 0
 	}
 	report.Since(os.Stdout, diff, isTTY())
+	return 0
+}
+
+// runMirror publishes the board to the forge the repo already has. The
+// default is a dry run: this is the one command that writes somewhere other
+// than the repository, and a preview costs nothing while an unwanted issue
+// has to be closed by hand.
+func runMirror(args []string) int {
+	fs := flag.NewFlagSet("mirror", flag.ExitOnError)
+	apply := fs.Bool("apply", false, "actually write to the forge (default: show the plan and change nothing)")
+	dryRun := fs.Bool("dry-run", false, "show the plan and change nothing — the default, accepted for explicitness")
+	format := fs.String("format", "term", "output format: term, json")
+	args = hoistFlags(args, map[string]bool{"format": true})
+	fs.Parse(args)
+
+	repo := "."
+	if fs.NArg() > 0 {
+		repo = fs.Arg(0)
+	}
+	if *dryRun {
+		*apply = false
+	}
+
+	client, err := mirror.Open(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	existing, err := client.List()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: reading the forge's issues: %v\n", err)
+		return 1
+	}
+	res, err := audit.Audit(repo, audit.Options{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	specs, err := spec.Load(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+
+	plan := mirror.Build(client.Repo(), specs, res, existing)
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(plan)
+	} else {
+		report.MirrorPlan(os.Stdout, plan, *apply)
+	}
+	if !*apply || plan.Empty() {
+		if !*apply && !plan.Empty() {
+			fmt.Println("\nnothing was written — re-run with --apply to publish this plan")
+		}
+		return 0
+	}
+
+	done, err := mirror.Apply(client, plan)
+	if err != nil {
+		// Say how far it got before saying what went wrong: a half-mirrored
+		// forge is a real outcome, and the only unacceptable version of it
+		// is the one nobody was told about.
+		fmt.Fprintf(os.Stderr, "\ntruthboard: mirroring stopped partway — %s\n%v\n", done.Summary(), err)
+		return 1
+	}
+	fmt.Printf("\n%s on %s\n", done.Summary(), plan.Repo)
 	return 0
 }

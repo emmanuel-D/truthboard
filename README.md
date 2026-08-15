@@ -428,6 +428,40 @@ them out of the checklist. And like every tick, it is still a claim:
 nothing here sets, gates or downgrades a status, and a done story with
 broken evidence still reads done, in the drift report.
 
+## Mirror — for the people who never open a terminal
+
+Forge enrichment reads pull requests, checks and claims. `mirror` is the
+other direction: it publishes the board as issues, where the reviewer, the
+colleague who lives in Issues and the stakeholder with a browser already
+are.
+
+```sh
+truthboard mirror            # shows the plan, writes nothing
+truthboard mirror --apply    # publishes it
+```
+
+**The default is a dry run.** This is the one command that writes somewhere
+other than your repository, and a preview costs nothing while an unwanted
+issue has to be closed by hand.
+
+Each issue carries the derived status with its evidence, the goal, and the
+acceptance checklist with its tick state — and says, in its own body, that
+it is a mirror and which spec file it came from. The markdown stays the
+source of truth: an issue is an *output*, rewritten from the repository,
+and the failure mode of every sync tool ever written is somebody editing
+the copy.
+
+Re-running converges instead of duplicating. There is **no mapping file**:
+the story id is the issue title's prefix, so the link is derived from the
+forge itself on every run and a fresh clone reaches the same conclusion —
+a mapping on disk would be one clone away from opening a second copy of
+every issue. Stories that derived done get their issues closed; issues
+nobody mirrored are never touched.
+
+A forge that is missing, unauthenticated or rate-limited fails loudly and
+names the cause, and a run that stops partway says how far it got before
+it says what went wrong. Nothing on the forge ever feeds a derived status.
+
 ## What changed since — the standup question
 
 Every status the board serves describes *now*. `since` answers the other
