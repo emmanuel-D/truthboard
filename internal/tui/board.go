@@ -578,8 +578,8 @@ func (m model) viewDrift() string {
 		fmt.Fprintf(&b, "  %s  %s\n", u.Label(), dim.Render(u.Evidence))
 	}
 	section("Landed but branch not deleted", len(d.LandedNotDeleted))
-	for _, u := range d.LandedNotDeleted {
-		fmt.Fprintf(&b, "  %s\n", u.Label())
+	for _, name := range d.LandedNotDeleted {
+		fmt.Fprintf(&b, "  %s\n", name)
 	}
 	section("Contradicted holds — a paused reason the evidence disagrees with", len(d.ContradictedHolds))
 	for _, h := range d.ContradictedHolds {

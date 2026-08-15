@@ -142,4 +142,5 @@ var statusBearing = map[string]bool{
 	"next_spec":  true,
 	"list_specs": true,
 	"get_brief":  true,
+	"find_spec":  true,
 }

@@ -71,6 +71,12 @@ const usage = `truthboard — your repo already knows the status
 
 Usage:
   truthboard audit [flags] [repo]           audit a repository (default: current directory)
+                --status/--epic/--sprint/--since/--limit
+                                            show less: narrow by derived status, epic, sprint,
+                                            activity date or count. Narrowing changes what is
+                                            shown, never what is derived
+                --full                      json: every field of every story (the default
+                                            summarises finished work to fit a context window)
   truthboard init [--agents [--hooks]] [repo]
                                             opt in to spec mode; --agents wires MCP +
                                             AGENTS.md so AI tools track work here by default
@@ -96,6 +102,8 @@ Usage:
   truthboard check <spec-id> <n|text|all>   tick the acceptance criteria that came true (the
                                             half of done git cannot derive); --uncheck reverts,
                                             no criterion prints the numbered checklist
+  truthboard find "text" [--limit n]        has this already been filed? searches ids, titles,
+                                            epics and story text — one cheap answer, not the board
   truthboard link <spec-id> <branch-glob>   fix a linking miss (fixes the input, not the status)
   truthboard mcp [repo]                     serve specs/board over MCP (stdio) for AI agents;
                                             repo defaults to the current directory, which the
@@ -160,6 +168,8 @@ func main() {
 		os.Exit(runCheck(os.Args[2:]))
 	case "link":
 		os.Exit(runLink(os.Args[2:]))
+	case "find":
+		os.Exit(runFind(os.Args[2:]))
 	case "mcp":
 		os.Exit(runMcp(os.Args[2:], os.Stdin, os.Stdout))
 	case "board":
@@ -253,6 +263,12 @@ func runAudit(args []string) int {
 	digestDays := fs.Int("digest-days", 14, "window for the digest and shadow-work scan")
 	flowDays := fs.Int("flow-days", 90, "window for cycle time, throughput and work in flight")
 	format := fs.String("format", "term", "output format: term, md, json")
+	status := fs.String("status", "", "show only these derived statuses (comma-separated: planned,in-progress,in-review,stalled,done,regressed)")
+	epic := fs.String("epic", "", "show only stories in this epic")
+	sprint := fs.String("sprint", "", "show only stories in this sprint")
+	since := fs.String("since", "", "show only stories with a commit on or after this date (2026-08-01)")
+	limit := fs.Int("limit", 0, "show at most this many stories, in backlog order")
+	full := fs.Bool("full", false, "json: carry every field of every story and branch (default summarises finished work)")
 	noColor := fs.Bool("no-color", false, "disable ANSI colors")
 	noForge := fs.Bool("no-forge", false, "skip tracker enrichment")
 	fs.Parse(args)
@@ -260,6 +276,14 @@ func runAudit(args []string) int {
 	repo := "."
 	if fs.NArg() > 0 {
 		repo = fs.Arg(0)
+	}
+
+	// The filter is parsed before the audit runs: a typo in --status should
+	// cost nothing and say so, not sit behind twenty seconds of git.
+	filter, err := audit.ParseFilter(splitList(*status), *epic, *sprint, *since, *limit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 2
 	}
 
 	opts := audit.Options{StaleDays: *staleDays, DigestDays: *digestDays, FlowDays: *flowDays}
@@ -272,12 +296,20 @@ func runAudit(args []string) int {
 		audit.EnrichWithForges(res, forge.Fetch, opts)
 	}
 
+	res = res.Filtered(filter)
+
 	switch *format {
 	case "term":
 		err = report.Terminal(os.Stdout, res, !*noColor && isTTY())
 	case "md":
 		err = report.Markdown(os.Stdout, res)
 	case "json":
+		// Summarising is a wire-format concern: the terminal and the report
+		// are read by someone who can scroll, the JSON by something with a
+		// context window. Same statuses either way.
+		if !*full {
+			res = res.Lean()
+		}
 		err = report.JSON(os.Stdout, res)
 	default:
 		fmt.Fprintf(os.Stderr, "truthboard: unknown format %q (want term, md, or json)\n", *format)

@@ -152,8 +152,16 @@ func tools() []toolDef {
 	return []toolDef{
 		{
 			Name:        "list_specs",
-			Description: "List all specs with their derived (never typed) statuses.",
-			InputSchema: objSchema(map[string]any{"repo": repoProp}),
+			Description: "List specs with their derived (never typed) statuses. Narrow with status/epic/sprint/since/limit — filtering changes what is shown, never what is derived.",
+			InputSchema: objSchema(map[string]any{
+				"status": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Keep only these derived statuses: planned, in-progress, in-review, stalled, done, regressed. An unknown value is an error, never ignored"},
+				"epic":   map[string]any{"type": "string", "description": "Keep only stories in this epic"},
+				"sprint": map[string]any{"type": "string", "description": "Keep only stories in this sprint slug"},
+				"since":  map[string]any{"type": "string", "description": "Keep only stories with a commit on or after this date (2026-08-01). Stories git has never seen are excluded"},
+				"limit":  map[string]any{"type": "number", "description": "Keep at most this many stories, in backlog order"},
+				"full":   map[string]any{"type": "boolean", "description": "Carry every field of every story and every branch. The default summarises finished work to fit a context window"},
+				"repo":   repoProp,
+			}),
 		},
 		{
 			Name:        "get_brief",
@@ -232,8 +240,25 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "get_board",
-			Description: "Get the full derived board as JSON: spec statuses, branch units, drift report (stale promises, shadow work, scope creep, regressions), and digest. Read-only.",
-			InputSchema: objSchema(map[string]any{"repo": repoProp}),
+			Description: "Get the derived board as JSON: spec statuses, branch units, drift report (stale promises, shadow work, scope creep, regressions), digest and flow. Read-only. Finished stories are summarised and merged branches omitted so the board fits a context window — narrow further with status/epic/sprint/since/limit, or pass full:true for every field.",
+			InputSchema: objSchema(map[string]any{
+				"status": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Keep only these derived statuses: planned, in-progress, in-review, stalled, done, regressed. An unknown value is an error, never ignored"},
+				"epic":   map[string]any{"type": "string", "description": "Keep only stories in this epic"},
+				"sprint": map[string]any{"type": "string", "description": "Keep only stories in this sprint slug"},
+				"since":  map[string]any{"type": "string", "description": "Keep only stories with a commit on or after this date (2026-08-01). Stories git has never seen are excluded"},
+				"limit":  map[string]any{"type": "number", "description": "Keep at most this many stories, in backlog order"},
+				"full":   map[string]any{"type": "boolean", "description": "Carry every field of every story and every branch. The default summarises finished work to fit a context window"},
+				"repo":   repoProp,
+			}),
+		},
+		{
+			Name:        "find_spec",
+			Description: "Search the backlog by text — the cheap answer to \"has this already been filed?\" before create_spec. Matches the id, title, epic and story text; returns ids, titles and derived statuses only, never the board.",
+			InputSchema: objSchema(map[string]any{
+				"query": map[string]any{"type": "string", "description": "Text to look for, case-insensitive"},
+				"limit": map[string]any{"type": "number", "description": "Maximum matches to return (default 20)"},
+				"repo":  repoProp,
+			}, "query"),
 		},
 	}
 }
@@ -267,19 +292,59 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 	switch name {
 	case "list_specs", "get_board":
 		var a struct {
-			Repo string `json:"repo"`
+			Repo   string   `json:"repo"`
+			Status []string `json:"status"`
+			Epic   string   `json:"epic"`
+			Sprint string   `json:"sprint"`
+			Since  string   `json:"since"`
+			Limit  int      `json:"limit"`
+			Full   bool     `json:"full"`
 		}
 		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
+		filter, err := audit.ParseFilter(a.Status, a.Epic, a.Sprint, a.Since, a.Limit)
+		if err != nil {
 			return "", err
 		}
 		res, err := audit.Audit(orDefault(a.Repo, defaultRepo), audit.Options{})
 		if err != nil {
 			return "", err
 		}
-		if name == "list_specs" {
-			return marshal(res.Specs)
+		// Narrow first, then summarise: the caller asked about a selection,
+		// and how much detail each story carries is a separate question from
+		// which stories they wanted.
+		view := res.Filtered(filter)
+		if !a.Full {
+			view = view.Lean()
 		}
-		return marshal(res)
+		if name == "list_specs" {
+			return marshal(view.Specs)
+		}
+		return marshal(view)
+
+	case "find_spec":
+		var a struct {
+			Repo  string `json:"repo"`
+			Query string `json:"query"`
+			Limit int    `json:"limit"`
+		}
+		if err := strictArgs(args, &a); err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(a.Query) == "" {
+			return "", fmt.Errorf("find_spec requires a query")
+		}
+		repo := orDefault(a.Repo, defaultRepo)
+		res, err := audit.Audit(repo, audit.Options{})
+		if err != nil {
+			return "", err
+		}
+		specs, err := spec.Load(repo)
+		if err != nil {
+			return "", err
+		}
+		return marshal(audit.Find(res, specs, a.Query, a.Limit))
 
 	case "get_brief":
 		var a struct {
