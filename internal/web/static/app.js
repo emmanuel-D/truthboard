@@ -278,7 +278,10 @@ function kanban(b) {
       <div class="empty-col">No stories match the filters.</div></section>`;
   const recent = new Set((b.shipped || []).map(s => s.id));
   const cols = SPEC_ORDER.filter(st => visible.some(s => s.status === st));
-  return `<div class="board">` + cols.map(st => {
+  // --cols is the ceiling on how wide a track may grow: with only the
+  // statuses that have stories getting a column, a filtered board can be
+  // one column, and one 1fr track would take the entire row.
+  return `<div class="board" style="--cols:${cols.length}">` + cols.map(st => {
     const d = STATUS[st];
     let specs = visible.filter(s => s.status === st);
     let older = "";

@@ -5,8 +5,8 @@ owner: emmanuel
 branch: '*/tb-256f-*'
 epic: po-experience
 priority: 1
-type: bug
 points: 2
+type: bug
 ---
 
 ## Goal
@@ -34,8 +34,8 @@ and must stay.
 
 ## Acceptance
 
-- [ ] Five columns fit without horizontal scrolling on a desktop window
-- [ ] Six columns (with in-review) fit too, or come closer without breaking the floor
-- [ ] Below the floor the row still scrolls rather than squeezing cards unreadably
-- [ ] Phone and tablet layouts are unchanged
-- [ ] `go test ./...` passes
+- [x] Five columns fit without horizontal scrolling on a desktop window
+- [x] Six columns (with in-review) fit too, or come closer without breaking the floor
+- [x] Below the floor the row still scrolls rather than squeezing cards unreadably
+- [x] Phone and tablet layouts are unchanged
+- [x] `go test ./...` passes
