@@ -26,7 +26,9 @@ have fitted all along.
 **The summary list.** `.sumlist` never zeroes the UA's
 `padding-inline-start`, so every delivered story is pushed 40px right —
 12% of the screen, on the longest list on the page. The margin reset
-covers margins only.
+covers margins only. This one is wrong at every width, not only on a
+phone, so it is corrected at every width; the other three are phone-only
+and belong behind the breakpoint.
 
 **The editor's field grid.** `1fr 1fr 7rem` at 390px computes to
 91px | 91px | 112px: the fixed track meant for the *narrow* field ends
@@ -39,9 +41,10 @@ and the two rows stop reading as the same kind of row.
 
 ## Acceptance
 
-- [ ] Stat tiles sit two to a row at 390px and fill the width between them
-- [ ] Delivered stories start at the panel's left edge, not 40px inside it
-- [ ] The editor's short fields share the width evenly at 390px, and no field clips its own value
-- [ ] Both flow metric rows lay out the same way at 390px regardless of how long the figure is
-- [ ] Nothing above the phone breakpoint changes: desktop tiles, summary, editor grid and flow rows keep their current layout
-- [ ] The page still has no horizontal overflow at 390px, and both dialogs still measure exactly 94vw
+- [x] Stat tiles sit two to a row at 390px and fill the width between them
+- [x] Delivered stories start at the panel's left edge, not 40px inside it
+- [x] The editor's short fields share the width evenly at 390px, and no field clips its own value
+- [x] Both flow metric rows lay out the same way at 390px regardless of how long the figure is
+- [x] Above the phone breakpoint the three phone-only fixes change nothing: desktop tiles, editor grid and flow rows keep their current layout
+- [x] The summary indent is gone on a desktop too, since the gutter was never right at any width
+- [x] The page still has no horizontal overflow at 390px, and both dialogs still measure exactly 94vw
