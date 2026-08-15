@@ -160,8 +160,27 @@
             cursor: pointer; text-decoration: underline; }
 
   /* ---------- kanban ---------- */
-  .board { display: grid; grid-auto-flow: column; grid-auto-columns: 17.5rem;
-           justify-content: start; gap: .7rem; overflow-x: auto; padding-bottom: .5rem; }
+  /* Columns divide the width the page has, between a floor and a ceiling.
+     Fixed 17.5rem tracks meant five statuses needed 1444.8px against the
+     1337.6px an 88rem page can ever concede — so the last column, which is
+     DONE, was cut off on every screen ever made, and a wider window did not
+     help because the cap does not move with it. Six columns, which is what
+     in-review gives anyone using a forge, needed 1736px.
+
+     1fr divides the row instead of overflowing it, down to a floor: below
+     that, tracks stop shrinking and the row scrolls sideways, which is the
+     right answer at 390px and the wrong one at 1440. The desktop floor is
+     13rem so that six columns still land inside the page cap
+     (6 × 208 + 5 × 11.2 = 1304); it only ever binds at six, since five
+     divide to 259. Narrow windows keep the old 17.5rem — see below.
+
+     The ceiling is why --cols exists: only statuses that *have* stories get
+     a column, so filtering down to one would otherwise hand it the whole
+     1337px. The renderer already counts them, so it says how many, and the
+     row grows to at most 20rem a column. */
+  .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(13rem, 1fr);
+           justify-content: start; gap: .7rem; overflow-x: auto; padding-bottom: .5rem;
+           max-width: calc(var(--cols, 6) * 20rem + (var(--cols, 6) - 1) * .7rem); }
   .col { background: var(--inset); border: 1px solid var(--hairline); border-radius: 12px;
          padding: 0 .55rem .2rem; max-height: 68vh; overflow-y: auto; }
   .col h3 {
@@ -466,6 +485,26 @@
      desktop is what the 11rem maximum is there to prevent. */
   @media (min-width: 40rem) and (max-width: 51rem) {
     .tiles { grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); }
+  }
+  /* Narrow the column only where narrowing achieves something.
+     Shrinking tracks is worth a tighter card when it stops the row
+     scrolling, and worth nothing when the row scrolls regardless — at
+     900px five columns overflow at 13rem exactly as they do at 17.5rem,
+     so the smaller floor there would buy cramped cards and no fit.
+
+     Five 13rem tracks plus gaps need 1084.8px of content, and content is
+     min(window, 88rem) − 4.4rem of page padding, so that arrives at a
+     window of ~72rem — a 1280 laptop included, which is the point of
+     picking the five-column figure over the six-column one. Below it,
+     keep the 17.5rem the board has always used.
+
+     Six columns need 1304px and so only fit from ~86rem. Between the two
+     they shrink without fitting, which is the small cost of one
+     breakpoint: CSS cannot say "shrink only if it helps", so the width
+     where it helps most has to be chosen, and five columns is the board
+     most people are looking at. */
+  @media (max-width: 72rem) {
+    .board { grid-auto-columns: minmax(17.5rem, 1fr); }
   }
   /* Touch: nothing hovers, so a control revealed by hover is a control
      nobody finds, and a 24px target is one nobody hits. */
