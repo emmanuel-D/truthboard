@@ -251,7 +251,11 @@
   .sumgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem 1.6rem; }
   .sumsec h3 { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .4rem; }
   .sumsec h3 .sumn { color: var(--ink-2); letter-spacing: 0; }
-  .sumlist { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+  /* padding, not just margin: the reset at the top zeroes margins, and a
+     <ul> carries its bullet gutter as 40px of padding-inline-start. With
+     no bullets to make room for, that gutter pushed every delivered story
+     40px right — 12% of a phone's screen, on the longest list here. */
+  .sumlist { list-style: none; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
   .sumlist li { display: flex; flex-direction: column; gap: .1rem; padding-left: .6rem; border-left: 2px solid var(--hairline); }
   .sumlist.ok   li { border-left-color: var(--done); }
   .sumlist.bad  li { border-left-color: var(--regressed); }
@@ -379,6 +383,16 @@
      Status and the controls share the first line; the branch name and its
      evidence get one each, since those are the parts that wrap anyway. */
   @media (max-width: 40rem) {
+    /* auto-fit counts tracks against the maximum, not the minimum, so
+       11rem tracks fit once in 22rem of phone and the tiles came out one
+       to a row at 176px with the right half of each row empty. Two equal
+       columns is what the 8.5rem minimum was always saying. */
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    /* The name takes the whole line, so the figure and its detail always
+       start on the next one. At 14rem of a 20rem row it depended on how
+       long the figure was: "5m" fitted beside the name and "under a
+       minute" did not, and two rows of the same kind read differently. */
+    .flow .fmname { min-width: 100%; }
     .rows .r.branch { flex-wrap: wrap; row-gap: .15rem; }
     .rows .r.branch .status { order: 1; flex: 0 0 auto; }
     .rows .r.branch .refs   { order: 2; margin-left: auto; }
@@ -527,6 +541,16 @@
   .ed .note[hidden] { display: none; }
   .ed .row3 { display: grid; grid-template-columns: 1fr 1fr 7rem; gap: .6rem; }
   .ed .row3 .wide { grid-column: 1 / -1; }
+  /* This one lives beside its own rule rather than up in the phone block:
+     the editor styles are declared after it, and at equal specificity the
+     later rule wins, so an override written up there silently did nothing.
+     Two columns, not three — the 7rem track keeps a short field from
+     stretching on a desktop, but at 390px it is wider than the two
+     flexible tracks beside it, so the narrowest field took the most room
+     and Owner and Epic clipped their own values. */
+  @media (max-width: 40rem) {
+    .ed .row3 { grid-template-columns: 1fr 1fr; }
+  }
   .tabs { display: flex; gap: .2rem; margin: .7rem 0 .3rem; border-bottom: 1px solid var(--hairline); }
   .tabs button {
     background: none; border: none; color: var(--muted); font: inherit; font-size: .74rem; font-weight: 600;
