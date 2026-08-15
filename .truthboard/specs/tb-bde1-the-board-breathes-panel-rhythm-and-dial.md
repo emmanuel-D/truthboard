@@ -30,12 +30,12 @@ between writing and previewing on a display with room for both.
 
 ## Acceptance
 
-- [ ] Every top-level block in `#app` is separated by one consistent gap — no two panel borders touch
-- [ ] The gap comes from one rule, not a per-panel margin, so a new panel inherits the rhythm without being told
-- [ ] The story detail dialog widens on a desktop screen and its two truth blocks sit side by side rather than stacked
-- [ ] Rendered story prose keeps a readable measure however wide the dialog gets
-- [ ] The editor dialog widens on a desktop screen and its field grid uses the extra width instead of stretching two fields
-- [ ] On a wide screen the editor shows Write and Preview at once, live, and the tab buttons that only existed to choose between them go away
-- [ ] Below that width nothing changes: the tabs come back and one pane shows at a time
-- [ ] Resizing across the breakpoint with the editor open lands in the right layout either way
-- [ ] Phone layout is unchanged — dialogs still fit 390px and the deck still prints
+- [x] Every top-level block in `#app` is separated by one consistent gap — no two panel borders touch
+- [x] The gap comes from one rule, not a per-panel margin, so a new panel inherits the rhythm without being told
+- [x] The story detail dialog widens on a desktop screen and its two truth blocks sit side by side rather than stacked
+- [x] Rendered story prose keeps a readable measure however wide the dialog gets
+- [x] The editor dialog widens on a desktop screen and its field grid uses the extra width instead of stretching two fields
+- [x] On a wide screen the editor shows Write and Preview at once, live, and the tab buttons that only existed to choose between them go away
+- [x] Below that width nothing changes: the tabs come back and one pane shows at a time
+- [x] Resizing across the breakpoint with the editor open lands in the right layout either way
+- [x] Phone layout is unchanged — dialogs still fit 390px and the deck still prints
