@@ -333,8 +333,13 @@
   /* ---------- panels ---------- */
   /* Same gap in both axes: when the pair drops to one column at a narrow
      width, the space between them has to match the space between panels
-     above and below, or the fold itself becomes visible. */
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr)); gap: var(--stack); }
+     above and below, or the fold itself becomes visible.
+
+     20rem, not 21: two 21rem tracks and the gap need 689.6px, and an iPad
+     portrait offers 686.3 — the pair un-paired on the most common tablet
+     there is, by three pixels. A phone is nowhere near either figure and
+     stays in one column. */
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--stack); }
   /* The horizontal figure is shared with the plan panel, which pads its own
      bands instead (.phead, .pload, .pband) so their rules can span the full
      width — the two have to agree or the panels stop aligning. */
@@ -377,11 +382,39 @@
   .brfinal code, #br-title { overflow-wrap: anywhere; }
   .brfinal code { font-size: .8rem; }
 
-  /* Phone width: five columns do not fit in 390px, and the one that
-     overflowed was the retire button — it sat past the right edge, where
-     no thumb could reach it and only a horizontal scroll could find it.
+  /* A branch row's five columns fit or they do not depending on how wide
+     its panel is, and a panel is half the window whenever it is one of a
+     .grid2 pair. Keyed to the window, the stacked layout arrived on a
+     phone and never on a 768px tablet, where the panel is 352px and the
+     desktop row shreds: the name and its evidence compete for the same
+     short line and break a word at a time, 102px per row over fifty rows.
+     Measured against the panel it is a clean gradient — 660px: 30px rows ·
+     546px: 47 · 472px: 63 · 414px: 79 · 352px: 102 — so the panel is the
+     container, and stacking starts winning around 470px of panel.
+
+     The figure is 29rem rather than 470px because a container query
+     measures the container's *content* box: the panel's own 1.05rem of
+     padding is already subtracted, so a 472px panel asks the query about
+     438px. Chosen with room on both sides — 438 stacks, and the 512 a
+     1180px window produces does not. At 32rem the two were a pixel
+     apart and the layout flipped on a rounding error.
+
      Status and the controls share the first line; the branch name and its
-     evidence get one each, since those are the parts that wrap anyway. */
+     evidence get one each, since those are the parts that wrap anyway.
+     The retire button comes with them: left in a row that overflows, it
+     sat past the right edge where no thumb could reach it. */
+  section.panel { container-type: inline-size; }
+  @container (max-width: 29rem) {
+    .rows .r.branch { flex-wrap: wrap; row-gap: .15rem; }
+    .rows .r.branch .status { order: 1; flex: 0 0 auto; }
+    .rows .r.branch .refs   { order: 2; margin-left: auto; }
+    .rows .r.branch .bdel   { order: 3; }
+    .rows .r.branch code    { order: 4; flex: 1 1 100%; overflow-wrap: anywhere; }
+    .rows .r.branch .ev2    { order: 5; flex: 1 1 100%; }
+  }
+
+  /* Phone width. What is left here genuinely depends on the window: the
+     dialog footers and the planning rows are not inside a panel. */
   @media (max-width: 40rem) {
     /* auto-fit counts tracks against the maximum, not the minimum, so
        11rem tracks fit once in 22rem of phone and the tiles came out one
@@ -393,12 +426,6 @@
        long the figure was: "5m" fitted beside the name and "under a
        minute" did not, and two rows of the same kind read differently. */
     .flow .fmname { min-width: 100%; }
-    .rows .r.branch { flex-wrap: wrap; row-gap: .15rem; }
-    .rows .r.branch .status { order: 1; flex: 0 0 auto; }
-    .rows .r.branch .refs   { order: 2; margin-left: auto; }
-    .rows .r.branch .bdel   { order: 3; }
-    .rows .r.branch code    { order: 4; flex: 1 1 100%; overflow-wrap: anywhere; }
-    .rows .r.branch .ev2    { order: 5; flex: 1 1 100%; }
     /* Three buttons at 390px overflow their row; wrapping keeps the
        destructive one whole rather than clipped. */
     .dfoot { flex-wrap: wrap; }
@@ -408,6 +435,15 @@
     .sprow .spstory, .pstory { width: 100%; }
     .phead .pstate, .pband-head .ptally { margin-left: 0; }
     .pload-mark span { transform: none; left: 0 !important; }
+  }
+  /* Tablet portrait: the same auto-fit arithmetic that stacked the tiles
+     on a phone leaves three of them on a row here and drops the fourth
+     below with ~190px of dead space beside it. Counting against the
+     minimum instead fills the row. Only in this band — above it the
+     tiles fit at their natural size, and letting them stretch on a
+     desktop is what the 11rem maximum is there to prevent. */
+  @media (min-width: 40rem) and (max-width: 51rem) {
+    .tiles { grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); }
   }
   /* Touch: nothing hovers, so a control revealed by hover is a control
      nobody finds, and a 24px target is one nobody hits. */
@@ -580,8 +616,14 @@
      The breakpoint is the viewport, not the dialog: the dialog is
      min(58rem, 94vw), so a viewport this wide is always a dialog wide
      enough for two panes. JS reads the same figure to decide what to
-     render, and it is stated once here (see SPLIT in app.js). */
-  @media (min-width: 68rem) {
+     render, and it is stated once here (see SPLIT in app.js).
+
+     64rem, not 68: at 1024 — an iPad in landscape, and the commonest
+     desktop width after it — the dialog has already reached its full
+     58rem and was still showing one pane at a time with half of itself
+     empty, which is the thing the split exists to stop. 64rem puts each
+     pane at 435px, the same width as the panes shipped at 1200. */
+  @media (min-width: 64rem) {
     /* The height is on the container, not on either pane, and that is the
        whole trick: an auto-sized row grows to whatever the preview renders,
        so a long story would stretch the column to the length of the

@@ -44,12 +44,12 @@ which is exactly the thing the split was written to stop.
 
 ## Acceptance
 
-- [ ] Branch rows stack whenever their panel is narrow, at any window width, and the rule reads off the panel rather than the window
-- [ ] A branch row inside a 352px panel is shorter and unbroken compared with the shredded five-column row it replaces
-- [ ] Branch rows keep the desktop five-column layout in a full-width panel
-- [ ] The phone still gets the stacked branch layout it had, now from the same rule rather than a second one
-- [ ] Paired panels sit side by side at a 768px viewport
-- [ ] Stat tiles fill their row at a 768px viewport instead of leaving a gap and a lonely tile
-- [ ] The editor splits into two panes at 1024px, and each pane is no narrower than the ones already shipped at 1200px
-- [ ] Below the split width the tabs still come back, and the JS breakpoint still agrees with the stylesheet
-- [ ] No horizontal overflow at 768, 1024 or 1180, and phone and desktop layouts are unchanged
+- [x] Branch rows stack whenever their panel is narrow, at any window width, and the rule reads off the panel rather than the window
+- [x] A branch row inside a 352px panel is shorter and unbroken compared with the shredded five-column row it replaces
+- [x] Branch rows keep the desktop five-column layout in a full-width panel
+- [x] The phone still gets the stacked branch layout it had, now from the same rule rather than a second one
+- [x] Paired panels sit side by side at a 768px viewport
+- [x] Stat tiles fill their row at a 768px viewport instead of leaving a gap and a lonely tile
+- [x] The editor splits into two panes at 1024px, and each pane is no narrower than the ones already shipped at 1200px
+- [x] Below the split width the tabs still come back, and the JS breakpoint still agrees with the stylesheet
+- [x] No horizontal overflow at 768, 1024 or 1180, and phone and desktop layouts are unchanged

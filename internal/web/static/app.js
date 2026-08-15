@@ -1182,7 +1182,7 @@ function openEditor(spec) {
    would hide half the editor. The figure is the same one in app.css; a
    media query is the honest way to ask, because it is the stylesheet's
    decision this is following, not a guess about the window. */
-const SPLIT = matchMedia("(min-width: 68rem)");
+const SPLIT = matchMedia("(min-width: 64rem)");
 let edPreview = false; // which tab is chosen, for when the panes split apart
 
 function renderPreview() {
