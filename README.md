@@ -428,6 +428,40 @@ them out of the checklist. And like every tick, it is still a claim:
 nothing here sets, gates or downgrades a status, and a done story with
 broken evidence still reads done, in the drift report.
 
+## Import — arriving with a backlog you already have
+
+Adoption used to assume an empty one: `init --agents` wires the repo and
+hands over an empty specs directory, while the real work sits in Issues,
+Jira or Linear.
+
+```sh
+truthboard import github --dry-run          # GitHub Issues, via gh
+truthboard import export.csv --dry-run      # Jira / Linear CSV
+truthboard import export.json               # anything that exports JSON
+```
+
+It is **one-way and one-time**: read the source, write one story file per
+item, commit them as a single reviewable change. No sync, no live
+integration, no second source of truth — the moment the markdown exists,
+git derives everything and where it came from stops mattering.
+
+**Statuses are not imported.** An item the source called done arrives
+planned, and becomes done when its commits land, like every other story
+here. Column mappings are printed rather than guessed silently, and a
+priority the tool does not recognise is left unset rather than invented —
+an invented priority reorders somebody's backlog on import.
+
+Imported stories arrive **visibly incomplete**: no tracker exports
+acceptance criteria, so they carry none and say so, instead of a
+placeholder that would read as a real promise. Because they have no
+checklist, they cannot turn the board red overnight — there is nothing to
+verify until someone writes it.
+
+Re-running is safe. Each story records where it came from, so a second
+import recognises what is already here, skips it, and never overwrites a
+story a human has edited since. Closed source items are skipped unless you
+ask for them, and every skipped item is accounted for in the report.
+
 ## Mirror — for the people who never open a terminal
 
 Forge enrichment reads pull requests, checks and claims. `mirror` is the

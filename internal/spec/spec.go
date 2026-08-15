@@ -33,6 +33,12 @@ type Spec struct {
 	Hold     string   `yaml:"hold,omitempty" json:"hold,omitempty"`         // why work is paused, in a human's words; git decides whether it still holds
 	Repos    []string `yaml:"repos,omitempty" json:"repos,omitempty"`       // workspace repos this story must land in ("hub" or spoke names); done requires all of them
 
+	// Imported records where a story came from when it was not written
+	// here — "github#412", "jira:PROJ-8". It is provenance, not a status:
+	// it says which item in somebody else's tracker this was, so a second
+	// import can recognise it and leave it alone.
+	Imported string `yaml:"imported,omitempty" json:"imported,omitempty"`
+
 	Body string `yaml:"-" json:"-"` // markdown below the frontmatter
 	File string `yaml:"-" json:"-"`
 }
