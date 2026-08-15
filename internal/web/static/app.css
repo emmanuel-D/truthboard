@@ -77,6 +77,21 @@
   }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
 
+  /* A story id: reads as the <code> it replaces — same face, same size,
+     inheriting whatever colour its surroundings give an id — and says it
+     is a control with a dotted underline rather than by shouting in link
+     blue in the middle of a sentence. It is a real <button>, so Tab
+     reaches it and Enter opens it without any of that being written.
+     nowrap because an id is one token: "tb-" and "93a3" on separate
+     lines is not an id anybody can read or copy. */
+  .sid {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em;
+    background: none; border: 0; padding: 0; color: inherit; white-space: nowrap;
+    cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px;
+  }
+  .sid:hover { color: var(--in-progress); text-decoration-style: solid; }
+  .sid:focus-visible { outline: 2px solid var(--in-progress); outline-offset: 2px; border-radius: 3px; }
+
   /* The rhythm between panels lives here and nowhere else. Every panel is
      written as a standalone <section> appended to #app, and with the
      margin reset above, one rule per panel is one rule somebody forgets:
@@ -172,8 +187,15 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; align-items: center; }
-  .chips code { font-size: .68rem; color: var(--muted); }
-  .tag { border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
+  .chips code, .chips .sid { font-size: .68rem; color: var(--muted); }
+  /* A chip is one object, so it never breaks inside itself. In a digest
+     row the line ends wherever the title happens to end, and "✕ bug" was
+     splitting across it: the ✕ kept the first line and "bug" dropped to
+     the second, each half still wearing its side of the rounded border.
+     inline-block as well as nowrap, so a long hold note wraps as a block
+     under its own border instead of pushing the row wider. */
+  .tag { display: inline-block; white-space: nowrap;
+         border: 1px solid var(--hairline); border-radius: 999px; padding: 0 .45rem; font-size: .65rem; color: var(--ink-2); }
   .tag.pri { font-weight: 700; }
   .ver { font-size: .68rem; font-weight: 600; color: var(--muted); vertical-align: .35em; margin-left: .15rem; }
   .tag.type-bug { color: var(--stalled); border-color: var(--stalled); font-weight: 700; }
@@ -242,7 +264,7 @@
   .pstory .ppts { font-size: .68rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .pstory .ppts.none { font-style: italic; color: var(--muted); }
   .pstory .pblock { font-size: .66rem; color: var(--stalled); }
-  .pstory .pblock code { font-size: .64rem; }
+  .pstory .pblock code, .pstory .pblock .sid { font-size: .64rem; }
 
   /* The summary reads as prose, not as a control surface: no chips, no
      icons, generous measure. Its only colour is the semantic rail marking

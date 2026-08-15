@@ -74,6 +74,12 @@ func TestBoardEndpointAndPage(t *testing.T) {
 	// embedded and served same-origin from the binary itself.
 	for _, m := range regexp.MustCompile(`(?:src|href)="([^"]+)"`).FindAllStringSubmatch(html, -1) {
 		url := m[1]
+		// A data: URI is the asset, not a reference to one — nothing is
+		// fetched, which is the property this test exists to protect. The
+		// favicon is inlined that way so a board behind a VPN still has one.
+		if strings.HasPrefix(url, "data:") {
+			continue
+		}
 		if !strings.HasPrefix(url, "/") {
 			t.Errorf("page references a non-embedded asset %q — the binary must be self-contained", url)
 			continue
