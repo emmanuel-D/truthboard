@@ -30,9 +30,9 @@ Scope: README.md, docs/**.
 
 ## Acceptance
 
-- [ ] A committed script rebuilds the demo repo from nothing, so screenshots can be refreshed without inventing a repo by hand
-- [ ] README screenshots are captured from the version that installs today, and show the surfaces it actually ships
-- [ ] Captions say what each picture proves, not merely what it contains
-- [ ] A first-run walkthrough shows the real terminal output of init and audit — what the reader will actually see
-- [ ] The reader can find a section: the README opens with a map of itself
-- [ ] `go test ./...` passes
+- [x] A committed script rebuilds the demo repo from nothing, so screenshots can be refreshed without inventing a repo by hand
+- [x] README screenshots are captured from the version that installs today, and show the surfaces it actually ships
+- [x] Captions say what each picture proves, not merely what it contains
+- [x] A first-run walkthrough shows the real terminal output of init and audit — what the reader will actually see
+- [x] The reader can find a section: the README opens with a map of itself
+- [x] `go test ./...` passes
