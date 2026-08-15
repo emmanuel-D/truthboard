@@ -312,8 +312,8 @@ func Terminal(w io.Writer, res *audit.Result, color bool) error {
 	}
 	if len(d.LandedNotDeleted) > 0 {
 		fmt.Fprintf(w, "%s\n", c(ansiDim, fmt.Sprintf("  Landed but branch not deleted (%d):", len(d.LandedNotDeleted))))
-		for _, u := range d.LandedNotDeleted {
-			fmt.Fprintf(w, "    - %s\n", u.Label())
+		for _, name := range d.LandedNotDeleted {
+			fmt.Fprintf(w, "    - %s\n", name)
 		}
 	}
 	if len(d.ShadowWork) > 0 {
@@ -642,8 +642,8 @@ func Markdown(w io.Writer, res *audit.Result) error {
 	if len(d.LandedNotDeleted) > 0 {
 		fmt.Fprintf(w, "**Landed but branch not deleted (%d):** ", len(d.LandedNotDeleted))
 		names := make([]string, len(d.LandedNotDeleted))
-		for i, u := range d.LandedNotDeleted {
-			names[i] = "`" + u.Label() + "`"
+		for i, name := range d.LandedNotDeleted {
+			names[i] = "`" + name + "`"
 		}
 		fmt.Fprintf(w, "%s\n\n", strings.Join(names, ", "))
 	}

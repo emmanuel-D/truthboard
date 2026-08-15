@@ -40,7 +40,11 @@ from git, never typed** — there is no way to set one, so don't look for it.
 Before any coding task:
 
 1. Check the board first: ` + "`get_board`" + ` (MCP) or ` + "`truthboard audit`" + ` —
-   don't duplicate work that is already in flight.
+   don't duplicate work that is already in flight. It answers with work in
+   flight and the top of the backlog; finished stories are summarised, and
+   ` + "`status`" + `/` + "`epic`" + `/` + "`sprint`" + `/` + "`since`" + `/` + "`limit`" + ` narrow it further. Before filing
+   anything new, ask ` + "`find_spec`" + ` (CLI: ` + "`truthboard find \"text\"`" + `) whether
+   it is already filed — one cheap call instead of reading the whole board.
 2. Get your task: ` + "`get_brief <id>`" + ` returns the story's goal, acceptance
    criteria, scope, and linking instructions. No task named? ` + "`next_spec`" + `
    (CLI: ` + "`truthboard next`" + `) hands you the highest-priority planned

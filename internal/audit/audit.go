@@ -83,8 +83,13 @@ type ShippedSpec struct {
 }
 
 type Drift struct {
-	StalePromises    []Unit       `json:"stale_promises"`
-	LandedNotDeleted []Unit       `json:"landed_not_deleted"`
+	StalePromises []Unit `json:"stale_promises"`
+	// LandedNotDeleted names the spent branches, and only names them. It
+	// used to carry whole unit records, which restated `units` in full — on
+	// this repo, eleven of the drift report's eleven and a half kilobytes
+	// describing 48 branches that the report itself calls clean. Every
+	// surface that renders this list only ever printed the label.
+	LandedNotDeleted []string     `json:"landed_not_deleted"`
 	ShadowWork       []Commit     `json:"shadow_work"`
 	ScopeCreep       []ScopeCreep `json:"scope_creep,omitempty"`
 	DependencyCycles []string     `json:"dependency_cycles,omitempty"` // intent that can never become ready
@@ -136,6 +141,7 @@ type Result struct {
 	Plan         *PlanRollup    `json:"plan,omitempty"`    // the sprint about to start: rollover, candidates, load
 	Summary      *Summary       `json:"summary,omitempty"` // the same facts in plain language, for readers who do not read git
 	Specs        []SpecStatus   `json:"specs,omitempty"`
+	Omitted      *Omitted       `json:"omitted,omitempty"` // set on a lean view: what it left out, and how to ask for it
 	Claims       []Claim        `json:"claims,omitempty"`
 	Forge        string         `json:"forge,omitempty"` // owner/name when forge data enriched the audit
 	StaleDays    int            `json:"stale_days"`
@@ -295,7 +301,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 		case Stalled:
 			res.Drift.StalePromises = append(res.Drift.StalePromises, u)
 		case Done:
-			res.Drift.LandedNotDeleted = append(res.Drift.LandedNotDeleted, u)
+			res.Drift.LandedNotDeleted = append(res.Drift.LandedNotDeleted, u.Label())
 		}
 	}
 	return res, nil

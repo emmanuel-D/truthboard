@@ -90,14 +90,14 @@ func TestHandshakeAndToolList(t *testing.T) {
 		t.Errorf("initialize result = %v", init)
 	}
 	tools := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 8 {
-		t.Errorf("got %d tools, want 8", len(tools))
+	if len(tools) != 9 {
+		t.Errorf("got %d tools, want 9", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tl := range tools {
 		names[tl.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"list_specs", "get_brief", "check_acceptance", "next_spec", "create_spec", "update_spec", "delete_spec", "get_board"} {
+	for _, want := range []string{"list_specs", "get_brief", "check_acceptance", "next_spec", "create_spec", "update_spec", "delete_spec", "get_board", "find_spec"} {
 		if !names[want] {
 			t.Errorf("missing tool %q", want)
 		}
@@ -339,5 +339,150 @@ func TestCheckAcceptanceRecordsTheHalfGitCannotDerive(t *testing.T) {
 	// Statuses are derived: the tool must reject any attempt to set one.
 	if text, isErr := toolText(t, responses[2]); !isErr || !strings.Contains(text, "statuses are derived") {
 		t.Errorf("passing a status = %q (err=%v), want a loud refusal", text, isErr)
+	}
+}
+
+// call runs one tool and returns its text payload and whether it errored.
+func call(t *testing.T, repo, tool, args string) (string, bool) {
+	t.Helper()
+	frame := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `","arguments":` + args + `}}`
+	return toolText(t, drive(t, repo, frame)[0])
+}
+
+// TestBoardNarrowsWhenAsked covers the parameters that let an agent ask for
+// less than everything — the whole point of the story: a board nobody can
+// narrow is a board that eventually cannot be read at all.
+func TestBoardNarrowsWhenAsked(t *testing.T) {
+	repo := fixtureRepo(t)
+
+	full, isErr := call(t, repo, "get_board", `{}`)
+	if isErr {
+		t.Fatalf("get_board failed: %s", full)
+	}
+	if !strings.Contains(full, "tb-mcp1") {
+		t.Fatalf("the unfiltered board should carry the fixture story: %s", full)
+	}
+
+	// The fixture story is planned, so asking for done must exclude it from
+	// the spec list — and must not error just because the answer is empty.
+	// Rollups that answer a different question (plan, summary) are labelled
+	// as such and stay whole; the filter narrows the board's spec list.
+	done, isErr := call(t, repo, "get_board", `{"status":["done"]}`)
+	if isErr {
+		t.Fatalf("filtered get_board failed: %s", done)
+	}
+	if ids := specIDs(t, done); len(ids) != 0 {
+		t.Errorf("status:done returned planned stories: %v", ids)
+	}
+
+	planned, _ := call(t, repo, "get_board", `{"status":["planned"],"limit":5}`)
+	if ids := specIDs(t, planned); len(ids) != 1 || ids[0] != "tb-mcp1" {
+		t.Errorf("status:planned returned %v, want the planned story", ids)
+	}
+}
+
+// statusOf reads one story's derived status out of a board payload.
+func statusOf(t *testing.T, board, id string) string {
+	t.Helper()
+	var b struct {
+		Specs []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"specs"`
+	}
+	if err := json.Unmarshal([]byte(board), &b); err != nil {
+		t.Fatalf("decoding board: %v\n%s", err, board)
+	}
+	for _, s := range b.Specs {
+		if s.ID == id {
+			return s.Status
+		}
+	}
+	t.Fatalf("story %q not in the board: %s", id, board)
+	return ""
+}
+
+// specIDs reads the ids out of a board payload's spec list.
+func specIDs(t *testing.T, board string) []string {
+	t.Helper()
+	var b struct {
+		Specs []struct {
+			ID string `json:"id"`
+		} `json:"specs"`
+	}
+	if err := json.Unmarshal([]byte(board), &b); err != nil {
+		t.Fatalf("decoding board: %v\n%s", err, board)
+	}
+	var ids []string
+	for _, s := range b.Specs {
+		ids = append(ids, s.ID)
+	}
+	return ids
+}
+
+// TestUnknownFilterValueFailsLoudly is the failure mode worth guarding: a
+// caller who asked a narrow question, got a wide answer, and could not tell.
+func TestUnknownFilterValueFailsLoudly(t *testing.T) {
+	repo := fixtureRepo(t)
+	out, isErr := call(t, repo, "get_board", `{"status":["shipped"]}`)
+	if !isErr {
+		t.Fatalf("an unknown status must be an error, got: %s", out)
+	}
+	if !strings.Contains(out, "planned") {
+		t.Errorf("the error must name the statuses that exist: %s", out)
+	}
+	// An unknown *parameter* is still refused — the contract that keeps
+	// "status" from being mistaken for something settable.
+	if out, isErr := call(t, repo, "get_board", `{"state":"done"}`); !isErr {
+		t.Errorf("an unknown argument must be refused, got: %s", out)
+	}
+}
+
+// TestFindSpecAnswersWithoutTheBoard covers the cheap duplicate check an
+// agent needs before create_spec.
+func TestFindSpecAnswersWithoutTheBoard(t *testing.T) {
+	repo := fixtureRepo(t)
+
+	hit, isErr := call(t, repo, "find_spec", `{"query":"fixture"}`)
+	if isErr {
+		t.Fatalf("find_spec failed: %s", hit)
+	}
+	for _, want := range []string{"tb-mcp1", "MCP fixture spec", "planned"} {
+		if !strings.Contains(hit, want) {
+			t.Errorf("a match must carry %q: %s", want, hit)
+		}
+	}
+	// Cheap means cheap: the answer is the matches, not the board.
+	for _, unwanted := range []string{"drift", "digest", "integration_branch"} {
+		if strings.Contains(hit, unwanted) {
+			t.Errorf("find_spec answered with the board (%q present): %s", unwanted, hit)
+		}
+	}
+	if miss, _ := call(t, repo, "find_spec", `{"query":"nothing here says this"}`); strings.Contains(miss, "tb-mcp1") {
+		t.Errorf("a query that matches nothing must return nothing: %s", miss)
+	}
+	if out, isErr := call(t, repo, "find_spec", `{"query":"  "}`); !isErr {
+		t.Errorf("an empty query must be refused, got: %s", out)
+	}
+}
+
+// TestLeanBoardSaysWhatItLeftOut: a summarised board that did not say so
+// would be a board that lies by omission.
+func TestLeanBoardSaysWhatItLeftOut(t *testing.T) {
+	repo := fixtureRepo(t)
+	out, _ := call(t, repo, "get_board", `{}`)
+	// The fixture is small enough to omit nothing, so the promise to check
+	// is that full:true is accepted and still derives the same status.
+	full, isErr := call(t, repo, "get_board", `{"full":true}`)
+	if isErr {
+		t.Fatalf("full board failed: %s", full)
+	}
+	for name, board := range map[string]string{"default": out, "full": full} {
+		if got := statusOf(t, board, "tb-mcp1"); got != "planned" {
+			t.Errorf("%s view derived %q for tb-mcp1, want planned — a view must never change a status", name, got)
+		}
+	}
+	if len(full) < len(out) {
+		t.Errorf("the full board (%d) should carry at least as much as the default (%d)", len(full), len(out))
 	}
 }

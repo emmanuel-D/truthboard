@@ -161,7 +161,7 @@ product.
 Claude-specific in it: any MCP-capable client works — Claude Code is one
 of them, not the requirement. Which *model* your client is driving —
 Claude, GPT, whatever the picker offers — is equally irrelevant: MCP is a
-property of the client, and the client hands your model the same six
+property of the client, and the client hands your model the same nine
 tools either way. `truthboard adopt` registers the server in **both**
 committed config files — `.mcp.json` (Claude Code, and the shape Cursor
 and friends read) and `.vscode/mcp.json` (VS Code, and so GitHub Copilot)
@@ -219,6 +219,48 @@ this machine's absolute paths do not belong in it. A path that is not a
 git repository fails at startup with the same message every other command
 gives, instead of starting and refusing every tool call afterwards.
 
+### The board fits in a context window
+
+`get_board` is the first call of every agent session, so its size is a
+feature. The default answer carries **work in flight whole**, the top of
+the backlog, and the most recently finished stories summarised to id,
+title, status and tick counts — with an `omitted` block saying exactly
+what was left out and how to ask for it. On this repo that is the
+difference between 94,609 characters (refused by the client that asked
+for it) and roughly 45,000.
+
+It is *bounded*, not merely smaller: a backlog three times the size does
+not produce a board three times as big, because every section has a
+ceiling. Ask for more when you want it:
+
+```jsonc
+get_board {}                                   // the default, summarised
+get_board {"status": ["in-progress","stalled"]} // just what is moving
+get_board {"epic": "po-experience", "limit": 20}
+get_board {"since": "2026-08-01"}              // touched since a date
+get_board {"full": true}                       // every field of everything
+```
+
+The same narrowing works on the CLI — `truthboard audit --status
+in-progress --format json`, `--full` for everything — so the two agree.
+An unknown status or an unparseable date is an **error**, never a
+silently ignored argument: getting the whole board back while believing
+you asked for a slice of it is the one outcome worse than a board that is
+too big.
+
+And before filing anything, ask whether it exists already:
+
+```sh
+truthboard find "cycle time"     # CLI
+```
+```jsonc
+find_spec {"query": "cycle time"}  // MCP — ids, titles, derived statuses
+```
+
+It searches ids, titles, epics and the stories' own text, and answers with
+matches instead of the board. Filtering and searching only change what is
+*shown*; every status they report is the same one git derives.
+
 **An upgrade does not reach a server that is already running.** Your client
 spawns `truthboard mcp` once and keeps that process for the session, so
 after a `brew upgrade` the agent is still talking to the build it started
@@ -227,7 +269,7 @@ sounding exactly as confident about it. Restarting the client is what picks
 up the new one. Truthboard says so rather than leaving you to find out: a
 superseded server attaches a warning naming both versions to every answer
 that carries a derived status (`get_board`, `next_spec`, `list_specs`,
-`get_brief`), and `truthboard status` lists any MCP server on this machine
+`get_brief`, `find_spec`), and `truthboard status` lists any MCP server on this machine
 older than the installed binary, next to the detached boards it already
 reports. Both are warnings — a stale server keeps answering, because one
 that refused would strand the session that needed it.

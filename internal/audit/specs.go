@@ -44,6 +44,7 @@ type SpecStatus struct {
 	Status           Status        `json:"status"`
 	Evidence         string        `json:"evidence"`
 	Branches         []string      `json:"branches,omitempty"`
+	Updated          string        `json:"updated,omitempty"`     // newest commit carrying its trailer — derived, the date `since` filters on
 	Landed           string        `json:"landed,omitempty"`      // newest trailer commit reachable from the integration branch
 	LandedRepo       string        `json:"landed_repo,omitempty"` // workspace repo the landing commit is in; empty means the hub
 	PerRepo          []RepoLanding `json:"per_repo,omitempty"`    // derived state per declared repo, in declaration order
@@ -90,6 +91,9 @@ func linkSpecs(ctxs []repoCtx, res *Result, specs []spec.Spec, opts Options) *tr
 		ss := SpecStatus{ID: s.ID, Title: s.Title, Owner: s.Owner,
 			Epic: s.Epic, Sprint: s.Sprint, Priority: s.Priority, Points: s.Points, Type: s.Type, Needs: s.Needs, Hold: s.Hold, File: s.File}
 		ss.AcceptanceDone, ss.AcceptanceTotal = acceptanceProgress(s.Body)
+		if t := idx.times[s.ID]; t != nil && !t.lastSeen.IsZero() {
+			ss.Updated = t.lastSeen.Format(spec.DateLayout)
+		}
 
 		var linked []*Unit
 		for j := range res.Units {
@@ -184,6 +188,7 @@ type specTimes struct {
 	openSince time.Time // oldest unmerged commit carrying it, on any branch
 	landingAt time.Time // the landing commit's own date
 	mergedAt  time.Time // when the integration branch got it, when a merge says so
+	lastSeen  time.Time // newest commit carrying it anywhere — the story's last sign of life
 }
 
 // startedAt is when work began: the first commit that carried the trailer
@@ -229,6 +234,16 @@ func noteEarliest(dst *time.Time, when time.Time) {
 		return
 	}
 	if dst.IsZero() || when.Before(*dst) {
+		*dst = when
+	}
+}
+
+// noteLatest keeps the newest of two dates, treating zero as unset.
+func noteLatest(dst *time.Time, when time.Time) {
+	if when.IsZero() {
+		return
+	}
+	if dst.IsZero() || when.After(*dst) {
 		*dst = when
 	}
 }
@@ -294,7 +309,9 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 					continue
 				}
 				ids[m[1]] = true
-				noteEarliest(&idx.at(m[1]).openSince, when)
+				t := idx.at(m[1])
+				noteEarliest(&t.openSince, when)
+				noteLatest(&t.lastSeen, when)
 			}
 		}
 		idx.unmerged[unitKey(u)] = ids
@@ -338,6 +355,7 @@ func indexTrailers(ctxs []repoCtx, units []Unit, specs []spec.Spec) *trailers {
 				// the promise changed.
 				t := idx.at(m[1])
 				noteEarliest(&t.filed, when)
+				noteLatest(&t.lastSeen, when)
 				if filing {
 					continue
 				}

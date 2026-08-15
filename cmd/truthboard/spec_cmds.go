@@ -634,3 +634,58 @@ func runLink(args []string) int {
 	fmt.Printf("linked %s to branch %q — the fix went into the spec file, the status stays derived\n", s.ID, branch)
 	return 0
 }
+
+// splitList turns a comma-separated flag value into its parts, dropping
+// empties so "--status done," is not a request for a status named "".
+func splitList(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// runFind is the CLI half of find_spec: the cheap answer to "did we already
+// file this?" — no board, no context window spent, one line per hit.
+func runFind(args []string) int {
+	fs := flag.NewFlagSet("find", flag.ExitOnError)
+	limit := fs.Int("limit", 20, "maximum matches to show")
+	fs.Parse(args)
+	if fs.NArg() == 0 {
+		fmt.Fprintln(os.Stderr, `truthboard find "text" [--limit n] [repo]`)
+		return 2
+	}
+	query := fs.Arg(0)
+	repo := "."
+	if fs.NArg() > 1 {
+		repo = fs.Arg(1)
+	}
+
+	res, err := audit.Audit(repo, audit.Options{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	specs, err := spec.Load(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+
+	matches := audit.Find(res, specs, query, *limit)
+	if len(matches) == 0 {
+		fmt.Printf("nothing filed matches %q — safe to create it\n", query)
+		return 0
+	}
+	fmt.Printf("%d story(ies) already filed match %q:\n", len(matches), query)
+	for _, m := range matches {
+		fmt.Printf("  %-12s %-12s %s", m.ID, m.Status, m.Title)
+		if m.Where != "title" {
+			fmt.Printf("  (matched in %s)", m.Where)
+		}
+		fmt.Println()
+	}
+	return 0
+}

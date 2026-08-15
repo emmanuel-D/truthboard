@@ -568,3 +568,44 @@ func TestAgreementAsksForTheAcceptanceTick(t *testing.T) {
 		t.Error("re-running adopt duplicated the tick step instead of replacing the block")
 	}
 }
+
+// TestAgentsUpgradesAnOlderBlock covers the upgrade path the marker exists
+// for: a repo wired by an earlier version must end up with the current
+// agreement, in one block, not two agreements disagreeing about step 1.
+func TestAgentsUpgradesAnOlderBlock(t *testing.T) {
+	repo := gitRepo(t)
+	stale := "# Agents\n\n" + beginMark + `
+## Truthboard working agreement
+
+1. Check the board first: an older wording nobody maintains any more.
+` + endMark + "\n\nSomething the repo's own author wrote, which must survive.\n"
+	if err := os.WriteFile(filepath.Join(repo, "AGENTS.md"), []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Agents(repo, true); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(repo, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(got)
+
+	if n := strings.Count(out, beginMark); n != 1 {
+		t.Errorf("AGENTS.md has %d truthboard blocks, want exactly 1 — the old one is replaced, never appended to", n)
+	}
+	if strings.Contains(out, "an older wording nobody maintains") {
+		t.Error("the stale agreement survived the upgrade")
+	}
+	if !strings.Contains(out, "Something the repo's own author wrote") {
+		t.Error("upgrading the block ate text outside it")
+	}
+	// Step 1 must name the cheap calls: a board that has to be read whole is
+	// the failure this wording exists to prevent.
+	for _, want := range []string{"find_spec", "truthboard find", "narrow"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the working agreement must name %q so agents ask cheaply first", want)
+		}
+	}
+}
