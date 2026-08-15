@@ -188,7 +188,13 @@ function md(src, interactive = false) {
     if ((m = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)/))) {
       flushP(); if (!list) { out.push("<ul>"); list = true; }
       const attrs = interactive ? ` data-ti="${task++}"` : " disabled";
-      out.push(`<li class="task"><label><input type="checkbox"${attrs}${m[1] !== " " ? " checked" : ""}>${inlineMd(m[2])}</label></li>`); continue;
+      // The criterion goes in a span of its own, never loose in the label.
+      // The label is a flex row so a long criterion wraps against itself
+      // rather than under its own checkbox — and flex makes a child of
+      // every top-level node, so a criterion naming a `file` or a `flag`
+      // was being broken into three columns at the code span, with the
+      // words after it jumping back to the line above.
+      out.push(`<li class="task"><label><input type="checkbox"${attrs}${m[1] !== " " ? " checked" : ""}><span>${inlineMd(m[2])}</span></label></li>`); continue;
     }
     if ((m = line.match(/^\s*[-*]\s+(.*)/))) {
       flushP(); if (!list) { out.push("<ul>"); list = true; }
@@ -1170,17 +1176,42 @@ function openEditor(spec) {
   dlg.showModal();
 }
 
+/* Write and Preview are tabs only while the screen is too narrow to hold
+   both. Above the breakpoint the stylesheet lays them out as two columns
+   and hides the tab buttons, so nothing here may hide either pane — it
+   would hide half the editor. The figure is the same one in app.css; a
+   media query is the honest way to ask, because it is the stylesheet's
+   decision this is following, not a guess about the window. */
+const SPLIT = matchMedia("(min-width: 68rem)");
+let edPreview = false; // which tab is chosen, for when the panes split apart
+
+function renderPreview() {
+  document.getElementById("ed-preview").innerHTML =
+    md(document.getElementById("ed-b").value) || `<p style="color:var(--muted)">Nothing to preview.</p>`;
+}
+
 function setTab(preview) {
+  edPreview = preview;
+  const split = SPLIT.matches;
   document.getElementById("tab-write").classList.toggle("on", !preview);
   document.getElementById("tab-preview").classList.toggle("on", preview);
-  document.getElementById("ed-b").hidden = preview;
-  document.getElementById("ed-b-hint").hidden = preview;
+  document.getElementById("ed-b").hidden = !split && preview;
+  document.getElementById("ed-b-hint").hidden = !split && preview;
   const pv = document.getElementById("ed-preview");
-  pv.hidden = !preview;
-  if (preview) pv.innerHTML = md(document.getElementById("ed-b").value) || `<p style="color:var(--muted)">Nothing to preview.</p>`;
+  pv.hidden = !split && !preview;
+  if (!pv.hidden) renderPreview();
 }
 document.getElementById("tab-write").addEventListener("click", () => setTab(false));
 document.getElementById("tab-preview").addEventListener("click", () => setTab(true));
+// Split, the preview is not a snapshot taken when a tab was clicked: it is
+// the other half of what is being typed, and has to keep up with it.
+document.getElementById("ed-b").addEventListener("input", () => {
+  if (SPLIT.matches) renderPreview();
+});
+// A window dragged across the breakpoint with the editor open re-decides
+// the same question, so the layout it lands in is the one it would have
+// opened at that width.
+SPLIT.addEventListener("change", () => setTab(edPreview));
 
 /* ---------- the acceptance list writes itself ----------
 
@@ -1207,7 +1238,13 @@ function typeInto(ta, text) {
   ta.focus();
   const ok = text ? document.execCommand("insertText", false, text)
                   : document.execCommand("delete");
-  if (!ok) ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end");
+  // execCommand fires input for us; setRangeText does not, and a preview
+  // watching this field would sit there stale on the browsers that take
+  // the fallback.
+  if (!ok) {
+    ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end");
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
 }
 
 function nextMarker(marker) {

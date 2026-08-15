@@ -61,9 +61,14 @@
     <div class="md" id="dt-md"></div>
     <!-- Two blocks, never one: intent is what a human declared and can
          change, derived truth is git's answer. Mixing them once hid
-         declared repos inside a heading that says "not editable". -->
-    <div class="truth" id="dt-intent"></div>
-    <div class="truth" id="dt-truth"></div>
+         declared repos inside a heading that says "not editable".
+         Side by side wherever there is room for two columns; the wrapper
+         is what lets them be, and what keeps them stacked when there is
+         not. -->
+    <div class="truths">
+      <div class="truth" id="dt-intent"></div>
+      <div class="truth" id="dt-truth"></div>
+    </div>
   </div>
   <div class="dfoot">
     <button class="btn" id="dt-close">Close</button>
@@ -117,9 +122,14 @@
         <button type="button" class="tabact" id="ed-add-ac"
                 title="Add an acceptance criterion to the Acceptance section">+ Criterion</button>
       </div>
-      <textarea id="ed-b" spellcheck="false"></textarea>
-      <p class="note" id="ed-b-hint">Enter continues a checklist or bullet — leave one empty to end the list.</p>
-      <div class="md" id="ed-preview" hidden></div>
+      <!-- One wrapper so the two panes can become two columns on a wide
+           screen. Narrow, it is a plain stack and the tabs above decide
+           which of its children is showing. -->
+      <div class="edpanes">
+        <textarea id="ed-b" spellcheck="false"></textarea>
+        <p class="note" id="ed-b-hint">Enter continues a checklist or bullet — leave one empty to end the list.</p>
+        <div class="md" id="ed-preview" hidden></div>
+      </div>
     </div>
     <div class="err" id="ed-err"></div>
     <div class="dfoot">
