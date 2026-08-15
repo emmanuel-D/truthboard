@@ -12,6 +12,7 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/importer"
 	"github.com/emmanuel-D/truthboard/internal/mirror"
 	"github.com/emmanuel-D/truthboard/internal/report"
 	"github.com/emmanuel-D/truthboard/internal/spec"
@@ -838,4 +839,103 @@ func runMirror(args []string) int {
 	}
 	fmt.Printf("\n%s on %s\n", done.Summary(), plan.Repo)
 	return 0
+}
+
+// runImport brings an existing backlog in — one way, one time, into files.
+func runImport(args []string) int {
+	fs := flag.NewFlagSet("import", flag.ExitOnError)
+	dryRun := fs.Bool("dry-run", false, "show exactly what would be written, and write nothing")
+	closed := fs.Bool("closed", false, "bring items the source has already closed (skipped by default)")
+	noCommit := fs.Bool("no-commit", false, "leave the written stories uncommitted")
+	repoFlag := fs.String("repo", ".", "repository to import into")
+	args = hoistFlags(args, map[string]bool{"repo": true})
+	fs.Parse(args)
+	if fs.NArg() == 0 {
+		fmt.Fprintln(os.Stderr, `truthboard import <github|path/to/export.csv|export.json> [--dry-run] [--closed]`)
+		return 2
+	}
+	source, repo := fs.Arg(0), *repoFlag
+
+	var items []importer.Item
+	var err error
+	if strings.EqualFold(source, "github") {
+		items, err = importer.FromGitHub(repo)
+	} else {
+		items, err = importer.FromFile(source)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+
+	existing, err := spec.Load(repo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	plan := importer.Build(source, items, existing, *closed)
+
+	fmt.Printf("\nIMPORT  %s\n", plan.Summary())
+	fmt.Println("\n  How the fields were read:")
+	for _, m := range plan.Mapping {
+		fmt.Printf("    · %s\n", m)
+	}
+	if n := len(plan.New); n > 0 {
+		fmt.Printf("\n  Would write %d story(ies):\n", n)
+		for i, it := range plan.New {
+			if i == 10 {
+				fmt.Printf("    … and %d more\n", n-10)
+				break
+			}
+			fmt.Printf("    %-16s %s\n", it.Key, truncateLine(it.Title, 64))
+		}
+	}
+	if n := len(plan.Skipped); n > 0 {
+		fmt.Printf("\n  Skipped %d:\n", n)
+		counts := map[string]int{}
+		for _, s := range plan.Skipped {
+			counts[s.Why]++
+		}
+		for why, c := range counts {
+			fmt.Printf("    %d × %s\n", c, why)
+		}
+	}
+	if *dryRun {
+		fmt.Println("\nnothing was written — this was a dry run")
+		return 0
+	}
+	if len(plan.New) == 0 {
+		return 0
+	}
+
+	written, err := importer.Write(repo, plan)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\ntruthboard: import stopped after %d story(ies): %v\n", len(written), err)
+		return 1
+	}
+	fmt.Printf("\nwrote %d story(ies) to %s\n", len(written), spec.Dir(repo))
+
+	if *noCommit {
+		fmt.Println("left uncommitted — review them, then commit as one intent change")
+		return 0
+	}
+	msg := fmt.Sprintf("Import %d story(ies) from %s\n\nIntent only: statuses stay derived from git.", len(written), source)
+	if _, err := gitrepo.Run(repo, "add", "--", ".truthboard/specs"); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: staging the import: %v\n", err)
+		return 1
+	}
+	if _, err := gitrepo.Run(repo, "commit", "-m", msg); err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: committing the import: %v\n", err)
+		return 1
+	}
+	fmt.Println("committed as one reviewable change — `git show` to read it, `git revert` to undo it")
+	return 0
+}
+
+// truncateLine keeps a title on one line in a list.
+func truncateLine(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
 }

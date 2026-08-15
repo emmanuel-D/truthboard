@@ -39,11 +39,11 @@ land them visibly incomplete rather than quietly fake.
 
 ## Acceptance
 
-- [ ] `truthboard import` reads an existing backlog — GitHub Issues via `gh` and a documented file format (CSV or JSON export) covering Jira and Linear — and writes one spec file per item
-- [ ] Title, description, owner, labels-as-epic and priority are carried across where the source has them, and mapping choices are stated rather than guessed silently
-- [ ] Imported stories with no acceptance criteria are marked as such and are excluded from unverified-acceptance drift until someone writes them, so a large import cannot turn the board red overnight
-- [ ] `--dry-run` reports exactly what would be written, with the count and a sample, and writes nothing
-- [ ] Re-running the import does not duplicate what it already wrote, and never overwrites a spec a human has since edited
-- [ ] Statuses are not imported: an item that the source called "done" is derived from git like everything else, and the docs say so plainly
-- [ ] The import is a single reviewable intent commit, and closed or cancelled source items are skipped by default
-- [ ] `go test ./...` passes
+- [x] `truthboard import` reads an existing backlog — GitHub Issues via `gh` and a documented file format (CSV or JSON export) covering Jira and Linear — and writes one spec file per item — proof: `TestCSVExportIsRead`
+- [x] Title, description, owner, labels-as-epic and priority are carried across where the source has them, and mapping choices are stated rather than guessed silently — proof: `TestMappingIsStated`
+- [x] Imported stories with no acceptance criteria are marked as such and are excluded from unverified-acceptance drift until someone writes them, so a large import cannot turn the board red overnight — proof: `TestImportedStoriesArriveVisiblyIncomplete`
+- [x] `--dry-run` reports exactly what would be written, with the count and a sample, and writes nothing — proof: `internal/importer/importer.go`
+- [x] Re-running the import does not duplicate what it already wrote, and never overwrites a spec a human has since edited — proof: `TestReImportDoesNotDuplicateOrOverwrite`
+- [x] Statuses are not imported: an item that the source called "done" is derived from git like everything else, and the docs say so plainly — proof: `TestImportedStoriesArriveVisiblyIncomplete`
+- [x] The import is a single reviewable intent commit, and closed or cancelled source items are skipped by default — proof: `TestClosedItemsAreSkippedByDefault`
+- [x] `go test ./...` passes — proof: `ci:build`
