@@ -25,7 +25,8 @@ type State struct {
 	URL     string    `json:"url"`
 	Host    string    `json:"host,omitempty"`
 	Fetch   string    `json:"fetch,omitempty"`
-	Edit    string    `json:"edit,omitempty"` // "token" when intent editing is armed on a shared board
+	Digest  string    `json:"digest,omitempty"` // interval of the scheduled what-changed digest
+	Edit    string    `json:"edit,omitempty"`   // "token" when intent editing is armed on a shared board
 	Started time.Time `json:"started"`
 }
 
@@ -161,6 +162,12 @@ func Detach(repo string, o web.Options) (*State, error) {
 	if o.FetchEvery > 0 {
 		args = append(args, "--fetch", o.FetchEvery.String())
 	}
+	// An interval is not a secret, so it travels in argv like the rest of
+	// the schedule. Dropping it here would leave a detached board quietly
+	// not sending the digest its operator asked for.
+	if o.DigestEvery > 0 {
+		args = append(args, "--digest", o.DigestEvery.String())
+	}
 	args = append(args, repo)
 	cmd := exec.Command(exe, args...)
 	if o.WebhookSecret != "" || o.NotifyURL != "" || o.EditToken != "" {
@@ -193,6 +200,9 @@ func Detach(repo string, o web.Options) (*State, error) {
 	}
 	if o.FetchEvery > 0 {
 		s.Fetch = o.FetchEvery.String()
+	}
+	if o.DigestEvery > 0 {
+		s.Digest = o.DigestEvery.String()
 	}
 	if o.Shared() && o.EditToken != "" {
 		s.Edit = "token"
@@ -292,6 +302,9 @@ func Status(repo, version string) (string, error) {
 		s.URL, s.PID, time.Since(s.Started).Round(time.Second))
 	if s.Fetch != "" {
 		line += " · fetching origin every " + s.Fetch
+	}
+	if s.Digest != "" {
+		line += " · digest every " + s.Digest
 	}
 	if (web.Options{Host: s.Host}).Shared() {
 		if s.Edit == "token" {

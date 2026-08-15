@@ -97,6 +97,11 @@ type Options struct {
 	// status enters (or leaves) stalled/regressed, the board posts the
 	// transition to this webhook (generic JSON, Slack-compatible).
 	NotifyURL string
+
+	// DigestEvery turns on the scheduled digest on the same webhook: what
+	// changed across the whole board since the last one that was sent.
+	// Zero leaves notifications as they were — transitions only.
+	DigestEvery time.Duration
 	// EditToken arms intent writes on a shared board: a request carrying
 	// this token may create and edit specs, and the server lands each
 	// edit as a commit pushed to origin — so a story written on a phone
@@ -175,6 +180,12 @@ func Handler(repo string, o Options) *Board {
 	if o.NotifyURL != "" {
 		alerts = &notifier{repo: repo, url: o.NotifyURL}
 		go alerts.run(time.Minute)
+		// Transitions interrupt; the digest arrives on a schedule. Both go
+		// to the same webhook, because "tell me what happened" is one
+		// setting, not two.
+		if o.DigestEvery > 0 {
+			go (&digester{repo: repo, url: o.NotifyURL}).run(o.DigestEvery)
+		}
 	}
 
 	// A token-armed shared board has no human at the keyboard to commit

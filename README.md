@@ -394,6 +394,48 @@ TUI (`f`), the web board and `get_board` over MCP — all quoting one
 sentence rendered once, so no two surfaces can describe the same repo
 differently.
 
+## What changed since — the standup question
+
+Every status the board serves describes *now*. `since` answers the other
+question, from the same evidence:
+
+```sh
+truthboard since 2026-08-01        # or a ref, or a commit
+truthboard since HEAD~20 --format json
+```
+
+It reports what landed, what came undone, what was filed or retired, which
+acceptance criteria were ticked or withdrawn, and which landed work is
+still carrying promises nobody read back. **No snapshot is stored and
+nothing has to have been running**: the board as it stood at any commit is
+recomputed from that commit, so two people asking the same question of the
+same repo get the same answer — including the one who installed truthboard
+this morning.
+
+What a commit cannot remember, `since` does not claim: delivery, filing,
+retirement and sign-off are facts about commits and files, but "which
+branches were moving last Tuesday" is not, because a branch deleted since
+left nothing behind to say it was moving. The report says so rather than
+guessing.
+
+Put it on a schedule and it comes to you:
+
+```sh
+truthboard ui --notify "$SLACK_WEBHOOK" --digest 24h
+```
+
+Transitions still interrupt when a story stalls or regresses; the digest
+arrives on its interval with the same difference `since` prints. It stays
+**silent when nothing changed** — a digest that said "nothing to report"
+every morning would be muted within a week — and never repeats news it has
+already sent, while a digest that failed to send is kept for the next run
+rather than lost. No API key is involved anywhere in this: it is arithmetic
+over commits, in plain language.
+
+The webhook URL never reaches the logs. Stripping embedded credentials is
+not enough for a webhook — in Slack, Discord and Teams the secret *is* the
+path — so a failed post says a webhook failed without saying which.
+
 ## Terminal board — the same truth, no browser
 
 ```sh

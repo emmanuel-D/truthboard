@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/emmanuel-D/truthboard/internal/adopt"
 	"github.com/emmanuel-D/truthboard/internal/audit"
 	"github.com/emmanuel-D/truthboard/internal/gitrepo"
+	"github.com/emmanuel-D/truthboard/internal/report"
 	"github.com/emmanuel-D/truthboard/internal/spec"
 	"github.com/emmanuel-D/truthboard/internal/workspace"
 )
@@ -687,5 +689,39 @@ func runFind(args []string) int {
 		}
 		fmt.Println()
 	}
+	return 0
+}
+
+// runSince answers "what changed while I was away" — the standup question.
+// Derived from two commits, so it needs nothing to have been running and
+// gives the same answer to whoever asks.
+func runSince(args []string) int {
+	fs := flag.NewFlagSet("since", flag.ExitOnError)
+	format := fs.String("format", "term", "output format: term, json")
+	fs.Parse(args)
+	if fs.NArg() == 0 {
+		fmt.Fprintln(os.Stderr, `truthboard since <ref|commit|date> [repo]   e.g. truthboard since 2026-08-01`)
+		return 2
+	}
+	repo := "."
+	if fs.NArg() > 1 {
+		repo = fs.Arg(1)
+	}
+
+	diff, err := audit.SinceDiff(repo, fs.Arg(0))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+		return 1
+	}
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(diff); err != nil {
+			fmt.Fprintf(os.Stderr, "truthboard: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	report.Since(os.Stdout, diff, isTTY())
 	return 0
 }
