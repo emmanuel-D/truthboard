@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/emmanuel-D/truthboard/internal/audit"
+	"github.com/emmanuel-D/truthboard/internal/mirror"
 )
 
 var statusOrder = []audit.Status{audit.InReview, audit.InProgress, audit.Stalled, audit.Done}
@@ -772,4 +773,36 @@ func Since(w io.Writer, d *audit.Diff, color bool) {
 	fmt.Fprintf(w, "\n%s\n\n", c(ansiDim,
 		"  Commits remember delivery, filing and sign-off. They do not remember which branches were\n"+
 			"  moving on a past day, so \"was in progress then\" is not derivable and is not reported."))
+}
+
+// MirrorPlan renders what mirroring would do. The same plan is printed
+// whether or not it is about to be applied, with only the tense changing,
+// so a dry run and a real run cannot describe different work.
+func MirrorPlan(w io.Writer, p *mirror.Plan, applying bool) {
+	verb := func(will, doing string) string {
+		if applying {
+			return doing
+		}
+		return will
+	}
+	fmt.Fprintf(w, "\nMIRROR  %s\n", p.Summary())
+	if p.Empty() {
+		return
+	}
+	section := func(title string, as []mirror.Action) {
+		if len(as) == 0 {
+			return
+		}
+		fmt.Fprintf(w, "\n  %s (%d)\n", title, len(as))
+		for _, a := range as {
+			ref := "new issue"
+			if a.Number > 0 {
+				ref = fmt.Sprintf("#%d", a.Number)
+			}
+			fmt.Fprintf(w, "    %-10s %-12s %s — %s\n", a.SpecID, ref, truncate(a.Title, 56), a.Why)
+		}
+	}
+	section(verb("Would create", "Creating"), p.Create)
+	section(verb("Would update", "Updating"), p.Update)
+	section(verb("Would close", "Closing"), p.Close)
 }

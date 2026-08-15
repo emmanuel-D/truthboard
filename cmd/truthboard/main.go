@@ -102,6 +102,10 @@ Usage:
   truthboard check <spec-id> <n|text|all>   tick the acceptance criteria that came true (the
                                             half of done git cannot derive); --uncheck reverts,
                                             no criterion prints the numbered checklist
+  truthboard mirror [--apply]               publish the board as issues on the repo's forge, for
+                                            the people who never open a terminal. Shows the plan
+                                            and writes nothing unless --apply; each issue says it
+                                            is a mirror and names the story it came from
   truthboard since <ref|commit|date>        what changed on the board since then: landed, filed,
                                             reverted, signed off — derived from two commits, so
                                             nothing had to be running and no state is kept
@@ -178,6 +182,8 @@ func main() {
 		os.Exit(runFind(os.Args[2:]))
 	case "since":
 		os.Exit(runSince(os.Args[2:]))
+	case "mirror":
+		os.Exit(runMirror(os.Args[2:]))
 	case "mcp":
 		os.Exit(runMcp(os.Args[2:], os.Stdin, os.Stdout))
 	case "board":

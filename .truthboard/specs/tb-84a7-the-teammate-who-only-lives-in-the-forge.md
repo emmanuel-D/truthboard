@@ -38,11 +38,11 @@ where the original lives.
 ## Acceptance
 
 - [ ] `truthboard mirror` publishes stories as issues on the configured forge, via `gh`/`glab` as the existing adapters do, with the derived status, acceptance checklist and tick state in the body
-- [ ] Re-running it updates the issues it already created rather than opening duplicates, and closes those whose stories derived done
-- [ ] Each mirrored issue states that it is a mirror and names the spec file it came from, so nobody edits it believing it is the source
-- [ ] Mirroring is opt-in and dry-runnable: `--dry-run` shows exactly what would be created, updated and closed, and writes nothing
-- [ ] The mapping between spec ids and issue numbers survives a fresh clone — it is derived or committed, never held in an untracked local file
-- [ ] A forge that is unreachable, unauthenticated or rate-limited fails with a message that names the cause, and never leaves the specs half-mirrored without saying so
-- [ ] Tokens and credentials never reach the logs
-- [ ] Nothing on the forge feeds a derived status: statuses still come from git alone
-- [ ] `go test ./...` passes
+- [x] Re-running it updates the issues it already created rather than opening duplicates, and closes those whose stories derived done — proof: `TestReRunIsAFixedPoint`
+- [x] Each mirrored issue states that it is a mirror and names the spec file it came from, so nobody edits it believing it is the source — proof: `TestBodySaysItIsAMirror`
+- [x] Mirroring is opt-in and dry-runnable: `--dry-run` shows exactly what would be created, updated and closed, and writes nothing — proof: `TestPlanWritesNothing`
+- [x] The mapping between spec ids and issue numbers survives a fresh clone — it is derived or committed, never held in an untracked local file — proof: `TestReRunIsAFixedPoint`
+- [x] A forge that is unreachable, unauthenticated or rate-limited fails with a message that names the cause, and never leaves the specs half-mirrored without saying so — proof: `TestApplyReportsHowFarItGot`
+- [x] Tokens and credentials never reach the logs — proof: `internal/mirror/client.go`
+- [x] Nothing on the forge feeds a derived status: statuses still come from git alone — proof: `TestPlanCreatesUpdatesAndCloses`
+- [x] `go test ./...` passes — proof: `ci:build`
