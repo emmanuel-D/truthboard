@@ -51,11 +51,11 @@ large backlog.
 
 ## Acceptance
 
-- [ ] `get_board` accepts narrowing parameters — at least `status`, `epic`, `sprint`, `since` and `limit` — and an unknown or malformed value fails loudly rather than being ignored
-- [ ] The unfiltered default stays within a stated token budget on a 100+ spec repo: done stories are summarised (id, title, status, tick counts), not carried in full, and the budget is asserted by a test over a fixture board of that size
-- [ ] `drift.landed_not_deleted` stops restating unit detail — branch names or a count with a pointer, not a copy of `units`
-- [ ] A `find_spec` call answers "has this been filed?" from a text query, returning matching ids, titles and derived statuses, without the caller fetching the board
-- [ ] `truthboard audit --format json` takes the same narrowing flags, so CLI and MCP agree
-- [ ] The working agreement written by `init --agents` names the cheap call for step 1, and re-running the command replaces that block rather than duplicating it
-- [ ] Nothing here sets, gates or downgrades a status; filtering changes what is *shown*, never what is derived
-- [ ] `go test ./...` passes
+- [x] `get_board` accepts narrowing parameters — at least `status`, `epic`, `sprint`, `since` and `limit` — and an unknown or malformed value fails loudly rather than being ignored
+- [x] The unfiltered default stays within a stated token budget on a 100+ spec repo: done stories are summarised (id, title, status, tick counts), not carried in full, and the budget is asserted by a test over a fixture board of that size
+- [x] `drift.landed_not_deleted` stops restating unit detail — branch names or a count with a pointer, not a copy of `units`
+- [x] A `find_spec` call answers "has this been filed?" from a text query, returning matching ids, titles and derived statuses, without the caller fetching the board
+- [x] `truthboard audit --format json` takes the same narrowing flags, so CLI and MCP agree
+- [x] The working agreement written by `init --agents` names the cheap call for step 1, and re-running the command replaces that block rather than duplicating it
+- [x] Nothing here sets, gates or downgrades a status; filtering changes what is *shown*, never what is derived
+- [x] `go test ./...` passes
