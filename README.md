@@ -9,27 +9,94 @@ digest are computed from branches, merges, and commit trailers. On repos with
 no specs it runs as a pure read-only auditor, and either way it can check
 your existing tracker's claims against what the repo proves.
 
+**Start here** — [what it looks like](#what-it-looks-like) ·
+[install](#install) · [your first five minutes](#your-first-five-minutes) ·
+[spec mode](#spec-mode--the-tracker) · [audit mode, no setup](#audit-mode--works-on-any-repo-no-specs-needed)
+
+<details>
+<summary><b>Everything else</b> — the rest of this page, by what you came for</summary>
+
+| You want to… | Section |
+| --- | --- |
+| See it before installing | [What it looks like](#what-it-looks-like) |
+| Install it | [Install](#install) · [Quick start](#quick-start-in-an-existing-project) |
+| Know what the first commands print | [Your first five minutes](#your-first-five-minutes) |
+| Write and track stories | [Spec mode](#spec-mode--the-tracker) |
+| Point an AI agent at it | [MCP](#mcp--agents-as-first-class-citizens) |
+| Run it on a repo with no specs | [Audit mode](#audit-mode--works-on-any-repo-no-specs-needed) |
+| Plan a sprint, brief a stakeholder | [Sprint planning and the summary](#sprint-planning-and-the-stakeholder-summary) |
+| Know how long work actually takes | [Flow](#flow--how-long-work-actually-takes-timed-by-git) |
+| Prove a sign-off can be re-checked | [Evidence](#evidence-a-tick-that-can-be-re-checked) |
+| Arrive with an existing backlog | [Import](#import--arriving-with-a-backlog-you-already-have) |
+| Publish the board as issues | [Mirror](#mirror--for-the-people-who-never-open-a-terminal) |
+| Answer "what changed since…?" | [What changed since](#what-changed-since--the-standup-question) |
+| Stay in the terminal | [Terminal board](#terminal-board--the-same-truth-no-browser) |
+| Share a board with the team | [Web board](#web-board--for-the-people-who-used-to-ask-whats-the-status) · [multi-machine](#multi-machine-a-board-that-tracks-the-remote) |
+| Cover several repos at once | [Multi-repo](#multi-repo-one-board-over-n-repositories) |
+| Run it in CI | [GitHub Action](#github-action) |
+| Use an LLM (optional) | [LLM assist](#llm-assist--optional-explicit-never-a-source-of-truth) |
+
+</details>
+
 ## What it looks like
 
-![The Truthboard web board: derived kanban columns, stat tiles, filters, and the sprint rollup](docs/screenshots/board.jpg)
+Every picture below is a live board over a demo shop — `acme-shop`, three
+epics and two sprints, rebuilt from nothing by
+[`docs/demo/build-demo-repo.sh`](docs/demo/build-demo-repo.sh) so you can
+run the same commands against the same repo and get the same answers.
 
-Every status on this board was computed, not typed. **Apple Pay support**
-is *in progress* because a branch carrying its id has commits;
-**One-page checkout flow** is *done* because its work landed on main —
-the card's evidence line says so. Cards carry the story's intent: priority,
-points, `bug`/`task` type badges, epic and sprint tags, and the owner's
-avatar. The filter row totals points per epic, and the sprint panel is
-pure arithmetic plus a date window: `s12 · 1/3 done · 5/10 pts ·
-2026-07-14 → 2026-07-25 · active, 8d left` — nothing there can be edited,
-because none of it is an opinion.
+![The derived kanban: five status columns, stat tiles, epic and sprint filters, and cards carrying a story's intent](docs/screenshots/board.jpg)
 
-![Story detail: Gherkin acceptance with sign-off checkboxes and the derived-truth panel](docs/screenshots/story-detail.jpg)
+**Nobody moved a card onto this board.** *Apple Pay* sits in progress
+because a branch carrying its id has commits; *One-page checkout flow* is
+done because its work reached `main`; *The confirmation page shows the
+pre-discount total* is red because the commit that landed it was reverted,
+and the card names the revert. *Guest checkout* went stalled by itself
+after sixteen silent days. There is no command that sets any of those, so
+none of them can be wrong on purpose.
 
-A story opens into its intent — goal and Given/When/Then acceptance,
-where checking a box records *human sign-off*, deliberately separate from
-delivery — followed by the **derived truth** panel: the status, the
-commit that landed it, and every signal that links work to this spec.
-The promise is editable; the proof is not.
+Two chips are the exception that proves the rule, because they are the
+things git cannot know. *Welcome email* carries **waiting on legal sign-off
+for the copy** — a person wrote that, because history can prove work
+stopped and never why. *Saved cards* carries **⚡ tb-7c31**: it declared a
+prerequisite, so it is not startable, and the next agent asking for work
+will be handed something else.
+
+The bars are acceptance, and they are deliberately not status. *A declined
+card* landed at **0/3** — delivered with a promise nobody read back, which
+is why the drift tile counts 4. *One-page checkout* reads **4/5 ⛨1**: four
+criteria signed off, one of them naming evidence that gets re-checked on
+every audit.
+
+![A story's declared intent beside its derived truth: acceptance sign-off, the landing commit, and every signal that linked the work](docs/screenshots/story-detail.jpg)
+
+**This is the whole argument in one dialog.** The left panel is *declared
+intent* — owner, points, epic, sprint, priority, the branch glob — every
+field a human types, all of it editable. The right panel is *derived
+truth*, and it has no edit control anywhere because there is nothing there
+to set: the status is `work landed on main`, the landing is commit
+`ffb8b19`, and the linking line says exactly how this work was recognised
+as this story. Acceptance sits above both, because signing off a promise
+is a human claim about the world, not a fact about the repository — and
+one criterion here names `src/checkout/onepage.js` as its proof, so if
+that file disappears the audit says so rather than letting the tick
+outlive it.
+
+![Where things stand and the sprint about to start: delivered, paused with reasons, and a planning panel that refuses to project a velocity](docs/screenshots/planning.jpg)
+
+**The two views nobody needs a terminal for.** *Where things stand*
+answers the standup in the language of someone who does not read git —
+delivered, being worked on, paused, not started — and every paused story
+carries the reason with the most standing: a human's hold note, else the
+title of the story blocking it, else how long it has been quiet. The
+footnote is the honesty: one story has no estimate, so it is missing from
+the point totals rather than silently counted as zero.
+
+*The sprint about to start* is the planning meeting, derived. It shows
+what rolls over, what is already committed, and the load — `28 pts on the
+table` against `s12 landed 13`. Under the bar it says **one prior sprint,
+not a velocity**, because that is one data point, and a tool that turned
+it into a forecast would be typing a status by other means.
 
 ## Install
 
@@ -90,6 +157,105 @@ That's the whole setup. Write your first story (`truthboard spec new` or
 the board's **+ New story**), work on a branch containing its id, and the
 card moves itself. In npm projects, init also wires `npm run board`,
 `board:status`, `board:stop`, and `board:audit`.
+
+## Your first five minutes
+
+What the commands above actually print, in order, on a repository that has
+never seen this tool. Nothing here is abridged.
+
+**1. Adoption tells you every file it touched.** It writes inside your
+repo and nowhere else, so the whole change is reviewable in a diff — and
+it hands you the commit rather than making it, because wiring is intent
+and intent gets reviewed like code:
+
+```console
+$ truthboard init --agents --hooks
+initialized .truthboard/specs
+  package.json: none, npm scripts skipped
+  .mcp.json: registered the truthboard MCP server
+  .vscode/mcp.json: registered the truthboard MCP server (VS Code / GitHub Copilot)
+  AGENTS.md: working agreement written
+  CLAUDE.md: agreement import written
+  commit-msg hook: installed (warns on missing trailer, never blocks)
+  this wiring is intent — commit it like code (or re-run with --commit):
+    git add .truthboard .mcp.json .vscode/mcp.json AGENTS.md CLAUDE.md && git commit -m "Track work with truthboard"
+
+Next:
+  truthboard spec new "Your first unit of work"   write intent once
+  truthboard audit                                 everything else is derived
+```
+
+**2. A story is one markdown file, and you are told how to link work to
+it.** Three ways, strongest first — you only ever need one:
+
+```console
+$ truthboard spec new "Add email verification" --owner emmanuel --points 3
+created .truthboard/specs/tb-e0f7-add-email-verification.md
+
+  id:      tb-e0f7
+  branch:  */tb-e0f7-* (suggested glob — any branch containing "tb-e0f7" links too)
+  trailer: Spec: tb-e0f7 (add to commits for the strongest link)
+
+Edit the Goal and Acceptance sections, then: truthboard brief tb-e0f7
+```
+
+Open that file and fill in the Goal and the Acceptance checklist. That is
+the *only* typing this tool asks of you. There is no status field in it,
+and no command that would set one.
+
+**3. Everything else is computed.** Work on a branch with the id in its
+name, end your commits with `Spec: tb-e0f7`, and `truthboard audit` reads
+the repository back to you. Run against the demo shop, it prints:
+
+```console
+$ truthboard audit
+TRUTHBOARD AUDIT  .
+integration branch: main (via activity election)
+
+SPEC BOARD (intent from .truthboard/specs — status derived, never typed)
+  REGRESSED    tb-1d38 The confirmation page shows the pre-discount total · p1 · checkout · s12
+    landed work was reverted by fcd1636 (reverts 265aaaf)
+  IN-PROGRESS  tb-7c31 Apple Pay as a payment method · p1 · payments · s12 [feature/tb-7c31-apple-pay]
+    feature/tb-7c31-apple-pay — active 0d ago, 2 commits ahead, 0 behind
+  PLANNED      tb-5e77 Saved cards for returning customers · p1 · payments · s13
+    no matching branch or commit yet — waiting on tb-7c31
+  STALLED      tb-9a15 Guest checkout without an account · p2 · checkout · s12 [feature/tb-9a15-guest-checkout]
+    feature/tb-9a15-guest-checkout — no commits for 16 days (1 unmerged)
+  DONE         tb-4f2a One-page checkout flow · p1 · checkout · s12
+    work landed on main
+
+SPRINTS (arithmetic over derived statuses — a sprint finishes when its stories land)
+  s12  3/7 done · 13/28 pts · 2026-08-09 → 2026-08-20 · active, 5d left
+
+DRIFT REPORT
+  Stale promises (1): work that stopped without landing
+    - feature/tb-9a15-guest-checkout: no commits for 16 days (1 unmerged)
+  Unverified acceptance (2): landed work whose criteria were never ticked
+    - tb-2b9e A declined card empties the basket — 0 of 3 criteria ticked
+    - tb-4f2a One-page checkout flow — 4 of 5 criteria ticked
+```
+
+(Commit hashes and the day counts differ on your machine: the demo script
+dates its history relative to the day you run it, so the board is always
+mid-flight rather than frozen on the day it was recorded.)
+
+Read the second line of every entry: each status arrives with the evidence
+that produced it. That is the part you can check, and the reason you never
+have to take the first line on trust.
+
+**4. Nothing so far required a decision about tooling.** `truthboard ui`
+puts the same thing in a browser for everyone who does not want a
+terminal, `truthboard board` keeps it in one, and `truthboard mcp` hands
+it to an AI agent. All three read the same derivation — there is no
+second code path that could disagree.
+
+Try it against the demo shop before your own repo:
+
+```sh
+docs/demo/build-demo-repo.sh /tmp/acme-shop   # a repo with a real history
+truthboard audit /tmp/acme-shop
+cd /tmp/acme-shop && truthboard ui
+```
 
 ## Spec mode — the tracker
 
