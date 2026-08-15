@@ -18,6 +18,9 @@
     /* categorical slots for epic identity (validated reference palette) */
     --cat1:#2a78d6; --cat2:#008300; --cat3:#e87ba4; --cat4:#eda100;
     --cat5:#1baf7a; --cat6:#eb6834; --cat7:#4a3aa7; --cat8:#e34948;
+    /* One vertical step between stacked blocks, and the same figure as the
+       gap inside a row of panels, so the page has a single rhythm. */
+    --stack: 1.1rem;
   }
   /* Dark is selected, not flipped — and the viewer's toggle must win both
      ways: the media query covers the OS setting unless a light stamp is
@@ -74,6 +77,18 @@
   }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
 
+  /* The rhythm between panels lives here and nowhere else. Every panel is
+     written as a standalone <section> appended to #app, and with the
+     margin reset above, one rule per panel is one rule somebody forgets:
+     the summary, plan, sprint and flow panels sat border-to-border for
+     exactly that reason. A flex column with a gap makes the spacing a
+     property of the page, so a panel added tomorrow inherits it without
+     being told. Blocks that used to space themselves give the margin up
+     below, or they would space themselves twice. */
+  #app { display: flex; flex-direction: column; gap: var(--stack); }
+  /* Warnings inside #app are spaced by that gap like everything else. */
+  #app > .warn { margin-bottom: 0; }
+
   /* ---------- header ---------- */
   header { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; }
   header h1 { font-size: 1.15rem; letter-spacing: -.01em; }
@@ -106,7 +121,7 @@
   .dirty { border-style: dashed; }
 
   /* ---------- stat tiles ---------- */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 11rem)); gap: .6rem; margin-bottom: 1.2rem; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 11rem)); gap: .6rem; }
   .tile { background: var(--card); border: 1px solid var(--ring); border-radius: 10px; padding: .55rem .8rem .5rem; }
   .tile .num { font-size: 1.45rem; font-weight: 650; line-height: 1.15; }
   .tile .lbl { font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: .35rem; }
@@ -131,7 +146,7 @@
 
   /* ---------- kanban ---------- */
   .board { display: grid; grid-auto-flow: column; grid-auto-columns: 17.5rem;
-           justify-content: start; gap: .7rem; overflow-x: auto; padding-bottom: .5rem; margin-bottom: 1rem; }
+           justify-content: start; gap: .7rem; overflow-x: auto; padding-bottom: .5rem; }
   .col { background: var(--inset); border: 1px solid var(--hairline); border-radius: 12px;
          padding: 0 .55rem .2rem; max-height: 68vh; overflow-y: auto; }
   .col h3 {
@@ -312,8 +327,14 @@
   .empty-col { border: 1px dashed var(--hairline); border-radius: 10px; padding: .8rem; color: var(--muted); font-size: .78rem; }
 
   /* ---------- panels ---------- */
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr)); gap: .7rem; margin-bottom: 1rem; }
-  section.panel { background: var(--card); border: 1px solid var(--ring); border-radius: 12px; padding: .85rem 1.05rem; }
+  /* Same gap in both axes: when the pair drops to one column at a narrow
+     width, the space between them has to match the space between panels
+     above and below, or the fold itself becomes visible. */
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr)); gap: var(--stack); }
+  /* The horizontal figure is shared with the plan panel, which pads its own
+     bands instead (.phead, .pload, .pband) so their rules can span the full
+     width — the two have to agree or the panels stop aligning. */
+  section.panel { background: var(--card); border: 1px solid var(--ring); border-radius: 12px; padding: .95rem 1.05rem 1rem; }
   section.panel h2 { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: .55rem; }
   .finding { display: flex; gap: .5rem; padding: .28rem 0; font-size: .82rem; align-items: baseline; }
   .finding .ico { flex: 0 0 1.1rem; text-align: center; }
@@ -386,11 +407,21 @@
   footer { text-align: center; color: var(--muted); font-size: .72rem; padding: .5rem 0 1.5rem; }
 
   /* ---------- dialogs ---------- */
+  /* --dlg is what a dialog would like to be; 94vw is what the screen
+     allows. A phone gets the second figure whatever the first says, so a
+     dialog can ask for desktop width without ever overflowing a 390px
+     screen. Dialogs that are a short form keep the original 38rem — width
+     there would only stretch six inputs across an empty page. */
   dialog {
     background: var(--card); color: var(--ink); border: 1px solid var(--ring);
-    border-radius: 14px; padding: 0; width: min(38rem, 94vw); max-height: min(86vh, 100dvh - 2rem);
+    border-radius: 14px; padding: 0; width: min(var(--dlg, 38rem), 94vw);
+    max-height: min(88vh, 100dvh - 2rem);
     box-shadow: var(--shadow);
   }
+  /* Reading a story and writing one want different rooms: the detail view
+     is prose plus two fact blocks, the editor is a form beside a preview. */
+  #detail { --dlg: 48rem; }
+  #editor { --dlg: 58rem; }
   /* Flex column: header/footer keep their size, the body gets the rest and
      scrolls. No guessed chrome heights — the layout is the measurement. */
   dialog[open] { display: flex; flex-direction: column; }
@@ -405,6 +436,13 @@
 
   /* rendered markdown */
   .md { font-size: .86rem; line-height: 1.6; color: var(--ink-2); }
+  /* A goal paragraph set the full width of a 48rem dialog runs past 110
+     characters to a line, which the eye loses coming back to the left edge.
+     The dialog is wide for the tables and the facts under it; the prose
+     keeps a measure it can be read at. The limit is on the prose elements
+     rather than on .md itself, so a table or a code block still gets the
+     whole dialog instead of a scrollbar inside 70 characters. */
+  .dbody > .md > :is(p, ul, ol, blockquote) { max-width: 70ch; }
   .md h3 { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 1rem 0 .35rem; }
   .md h3:first-child { margin-top: .2rem; }
   .md p { margin: .35rem 0; }
@@ -415,8 +453,12 @@
   .md li.task input[data-ti] { cursor: pointer; }
   /* A flex row, so a criterion too long for one line wraps against itself
      instead of sliding back under its own checkbox — the box has to stay
-     the leftmost thing in the row for the list to read as a list. */
+     the leftmost thing in the row for the list to read as a list. Exactly
+     two children: the box, and one span holding the whole criterion. The
+     text must not be loose in here, or every code span in it becomes a
+     column of its own (see the renderer). */
   .md li.task label { cursor: default; display: flex; gap: .35rem; align-items: baseline; }
+  .md li.task label > span { min-width: 0; }
   .md li.task label:has(input[data-ti]) { cursor: pointer; }
   .md li.task label:has(input[data-ti]):hover { color: var(--ink); }
   .md code { background: var(--inset); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 .3em; }
@@ -434,8 +476,16 @@
   .md pre code { background: none; border: none; padding: 0; }
   .md b { color: var(--ink); }
 
+  /* Intent and derived truth are two answers of the same size, and stacking
+     them down a 48rem dialog left the right half of the screen empty while
+     pushing the second one below the fold. Side by side once there is room;
+     stacked below it, where a 21rem column would start wrapping the values. */
+  .truths { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+            gap: .9rem; margin-top: .9rem; }
+  /* No margin of its own: the grid owns the space, so two blocks side by
+     side start on the same line. */
   .truth { background: var(--inset); border: 1px solid var(--hairline); border-radius: 10px;
-           padding: .6rem .8rem; margin-top: .9rem; font-size: .78rem; color: var(--ink-2); }
+           padding: .6rem .8rem; font-size: .78rem; color: var(--ink-2); }
   .truth h4 { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .3rem; }
   .truth .kv { display: flex; gap: .5rem; padding: .12rem 0; }
   /* Wide enough for the longest label ("Branch glob") on one line — a
@@ -493,6 +543,47 @@
   .tabs .tabact:hover { color: var(--ink); background: var(--inset); }
   #ed-preview { min-height: 14rem; border: 1px dashed var(--hairline); border-radius: 8px; padding: .6rem .9rem; }
   .err { color: var(--regressed); font-size: .76rem; padding: .3rem 1.25rem 0; min-height: 1.1em; }
+
+  /* ---- the editor on a desktop screen ----
+
+     Write and Preview are two views of one document, and the tabs existed
+     because a phone has room for one of them. A laptop has room for both,
+     so above this width they stop being a choice: the panes sit side by
+     side, the preview follows the caret, and the buttons that only ever
+     switched between them are gone. The + Criterion action stays — it acts
+     on the document, not on which pane is showing.
+
+     The breakpoint is the viewport, not the dialog: the dialog is
+     min(58rem, 94vw), so a viewport this wide is always a dialog wide
+     enough for two panes. JS reads the same figure to decide what to
+     render, and it is stated once here (see SPLIT in app.js). */
+  @media (min-width: 68rem) {
+    /* The height is on the container, not on either pane, and that is the
+       whole trick: an auto-sized row grows to whatever the preview renders,
+       so a long story would stretch the column to the length of the
+       rendered document and strand a short textarea at the top of it. With
+       the frame fixed, the textarea takes the space left over and the
+       preview scrolls inside its half. */
+    .ed .edpanes {
+      display: grid; gap: .55rem .9rem;
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: "write preview" "hint preview";
+      grid-template-rows: 1fr auto;
+      height: clamp(20rem, 48vh, 38rem);
+    }
+    /* No drag handle here: the pane is sized by the frame, and dragging one
+       half taller than the other is not a layout this can hold. */
+    .ed .edpanes > textarea    { grid-area: write; height: 100%; min-height: 0; resize: none; }
+    .ed .edpanes > .note       { grid-area: hint; margin: 0; }
+    .ed .edpanes > #ed-preview { grid-area: preview; min-height: 0; overflow: auto; }
+    .tabs > button:not(.tabact) { display: none; }
+    /* Nothing left to switch between, so the row is a toolbar for the one
+       action on it; the rule under it would only underline a gap. */
+    .tabs { border-bottom: 0; margin-bottom: 0; }
+    /* Six short fields across a 58rem dialog: four to a row rather than two
+       stretched ones and a stub. */
+    .ed .row3 { grid-template-columns: repeat(4, 1fr); }
+  }
 
   /* ---------- transient feedback ---------- */
   /* Bottom-centre so it never covers the header controls, and above the
