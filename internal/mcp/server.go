@@ -222,7 +222,7 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "check_acceptance",
-			Description: "Record that acceptance criteria came true: ticks (or unticks) them in the story file, editing only those checkbox lines. Call it as each criterion becomes verifiable — it is part of finishing the work, not paperwork after it, and a landed story whose criteria are unticked is reported as drift. Never tick what you have not verified. This is a claim, not a status: it cannot set, block or change what git derives.",
+			Description: "Record that acceptance criteria came true: ticks (or unticks) them in the story file, editing only those checkbox lines. Call it as each criterion becomes verifiable — it is part of finishing the work, not paperwork after it, and a landed story whose criteria are unticked is reported as drift. Never tick what you have not verified. Pass proof (a test name, a path, a ci: check) so the claim can be re-checked later rather than taken on trust. This is a claim, not a status: it cannot set, block or change what git derives.",
 			InputSchema: objSchema(map[string]any{
 				"id": map[string]any{"type": "string", "description": "Spec id, e.g. tb-4f2a"},
 				"criteria": map[string]any{
@@ -230,6 +230,7 @@ func tools() []toolDef {
 					"description": "Which criteria: 1-based indices (\"2\"), a unique substring of a criterion's text, or \"all\". Anything ambiguous fails and returns the numbered checklist.",
 				},
 				"uncheck": map[string]any{"type": "boolean", "description": "Untick instead — a criterion that stopped being true"},
+				"proof":   map[string]any{"type": "string", "description": "What proves it, so the tick can be re-derived on every audit instead of remembered: a test name (TestFoo), a path (internal/x/y.go), or a forge check (ci:build). Optional — prose criteria stay tickable by hand"},
 				"repo":    repoProp,
 			}, "id", "criteria"),
 		},
@@ -365,6 +366,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 			ID       string   `json:"id"`
 			Criteria []string `json:"criteria"`
 			Uncheck  bool     `json:"uncheck"`
+			Proof    string   `json:"proof"`
 		}
 		if err := strictArgs(args, &a); err != nil {
 			return "", err
@@ -376,7 +378,7 @@ func callTool(name string, args json.RawMessage, defaultRepo string) (string, er
 		if err != nil {
 			return "", err
 		}
-		changed, err := s.SetAcceptance(a.Criteria, !a.Uncheck)
+		changed, err := s.SetAcceptanceWithProof(a.Criteria, !a.Uncheck, a.Proof)
 		if err != nil {
 			return "", err
 		}

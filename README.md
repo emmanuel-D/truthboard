@@ -394,6 +394,40 @@ TUI (`f`), the web board and `get_board` over MCP — all quoting one
 sentence rendered once, so no two surfaces can describe the same repo
 differently.
 
+### Evidence: a tick that can be re-checked
+
+A tick says "this promise came true". Recorded once, it stays true in the
+file forever — including after the test that proved it was deleted. That is
+where statuses stood before this tool existed: someone asserts, everyone
+trusts, the assertion rots quietly. So a tick can name what proves it:
+
+```sh
+truthboard check tb-1234 2 --proof TestTheThingIsTrue
+truthboard check tb-1234 3 --proof internal/report/report.go
+truthboard check tb-1234 4 --proof ci:build
+```
+
+which writes it on the criterion's own line, where anyone can read it:
+
+```markdown
+- [x] the acceptance list writes itself — proof: `TestAcceptanceListGrows`
+```
+
+**Every audit re-checks it.** A named test or path that is no longer in the
+tree is reported as drift, naming the story, the criterion and what went
+missing — so the claim cannot outlive the thing that supported it. A `ci:`
+check lives in a forge and cannot be seen from a checkout, so it is
+reported separately as *taken on trust*: "I looked and it is gone" and "I
+cannot look from here" are different facts, and a board that read as dirty
+for naming a pipeline would teach people not to name one.
+
+Evidence is **optional**, deliberately. Prose criteria — "a PO can read
+this" — are the reason acceptance is a human claim in the first place, and
+a scheme that only accepted machine-checkable promises would quietly push
+them out of the checklist. And like every tick, it is still a claim:
+nothing here sets, gates or downgrades a status, and a done story with
+broken evidence still reads done, in the drift report.
+
 ## What changed since — the standup question
 
 Every status the board serves describes *now*. `since` answers the other

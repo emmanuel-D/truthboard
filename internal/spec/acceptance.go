@@ -91,7 +91,14 @@ func Checklist(cs []Criterion) string {
 		if c.Checked {
 			mark = "x"
 		}
-		fmt.Fprintf(&b, "  %d. [%s] %s\n", c.N, mark, c.Text)
+		ev, text := c.Proof()
+		fmt.Fprintf(&b, "  %d. [%s] %s", c.N, mark, text)
+		// The three states a reader must be able to tell apart: not claimed,
+		// claimed, and claimed with something that can be checked again.
+		if ev.Ref != "" {
+			fmt.Fprintf(&b, "  (proof: %s)", ev.Ref)
+		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }
@@ -109,6 +116,13 @@ func Checklist(cs []Criterion) string {
 // body, including prose between criteria, survives byte for byte, which is
 // what keeps the resulting git diff readable as "this promise came true".
 func (s *Spec) SetAcceptance(selectors []string, checked bool) ([]Criterion, error) {
+	return s.SetAcceptanceWithProof(selectors, checked, "")
+}
+
+// SetAcceptanceWithProof ticks criteria and records what proves them. An
+// empty proof leaves whatever the line already carried, so re-ticking a
+// criterion never silently drops the evidence someone attached to it.
+func (s *Spec) SetAcceptanceWithProof(selectors []string, checked bool, proof string) ([]Criterion, error) {
 	cs := s.Acceptance()
 	if len(cs) == 0 {
 		return nil, fmt.Errorf("%s has no acceptance criteria to tick — add a '## Acceptance' checklist first", s.ID)
@@ -131,7 +145,14 @@ func (s *Spec) SetAcceptance(selectors []string, checked bool) ([]Criterion, err
 	lines := strings.Split(s.Body, "\n")
 	var changed []Criterion
 	for _, c := range cs {
-		if !targets[c.N] || c.Checked == checked {
+		if !targets[c.N] {
+			continue
+		}
+		// Recording evidence on an already-ticked criterion is a change
+		// worth writing: the tick was the claim, the proof is what makes it
+		// re-derivable later.
+		writingProof := checked && proof != ""
+		if c.Checked == checked && !writingProof {
 			continue
 		}
 		mark := " "
@@ -139,8 +160,16 @@ func (s *Spec) SetAcceptance(selectors []string, checked bool) ([]Criterion, err
 			mark = "x"
 		}
 		m := checkboxPattern.FindStringSubmatch(lines[c.line])
-		lines[c.line] = m[1] + mark + m[3] + m[4]
+		text := m[4]
+		if writingProof {
+			text = WithProof(text, proof)
+		}
+		if lines[c.line] == m[1]+mark+m[3]+text {
+			continue // nothing to write; the line already says this
+		}
+		lines[c.line] = m[1] + mark + m[3] + text
 		c.Checked = checked
+		c.Text = strings.TrimSpace(text)
 		changed = append(changed, c)
 	}
 	if len(changed) == 0 {
@@ -183,4 +212,92 @@ func resolve(cs []Criterion, sel string) ([]int, error) {
 	default:
 		return nil, fmt.Errorf("%q matches %d criteria — name one by index:\n%s", sel, len(hits), Checklist(cs))
 	}
+}
+
+// Evidence is what a tick points at so the claim can be re-derived rather
+// than remembered.
+//
+// A tick says "this promise came true". Recorded once, it stays true in the
+// file forever, including after the test that proved it was deleted — which
+// is the same position statuses were in before this tool existed: someone
+// asserts, everyone trusts, the assertion rots quietly. Statuses escaped it
+// by pointing at evidence git can re-read on every audit, and a tick can do
+// the same.
+//
+// The syntax is a trailing clause on the criterion's own line, written and
+// read by hand:
+//
+//   - [x] the acceptance list writes itself — proof: `TestAcceptanceListGrows`
+//   - [x] the report drops nothing — proof: `internal/report/report.go`
+//   - [x] the pipeline is green — proof: `ci:build`
+//
+// Evidence stays optional on purpose. Prose criteria — "a PO can read this"
+// — are the reason acceptance is a human claim in the first place, and a
+// scheme that could only express machine-checkable promises would quietly
+// push those out of the checklist.
+type Evidence struct {
+	Kind string `json:"kind"` // test | path | ci
+	Ref  string `json:"ref"`
+}
+
+// proofPattern reads the trailing evidence clause off a criterion's text.
+// An em dash or a double hyphen, because both are what people type.
+var proofPattern = regexp.MustCompile(`\s*(?:—|--)\s*proof:\s*(.+?)\s*$`)
+
+// Proof returns the criterion's evidence, and the text with the evidence
+// clause removed — every renderer wants the promise and the proof apart.
+// A criterion carrying none returns a zero Evidence, which is not an error:
+// most criteria are prose and always will be.
+func (c Criterion) Proof() (Evidence, string) {
+	m := proofPattern.FindStringSubmatch(c.Text)
+	if m == nil {
+		return Evidence{}, c.Text
+	}
+	ref := strings.Trim(strings.TrimSpace(m[1]), "`")
+	if ref == "" {
+		return Evidence{}, c.Text
+	}
+	return Evidence{Kind: evidenceKind(ref), Ref: ref}, strings.TrimSpace(c.Text[:len(c.Text)-len(m[0])])
+}
+
+// evidenceKind types a reference by how it is written, so the audit knows
+// how to go and check it. A "ci:" prefix names a check that lives in a
+// forge and cannot be seen from a checkout at all; anything that looks like
+// a filename is a path; the rest is a test name.
+func evidenceKind(ref string) string {
+	switch {
+	case strings.HasPrefix(ref, "ci:"):
+		return "ci"
+	case strings.ContainsAny(ref, "/\\") || filepathLike(ref):
+		return "path"
+	default:
+		return "test"
+	}
+}
+
+// filepathLike reports whether a bare reference reads as a filename: a dot
+// with an extension after it, and no spaces. "flow.go" is a path,
+// "TestFlowIsDerived" is not.
+func filepathLike(ref string) bool {
+	i := strings.LastIndex(ref, ".")
+	if i <= 0 || i == len(ref)-1 || strings.ContainsAny(ref, " \t") {
+		return false
+	}
+	for _, r := range ref[i+1:] {
+		if !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// WithProof returns the criterion line's text with an evidence clause
+// attached, replacing any clause already there. Writing it back through one
+// function is what keeps a re-tick from stacking two proofs on a line.
+func WithProof(text, ref string) string {
+	bare := proofPattern.ReplaceAllString(text, "")
+	if strings.TrimSpace(ref) == "" {
+		return bare
+	}
+	return fmt.Sprintf("%s — proof: `%s`", strings.TrimSpace(bare), strings.Trim(strings.TrimSpace(ref), "`"))
 }

@@ -103,6 +103,11 @@ type Drift struct {
 	// Landed work whose acceptance criteria were never ticked: done by git,
 	// unverified by anyone. A report, never a status.
 	UnverifiedAcceptance []UnverifiedAcceptance `json:"unverified_acceptance,omitempty"`
+
+	// Ticks whose evidence no longer holds up, and ticks resting on evidence
+	// this checkout cannot see. The first is drift; the second is a note.
+	BrokenProofs    []BrokenProof    `json:"broken_proofs,omitempty"`
+	UncheckedProofs []UncheckedProof `json:"unchecked_proofs,omitempty"`
 }
 
 // Clean reports whether the board matches reality on every signal. Every
@@ -111,7 +116,11 @@ type Drift struct {
 func (d Drift) Clean() bool {
 	return len(d.StalePromises) == 0 && len(d.ShadowWork) == 0 && len(d.ScopeCreep) == 0 &&
 		len(d.DependencyCycles) == 0 && len(d.UnknownRepos) == 0 && len(d.UnwiredRepos) == 0 &&
-		len(d.ContradictedHolds) == 0 && len(d.UnverifiedAcceptance) == 0
+		len(d.ContradictedHolds) == 0 && len(d.UnverifiedAcceptance) == 0 &&
+		len(d.BrokenProofs) == 0
+	// UncheckedProofs is deliberately absent: a criterion resting on a CI
+	// check nobody can see from here is a disclosure, not a finding, and a
+	// board that read as dirty for naming one would teach people not to.
 }
 
 // RepoHealth is one workspace spoke as the audit saw it. A spoke that could
@@ -292,6 +301,7 @@ func Audit(repo string, opts Options) (*Result, error) {
 	attributeDigest(res)
 	deriveHolds(res)
 	deriveUnverifiedAcceptance(res, specs)
+	deriveProofs(res, specs, repo)
 	rollupSprints(res, sprintIntents, opts.Now)
 	deriveFlow(res, idx, opts) // after sprints: sprint buckets borrow their windows
 	rollupPlan(res)

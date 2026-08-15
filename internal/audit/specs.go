@@ -54,6 +54,10 @@ type SpecStatus struct {
 	// spec body — intent-side detail for boards, no file read needed there.
 	AcceptanceDone  int `json:"acceptance_done,omitempty"`
 	AcceptanceTotal int `json:"acceptance_total,omitempty"`
+	// AcceptanceProved counts the ticked criteria that name evidence — the
+	// difference between "someone said so" and "someone said so and left a
+	// way to check".
+	AcceptanceProved int `json:"acceptance_proved,omitempty"`
 }
 
 // RepoLanding is one declared repo's derived state for a spec with repos:

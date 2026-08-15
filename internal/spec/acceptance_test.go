@@ -200,3 +200,84 @@ func TestCriteriaJoinsWrappedLines(t *testing.T) {
 		t.Errorf("the tick must land on the checkbox line only:\n%s", s.Body)
 	}
 }
+
+// TestProofRoundTrips covers the syntax contract: evidence is written on
+// the criterion's own line, read back off it, and a re-tick replaces the
+// clause instead of stacking a second one.
+func TestProofRoundTrips(t *testing.T) {
+	cases := []struct {
+		line string
+		kind string
+		ref  string
+		text string
+	}{
+		{"the list writes itself — proof: `TestListGrows`", "test", "TestListGrows", "the list writes itself"},
+		{"the report drops nothing -- proof: internal/report/report.go", "path", "internal/report/report.go", "the report drops nothing"},
+		{"a bare filename counts — proof: `flow.go`", "path", "flow.go", "a bare filename counts"},
+		{"the pipeline is green — proof: `ci:build`", "ci", "ci:build", "the pipeline is green"},
+		{"a prose promise with an — em dash in it", "", "", "a prose promise with an — em dash in it"},
+		{"nothing to prove", "", "", "nothing to prove"},
+	}
+	for _, tc := range cases {
+		c := Criterion{Text: tc.line}
+		ev, text := c.Proof()
+		if ev.Kind != tc.kind || ev.Ref != tc.ref {
+			t.Errorf("Proof(%q) = %+v, want kind %q ref %q", tc.line, ev, tc.kind, tc.ref)
+		}
+		if text != tc.text {
+			t.Errorf("Proof(%q) left text %q, want %q", tc.line, text, tc.text)
+		}
+	}
+
+	// Re-proving replaces, never stacks.
+	once := WithProof("the thing is true", "TestOne")
+	twice := WithProof(once, "TestTwo")
+	if strings.Count(twice, "proof:") != 1 {
+		t.Errorf("re-proving stacked clauses: %q", twice)
+	}
+	if !strings.Contains(twice, "TestTwo") || strings.Contains(twice, "TestOne") {
+		t.Errorf("re-proving kept the wrong evidence: %q", twice)
+	}
+	if got := WithProof(once, ""); got != "the thing is true" {
+		t.Errorf("clearing evidence left %q", got)
+	}
+}
+
+// TestTickRecordsEvidenceOnTheLineItTouches: the point of ticking cheaply
+// is that the diff reads as one promise coming true.
+func TestTickRecordsEvidenceOnTheLineItTouches(t *testing.T) {
+	dir := t.TempDir()
+	s := &Spec{ID: "tb-p1", Title: "Proving", File: dir + "/tb-p1.md",
+		Body: "## Acceptance\n\n- [ ] first promise\n- [ ] second promise\n"}
+
+	changed, err := s.SetAcceptanceWithProof([]string{"1"}, true, "TestFirstPromise")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changed) != 1 {
+		t.Fatalf("changed %d criteria, want 1", len(changed))
+	}
+	if !strings.Contains(s.Body, "- [x] first promise — proof: `TestFirstPromise`") {
+		t.Errorf("body did not record the evidence:\n%s", s.Body)
+	}
+	if !strings.Contains(s.Body, "- [ ] second promise") {
+		t.Errorf("an untouched criterion was rewritten:\n%s", s.Body)
+	}
+
+	// Evidence can be attached to a criterion that is already ticked: the
+	// tick was the claim, the proof is what makes it re-derivable.
+	if _, err := s.SetAcceptanceWithProof([]string{"1"}, true, "TestBetterName"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(s.Body, "TestBetterName") || strings.Contains(s.Body, "TestFirstPromise") {
+		t.Errorf("evidence was not updated on an already-ticked criterion:\n%s", s.Body)
+	}
+
+	// A bare tick still works and leaves evidence alone.
+	if _, err := s.SetAcceptance([]string{"2"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(s.Body, "- [x] second promise") || !strings.Contains(s.Body, "TestBetterName") {
+		t.Errorf("a bare tick disturbed the checklist:\n%s", s.Body)
+	}
+}
