@@ -20,6 +20,7 @@ your existing tracker's claims against what the repo proves.
 | --- | --- |
 | See it before installing | [What it looks like](#what-it-looks-like) |
 | Install it | [Install](#install) · [Quick start](#quick-start-in-an-existing-project) |
+| Adopt a repo that has its own CLAUDE.md | [Already have a CLAUDE.md?](#already-have-a-claudemd) |
 | Know what the first commands print | [Your first five minutes](#your-first-five-minutes) |
 | Write and track stories | [Spec mode](#spec-mode--the-tracker) |
 | Point an AI agent at it | [MCP](#mcp--agents-as-first-class-citizens) |
@@ -157,6 +158,34 @@ That's the whole setup. Write your first story (`truthboard spec new` or
 the board's **+ New story**), work on a branch containing its id, and the
 card moves itself. In npm projects, init also wires `npm run board`,
 `board:status`, `board:stop`, and `board:audit`.
+
+### Already have a CLAUDE.md?
+
+Adoption appends; it never rewrites. Everything `init --agents` writes into a
+file you already own sits between markers:
+
+```markdown
+<!-- truthboard:begin -->
+…the working agreement…
+<!-- truthboard:end -->
+```
+
+Your content stays exactly where it was — the block goes after it, and
+re-running `init` replaces *that block only*, so upgrading the agreement never
+touches a line you wrote. The same care applies to everything else it finds:
+
+| It finds | What happens |
+| --- | --- |
+| A `CLAUDE.md` or `AGENTS.md` you have tuned by hand | Kept verbatim; the agreement is appended in its own marker block |
+| A `commit-msg` hook of your own | The trailer nudge is inserted after your shebang and is **exit-code-neutral** — it only ever prints, so your hook still decides whether the commit passes |
+| A `.mcp.json` carrying other servers | Only the `truthboard` entry is added; every other server is preserved |
+| `package.json` scripts already named `board`, `board:status`, … | Yours are kept, and reported as kept — never overwritten |
+
+You do not have to take that on faith: `init` writes inside your repo and
+nowhere else, and it hands you the commit rather than making it — so the
+whole change is a `git diff` you read before it lands. Changed your mind
+later? [`truthboard uninstall`](#uninstall--leaving-nothing-behind) takes it
+all back out, your own content included.
 
 ## Your first five minutes
 
