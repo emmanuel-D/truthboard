@@ -21,6 +21,7 @@ your existing tracker's claims against what the repo proves.
 | See it before installing | [What it looks like](#what-it-looks-like) |
 | Install it | [Install](#install) · [Quick start](#quick-start-in-an-existing-project) |
 | Adopt a repo that has its own CLAUDE.md | [Already have a CLAUDE.md?](#already-have-a-claudemd) |
+| Take it back out again | [Uninstall](#uninstall--leaving-nothing-behind) |
 | Know what the first commands print | [Your first five minutes](#your-first-five-minutes) |
 | Write and track stories | [Spec mode](#spec-mode--the-tracker) |
 | Point an AI agent at it | [MCP](#mcp--agents-as-first-class-citizens) |
@@ -285,6 +286,38 @@ docs/demo/build-demo-repo.sh /tmp/acme-shop   # a repo with a real history
 truthboard audit /tmp/acme-shop
 cd /tmp/acme-shop && truthboard ui
 ```
+
+## Uninstall — leaving nothing behind
+
+```sh
+truthboard uninstall            # the plan: what would go, nothing written
+truthboard uninstall --apply    # take it back out
+```
+
+Adoption writes into six places, and two of them never appear in `git
+status`: the nudge inside `.git/hooks/commit-msg`, and the run state in
+`.git/truthboard/`. Delete the files you *can* see, remove the binary, and
+that hook keeps warning on every commit about a tool that is no longer
+installed. So there is a command — and it plans before it writes, the same
+`--apply` contract as [mirror](#mirror--for-the-people-who-never-open-a-terminal),
+because this surgery runs through files you own:
+
+| It removes | It keeps |
+| --- | --- |
+| The marker block in `AGENTS.md` / `CLAUDE.md` | Every line you wrote, byte for byte. A file that was *only* the block is deleted — init created it, so uninstall un-creates it |
+| The `truthboard` entry in `.mcp.json` and `.vscode/mcp.json` | Every other MCP server, and any key it does not recognise |
+| The trailer nudge in the `commit-msg` hook | Your own hook logic. A nudge it cannot prove it wrote is reported and left alone, never removed blind |
+| The `board`, `board:status`, `board:stop`, `board:audit` npm scripts | Any of them you have since edited — those are yours now |
+| The detached board, and `.git/truthboard/` | — |
+
+**Your stories are not wiring.** `.truthboard/` is your intent and your
+history, so it survives by default and the command tells you where it is.
+`--specs` deletes it, and only then. Git history is left alone either way:
+past `Spec:` trailers are inert commit text.
+
+The binary is the one thing it cannot remove — it is the thing running — so
+the last line hands you `rm $(command -v truthboard)`, or `brew uninstall
+truthboard` if brew owns it.
 
 ## Spec mode — the tracker
 

@@ -95,6 +95,12 @@ Usage:
                                             pointed back at the hub
                 --commit                    commit the wiring in every repo it landed in
                 --ui                        start the detached board when setup succeeds
+  truthboard uninstall [--apply] [--specs] [repo]
+                                            take the wiring back out: marker blocks, MCP
+                                            registration, the commit-msg nudge, npm scripts
+                                            and the run state under .git/. Prints the plan
+                                            and writes nothing without --apply; your stories
+                                            in .truthboard/ are kept unless --specs
   truthboard spec new "Title" [--owner X]   write intent once; status is derived from git
   truthboard brief <spec-id>                print the context packet for an agent or human
   truthboard next [repo]                    the highest-priority planned story, as a brief —
@@ -171,6 +177,8 @@ func main() {
 		os.Exit(runAudit(os.Args[2:]))
 	case "init":
 		os.Exit(runInit(os.Args[2:]))
+	case "uninstall":
+		os.Exit(runUninstall(os.Args[2:]))
 	case "spec":
 		os.Exit(runSpec(os.Args[2:]))
 	case "brief":
