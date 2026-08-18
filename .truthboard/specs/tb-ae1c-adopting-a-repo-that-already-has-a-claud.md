@@ -34,8 +34,8 @@ Scope: README.md, docs/**.
 
 ## Acceptance
 
-- [ ] The README states that an existing AGENTS.md and CLAUDE.md are appended to and never rewritten, and names the marker block as what a re-run replaces
-- [ ] It says the same for a `commit-msg` hook that already exists — the nudge is inserted warn-only and never changes what that hook decides
-- [ ] It says the same for a `.mcp.json` that already carries other servers, and for `package.json` scripts the reader already has
-- [ ] The guarantee is reachable from the README's map, so a reader deciding whether to adopt finds it without reading the adoption section end to end
+- [x] The README states that an existing AGENTS.md and CLAUDE.md are appended to and never rewritten, and names the marker block as what a re-run replaces
+- [x] It says the same for a `commit-msg` hook that already exists — the nudge is inserted warn-only and never changes what that hook decides
+- [x] It says the same for a `.mcp.json` that already carries other servers, and for `package.json` scripts the reader already has
+- [x] The guarantee is reachable from the README's map, so a reader deciding whether to adopt finds it without reading the adoption section end to end
 - [ ] `go test ./...` passes
