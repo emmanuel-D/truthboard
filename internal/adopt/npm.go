@@ -83,3 +83,20 @@ func npmPkgSet(repo, key, value string) error {
 	}
 	return nil
 }
+
+// npmAvailable reports whether npm can be run at all — without it, package.json
+// is a file we decline to hand-mangle rather than one we can safely edit.
+func npmAvailable() bool {
+	_, err := exec.LookPath("npm")
+	return err == nil
+}
+
+func npmPkgDelete(repo, key string) error {
+	cmd := exec.Command("npm", "pkg", "delete", key)
+	cmd.Dir = repo
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}

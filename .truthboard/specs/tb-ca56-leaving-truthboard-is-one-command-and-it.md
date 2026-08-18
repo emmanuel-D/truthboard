@@ -47,13 +47,13 @@ Scope: internal/adopt/**, cmd/truthboard/**, README.md, docs/**.
 
 ## Acceptance
 
-- [ ] `truthboard uninstall [repo]` prints the plan and writes nothing without `--apply` — the same dry-run-by-default contract as `mirror`
-- [ ] Content that was in AGENTS.md and CLAUDE.md before adoption is byte-identical after uninstall; only the marker block leaves, and a file that was nothing but the block is removed
-- [ ] A `commit-msg` hook that was someone else's keeps its own script — only the nudge leaves, whether it is the current one or any version in `legacyNudges`; a hook truthboard wrote alone is deleted; a nudge we cannot prove we authored is reported and left untouched
-- [ ] `.mcp.json` and `.vscode/mcp.json` lose only the truthboard server, other servers survive, and a file left with no servers at all is removed
-- [ ] npm scripts still verbatim ours are removed; ones the user has since changed are kept and reported as kept
-- [ ] The detached board is stopped and `.git/truthboard/` is cleared, so nothing keeps running and no state survives
-- [ ] `.truthboard/` is never touched without an explicit `--specs`, and the output says where the stories still are
-- [ ] The output closes by naming how to remove the binary itself, since that is the half install.sh owns
-- [ ] The README documents the exit path where a reader deciding whether to adopt will meet it
-- [ ] `go test ./...` passes
+- [x] `truthboard uninstall [repo]` prints the plan and writes nothing without `--apply` — the same dry-run-by-default contract as `mirror`
+- [x] Content that was in AGENTS.md and CLAUDE.md before adoption is byte-identical after uninstall; only the marker block leaves, and a file that was nothing but the block is removed
+- [x] A `commit-msg` hook that was someone else's keeps its own script — only the nudge leaves, whether it is the current one or any version in `legacyNudges`; a hook truthboard wrote alone is deleted; a nudge we cannot prove we authored is reported and left untouched
+- [x] `.mcp.json` and `.vscode/mcp.json` lose only the truthboard server, other servers survive, and a file left with no servers at all is removed
+- [x] npm scripts still verbatim ours are removed; ones the user has since changed are kept and reported as kept
+- [x] The detached board is stopped and `.git/truthboard/` is cleared, so nothing keeps running and no state survives
+- [x] `.truthboard/` is never touched without an explicit `--specs`, and the output says where the stories still are
+- [x] The output closes by naming how to remove the binary itself, since that is the half install.sh owns
+- [x] The README documents the exit path where a reader deciding whether to adopt will meet it
+- [x] `go test ./...` passes
