@@ -38,4 +38,4 @@ Scope: README.md, docs/**.
 - [x] It says the same for a `commit-msg` hook that already exists — the nudge is inserted warn-only and never changes what that hook decides
 - [x] It says the same for a `.mcp.json` that already carries other servers, and for `package.json` scripts the reader already has
 - [x] The guarantee is reachable from the README's map, so a reader deciding whether to adopt finds it without reading the adoption section end to end
-- [ ] `go test ./...` passes
+- [x] `go test ./...` passes
